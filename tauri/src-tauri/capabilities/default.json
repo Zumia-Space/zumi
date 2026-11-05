@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Core permissions for the Zumi preview MAIN webview: the window.zumi shim uses event.listen (core:event) and invokes the app-defined rpc + guest_* commands. build.rs's AppManifest makes the ACL apply to app commands, so each one must be granted here. Scoped by WEBVIEW label only (gate 11 change 6): every guest is a child webview of window `main`, so a `windows: [main]` match would hand core:default (event emit/listen) to any guest on a local URL. A guest webview gets no capability from this file.",
+  "webviews": ["main"],
+  "permissions": [
+    "core:default",
+    "allow-rpc",
+    "allow-guest-open",
+    "allow-guest-navigate",
+    "allow-guest-bounds",
+    "allow-guest-close"
+  ]
+}

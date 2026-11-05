@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/rebrief.request.json",
+  "title": "data for rebrief.request",
+  "description": "Owner asks the reviewers to QC the task and re-plan if needed (mode strategy, the default) or only to say continue or change course (mode qc), or to update the task's Now/Next text (mode status; it closes when the text changes). Recorded as an open owner feedback of kind rebrief plus a ping; the task shows it as pending until a plan is posted after it.",
+  "x-roles": [
+    "owner"
+  ],
+  "x-target": "taskId",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "mode": {
+      "enum": [
+        "strategy",
+        "qc",
+        "status"
+      ]
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 4000
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "productName": "Zumi",
+  "mainBinaryName": "Zumi",
+  "identifier": "space.zumia.zumi",
+  "bundle": {
+    "windows": {
+      "nsis": {
+        "languages": ["English", "Vietnamese", "SimpChinese"],
+        "customLanguageFiles": { "English": "nsis/English.nsh", "Vietnamese": "nsis/Vietnamese.nsh", "SimpChinese": "nsis/SimpChinese.nsh" }
+      }
+    }
+  }
+}

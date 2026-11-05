@@ -1,0 +1,375 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "common.json",
+  "title": "Shared definitions for Laneboard v1",
+  "$defs": {
+    "taskId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$",
+      "description": "Stable task id, e.g. WEB-3."
+    },
+    "feedbackTarget": {
+      "anyOf": [
+        { "$ref": "#/$defs/taskId" },
+        { "const": "*" }
+      ],
+      "description": "Target of feedback.add: a task id, or * = the whole board (the owner's sweep request)."
+    },
+    "stepId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$",
+      "description": "Step id, unique inside its task, e.g. s2."
+    },
+    "stepKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,31}/[A-Za-z0-9][A-Za-z0-9_-]{0,31}$",
+      "description": "Global step address: <taskId>/<stepId>."
+    },
+    "recordId": {
+      "type": "string",
+      "pattern": "^[a-z]+-[0-9]+$",
+      "description": "Server-assigned id for asks, inbox items, feedback and attachments, e.g. ask-42."
+    },
+    "shortText": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 8000
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?Z$",
+      "description": "Server clock, ISO-8601 UTC. Clients never supply timestamps."
+    },
+    "visibility": {
+      "enum": [
+        "public",
+        "internal"
+      ],
+      "description": "Default internal. Anonymous readers only ever see public records."
+    },
+    "health": {
+      "enum": [
+        "green",
+        "yellow",
+        "red",
+        "grey"
+      ],
+      "description": "grey = shown as parked (the predecessor's grey dot); liveness itself is the task status."
+    },
+    "taskStatus": {
+      "enum": [
+        "open",
+        "doing",
+        "waiting",
+        "blocked",
+        "paused",
+        "closed"
+      ],
+      "description": "open = to do, doing = in progress, waiting = waiting on the owner (needs an open ask, an ask proposal or an owner-zone waiting step: src/rules.mjs), blocked, paused = parked, closed = done. paused and closed drop out of the owner block and the stalled list."
+    },
+    "stepState": {
+      "enum": [
+        "todo",
+        "active",
+        "waiting",
+        "blocked",
+        "done"
+      ]
+    },
+    "zone": {
+      "enum": [
+        "plan",
+        "build",
+        "test",
+        "owner",
+        "ship"
+      ],
+      "description": "Which kind of work the step is. 'owner' means the step waits on the human owner."
+    },
+    "role": {
+      "enum": [
+        "owner",
+        "coordinator",
+        "reporter"
+      ]
+    },
+    "effort": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
+    "model": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,47}$",
+      "description": "Declared model or worker id. Metadata only, never verified provenance."
+    },
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "label"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,16}$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "desc": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      }
+    },
+    "options": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/option"
+      }
+    },
+    "worker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "effort"
+      ],
+      "properties": {
+        "model": {
+          "$ref": "#/$defs/model"
+        },
+        "effort": {
+          "$ref": "#/$defs/effort"
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 300
+        }
+      }
+    },
+    "architecture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "nodes"],
+      "description": "The product's structure (features/modules, user flow, integrations), not the plan steps. Cross-references (edge ends, node groups), the text rules and the byte cap are checked by src/architecture.mjs.",
+      "properties": {
+        "format": { "type": "string", "enum": ["graph"] },
+        "groups": { "type": "array", "maxItems": 8, "items": { "type": "object", "additionalProperties": false, "required": ["id", "label"], "properties": { "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$" }, "label": { "type": "string", "minLength": 1, "maxLength": 60 } } } },
+        "nodes": { "type": "array", "minItems": 1, "maxItems": 40, "items": { "type": "object", "additionalProperties": false, "required": ["id", "label"], "properties": { "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$" }, "label": { "type": "string", "minLength": 1, "maxLength": 60 }, "sub": { "type": "string", "maxLength": 100 }, "group": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$" } } } },
+        "edges": { "type": "array", "maxItems": 80, "items": { "type": "object", "additionalProperties": false, "required": ["from", "to"], "properties": { "from": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$" }, "to": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$" }, "label": { "type": "string", "maxLength": 40 }, "dashed": { "type": "boolean" } } } }
+      }
+    },
+    "loop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/stepId"
+        },
+        "to": {
+          "$ref": "#/$defs/stepId"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 120
+        }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "token_id",
+        "name",
+        "role"
+      ],
+      "description": "Who did it. Filled by the server from the credential, never from request data.",
+      "properties": {
+        "token_id": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "role": {
+          "$ref": "#/$defs/role"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "User-defined role label, e.g. 'design lane'."
+        },
+        "lane": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Declared by token registration."
+        },
+        "origin": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Declared by the request (e.g. a text-only model relayed through an executor). Unverified."
+        }
+      }
+    },
+    "attribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "created_by",
+        "created_at",
+        "updated_by",
+        "updated_at"
+      ],
+      "description": "Kept apart from editable content; only the server writes it.",
+      "properties": {
+        "created_by": {
+          "$ref": "#/$defs/actor"
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updated_by": {
+          "$ref": "#/$defs/actor"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "fileName": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_. -]{0,119}$"
+    },
+    "mime": {
+      "enum": [
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "image/gif",
+        "application/pdf",
+        "text/plain",
+        "text/markdown",
+        "audio/mpeg",
+        "video/mp4"
+      ]
+    },
+    "tokenName": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,47}$",
+      "description": "Session name the token is issued to, e.g. lane-alpha."
+    },
+    "stepInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "zone",
+        "state"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stepId"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "sub": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "zone": {
+          "$ref": "#/$defs/zone"
+        },
+        "state": {
+          "$ref": "#/$defs/stepState"
+        },
+        "detail": {
+          "type": "string",
+          "maxLength": 16000
+        },
+        "recommend": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "options": {
+          "$ref": "#/$defs/options"
+        },
+        "lane": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "The lane that owns this record. Absent means the task's lane. s21: a step or ask of another lane on a shared task."
+        }
+      }
+    },
+    "tokenId": {
+      "type": "string",
+      "pattern": "^tok-[0-9]+$",
+      "description": "Server-assigned token id (not the secret)."
+    },
+    "board": {
+      "const": "board",
+      "description": "The board itself, for board-wide settings such as notifications."
+    },
+    "laneName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "A lane as the board spells it (the lane of a task or of a token); matched case-insensitively."
+    },
+    "signalType": {
+      "enum": [
+        "feedback",
+        "answer",
+        "ask"
+      ],
+      "description": "Owner signals: owner feedback, owner answers, new asks for the owner."
+    },
+    "verdict": {
+      "enum": [
+        "on-track",
+        "adjust",
+        "pivot",
+        "drifting",
+        "wrong-goal",
+        "unavailable"
+      ],
+      "description": "A reviewer re-plan verdict: on-track | adjust | pivot (re-brief vocabulary) or drifting | wrong-goal (older one); unavailable = the reviewer could not be reached."
+    },
+    "goalText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    }
+  }
+}

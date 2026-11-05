@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "notify.json",
+  "title": "Board notification settings (owner-only). Returned as `notify` in the owner's state view.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "updated_at"
+  ],
+  "properties": {
+    "coordinator_feedback": {
+      "type": "boolean"
+    },
+    "delivery": {
+      "enum": [
+        "watch",
+        "webhook"
+      ]
+    },
+    "webhook_url": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "secret_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Fingerprint of the signing secret; the secret itself lives in <data>/webhook.secret."
+    },
+    "updated_at": {
+      "$ref": "common.json#/$defs/timestamp"
+    }
+  }
+}

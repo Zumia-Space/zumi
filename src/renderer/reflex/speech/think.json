@@ -1,0 +1,275 @@
+{
+ "intent": "think",
+ "labelVi": "Suy nghĩ — tay chống cằm",
+ "variants": [
+  {
+   "id": "think-hand-on-chin-s1",
+   "provenance": {
+    "source": "T-31 approach C round 3 (owner verdict 01-10: right side wins)",
+    "model": "gemini-3.8-flash",
+    "prompt": "think, hand on chin",
+    "sample": 1,
+    "latencyMs": 4181,
+    "file": "unimate/compare/C-llm-dsl/llm/think-hand-on-chin-s1.json"
+   },
+   "command": {
+    "id": "think-chin",
+    "label": "Thinking with hand on chin",
+    "priority": 6,
+    "interrupt": true,
+    "mirror": "none",
+    "jitter": 0.05,
+    "reach": [
+     {
+      "hand": "right",
+      "target": "chin",
+      "inMs": 400,
+      "holdMs": 1800,
+      "outMs": 450
+     },
+     {
+      "hand": "left",
+      "target": "hip",
+      "delayMs": 100,
+      "inMs": 400,
+      "holdMs": 1700,
+      "outMs": 400
+     }
+    ],
+    "hands": [
+     {
+      "hand": "right",
+      "shape": "fist",
+      "inMs": 300,
+      "holdMs": 1900,
+      "outMs": 400
+     },
+     {
+      "hand": "left",
+      "shape": "relaxed",
+      "inMs": 350,
+      "holdMs": 1800,
+      "outMs": 350
+     }
+    ],
+    "bones": [
+     {
+      "bone": "head",
+      "rot": [
+       10,
+       -12,
+       8
+      ],
+      "delayMs": 150,
+      "inMs": 400,
+      "holdMs": 1750,
+      "outMs": 450
+     },
+     {
+      "bone": "neck",
+      "rot": [
+       4,
+       -8,
+       5
+      ],
+      "delayMs": 100,
+      "inMs": 400,
+      "holdMs": 1800,
+      "outMs": 450
+     },
+     {
+      "bone": "chest",
+      "rot": [
+       3,
+       -5,
+       2
+      ],
+      "delayMs": 50,
+      "inMs": 450,
+      "holdMs": 1800,
+      "outMs": 450
+     },
+     {
+      "bone": "rightShoulder",
+      "rot": [
+       6,
+       5,
+       -4
+      ],
+      "delayMs": 100,
+      "inMs": 350,
+      "holdMs": 1850,
+      "outMs": 400
+     }
+    ],
+    "expressions": [
+     {
+      "name": "relaxed",
+      "weight": 0.7,
+      "inMs": 300,
+      "holdMs": 1900,
+      "outMs": 400
+     },
+     {
+      "name": "ou",
+      "weight": 0.2,
+      "delayMs": 300,
+      "inMs": 300,
+      "holdMs": 1200,
+      "outMs": 400
+     }
+    ],
+    "lookAt": [
+     {
+      "target": "away-right",
+      "weight": 0.8,
+      "delayMs": 200,
+      "inMs": 400,
+      "holdMs": 1600,
+      "outMs": 400
+     }
+    ]
+   }
+  },
+  {
+   "id": "think-hand-on-chin-s2",
+   "provenance": {
+    "source": "T-31 approach C round 3 (owner verdict 01-10: right side wins)",
+    "model": "gemini-3.8-flash",
+    "prompt": "think, hand on chin",
+    "sample": 2,
+    "latencyMs": 4517,
+    "file": "unimate/compare/C-llm-dsl/llm/think-hand-on-chin-s2.json"
+   },
+   "command": {
+    "id": "think-chin",
+    "label": "Think with hand on chin",
+    "priority": 6,
+    "interrupt": true,
+    "mirror": "none",
+    "jitter": 0.05,
+    "reach": [
+     {
+      "hand": "right",
+      "target": "chin",
+      "inMs": 400,
+      "holdMs": 1800,
+      "outMs": 450
+     },
+     {
+      "hand": "left",
+      "target": "clasp",
+      "weight": 0.7,
+      "delayMs": 100,
+      "inMs": 400,
+      "holdMs": 1700,
+      "outMs": 450
+     }
+    ],
+    "hands": [
+     {
+      "hand": "right",
+      "shape": "relaxed",
+      "inMs": 300,
+      "holdMs": 1900,
+      "outMs": 400
+     },
+     {
+      "hand": "left",
+      "shape": "fist",
+      "weight": 0.6,
+      "delayMs": 100,
+      "inMs": 350,
+      "holdMs": 1750,
+      "outMs": 400
+     }
+    ],
+    "bones": [
+     {
+      "bone": "head",
+      "rot": [
+       10,
+       -12,
+       8
+      ],
+      "delayMs": 150,
+      "inMs": 400,
+      "holdMs": 1750,
+      "outMs": 450
+     },
+     {
+      "bone": "neck",
+      "rot": [
+       4,
+       -8,
+       5
+      ],
+      "delayMs": 100,
+      "inMs": 400,
+      "holdMs": 1800,
+      "outMs": 450
+     },
+     {
+      "bone": "chest",
+      "rot": [
+       3,
+       -5,
+       2
+      ],
+      "delayMs": 50,
+      "inMs": 450,
+      "holdMs": 1800,
+      "outMs": 450
+     },
+     {
+      "bone": "rightShoulder",
+      "rot": [
+       6,
+       5,
+       -4
+      ],
+      "delayMs": 100,
+      "inMs": 350,
+      "holdMs": 1850,
+      "outMs": 400
+     }
+    ],
+    "lookAt": [
+     {
+      "target": "away-right",
+      "weight": 0.85,
+      "delayMs": 200,
+      "inMs": 350,
+      "holdMs": 1400,
+      "outMs": 500
+     },
+     {
+      "target": "camera",
+      "weight": 0.9,
+      "delayMs": 2100,
+      "inMs": 300,
+      "holdMs": 400,
+      "outMs": 300
+     }
+    ],
+    "expressions": [
+     {
+      "name": "relaxed",
+      "weight": 0.5,
+      "inMs": 300,
+      "holdMs": 1900,
+      "outMs": 400
+     },
+     {
+      "name": "ou",
+      "weight": 0.25,
+      "delayMs": 400,
+      "inMs": 250,
+      "holdMs": 1100,
+      "outMs": 350
+     }
+    ]
+   }
+  }
+ ]
+}

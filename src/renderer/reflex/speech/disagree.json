@@ -1,0 +1,191 @@
+{
+ "intent": "disagree",
+ "labelVi": "Không đồng ý — lắc đầu",
+ "variants": [
+  {
+   "id": "disagree-p5-3",
+   "energies": [
+    "mid",
+    "high"
+   ],
+   "provenance": {
+    "source": "T-31 P5 library: composed with the desktop gesture prompt + gate (services/desktopTalk) called directly on staging; coordinator eye-QC 01-10",
+    "model": "gemini-3.8-flash",
+    "request": {
+     "intent": "disagree",
+     "brief": "firm head shake, chest leans back slightly, serious face",
+     "energy": "high",
+     "deixis": "none",
+     "targetMs": 2600
+    },
+    "repaired": false,
+    "latencyMs": 5335,
+    "file": "out-20261001/disagree-3.json"
+   },
+   "command": {
+    "id": "firm-disagree",
+    "label": "Firm head shake",
+    "priority": 6,
+    "interrupt": true,
+    "mirror": "none",
+    "jitter": 0.05,
+    "bones": [
+     {
+      "bone": "spine",
+      "rot": [
+       -8,
+       0,
+       0
+      ],
+      "delayMs": 100,
+      "inMs": 250,
+      "holdMs": 1700,
+      "outMs": 450
+     },
+     {
+      "bone": "chest",
+      "rot": [
+       -6,
+       0,
+       0
+      ],
+      "delayMs": 150,
+      "inMs": 250,
+      "holdMs": 1650,
+      "outMs": 450
+     },
+     {
+      "bone": "neck",
+      "rot": [
+       -2,
+       0,
+       0
+      ],
+      "delayMs": 150,
+      "inMs": 200,
+      "holdMs": 1600,
+      "outMs": 400,
+      "osc": {
+       "hz": 2.5,
+       "amp": [
+        0,
+        12,
+        0
+       ]
+      }
+     },
+     {
+      "bone": "head",
+      "rot": [
+       -4,
+       0,
+       0
+      ],
+      "delayMs": 180,
+      "inMs": 200,
+      "holdMs": 1550,
+      "outMs": 400,
+      "osc": {
+       "hz": 2.5,
+       "amp": [
+        0,
+        24,
+        0
+       ]
+      }
+     },
+     {
+      "bone": "leftShoulder",
+      "rot": [
+       2,
+       0,
+       -3
+      ],
+      "delayMs": 150,
+      "inMs": 200,
+      "holdMs": 1600,
+      "outMs": 400
+     },
+     {
+      "bone": "rightShoulder",
+      "rot": [
+       2,
+       0,
+       3
+      ],
+      "delayMs": 150,
+      "inMs": 200,
+      "holdMs": 1600,
+      "outMs": 400
+     }
+    ],
+    "reach": [
+     {
+      "hand": "right",
+      "target": "hip",
+      "weight": 0.8,
+      "delayMs": 200,
+      "inMs": 300,
+      "holdMs": 1500,
+      "outMs": 450
+     },
+     {
+      "hand": "left",
+      "target": "rest",
+      "weight": 0.5,
+      "delayMs": 200,
+      "inMs": 300,
+      "holdMs": 1500,
+      "outMs": 450
+     }
+    ],
+    "hands": [
+     {
+      "hand": "right",
+      "shape": "fist",
+      "delayMs": 200,
+      "inMs": 250,
+      "holdMs": 1550,
+      "outMs": 400
+     },
+     {
+      "hand": "left",
+      "shape": "relaxed",
+      "delayMs": 200,
+      "inMs": 250,
+      "holdMs": 1550,
+      "outMs": 400
+     }
+    ],
+    "expressions": [
+     {
+      "name": "angry",
+      "weight": 0.65,
+      "delayMs": 100,
+      "inMs": 200,
+      "holdMs": 1800,
+      "outMs": 400
+     },
+     {
+      "name": "sad",
+      "weight": 0.25,
+      "delayMs": 150,
+      "inMs": 250,
+      "holdMs": 1700,
+      "outMs": 400
+     }
+    ],
+    "lookAt": [
+     {
+      "target": "camera",
+      "weight": 1,
+      "delayMs": 0,
+      "inMs": 150,
+      "holdMs": 2100,
+      "outMs": 350
+     }
+    ]
+   }
+  }
+ ]
+}

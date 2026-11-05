@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/step.create.json",
+  "title": "data for step.create",
+  "description": "Append a step to an existing task. target_id is <taskId>/<stepId>.",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-target": "stepKey",
+  "x-revision": "create",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "label",
+    "zone",
+    "state"
+  ],
+  "properties": {
+    "label": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1
+    },
+    "sub": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "zone": {
+      "$ref": "../common.json#/$defs/zone"
+    },
+    "state": {
+      "$ref": "../common.json#/$defs/stepState"
+    },
+    "detail": {
+      "type": "string",
+      "maxLength": 16000
+    },
+    "recommend": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "options": {
+      "$ref": "../common.json#/$defs/options"
+    },
+    "lane": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The lane that owns this record. Absent means the task's lane. s21: a step or ask of another lane on a shared task."
+    }
+  }
+}

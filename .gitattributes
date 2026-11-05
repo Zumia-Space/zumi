@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.vrm binary
+*.vrma binary
+*.png binary
+*.ico binary

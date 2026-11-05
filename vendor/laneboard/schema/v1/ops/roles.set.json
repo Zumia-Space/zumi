@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/roles.set.json",
+  "title": "data for roles.set",
+  "description": "Owner picks the model for one role slot (plan, review or scout) of a task. The code slot is chosen with routing.set. Wins over the default.",
+  "x-roles": [
+    "owner"
+  ],
+  "x-target": "taskId",
+  "x-revision": "none",
+  "x-device": false,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "role",
+    "model",
+    "effort"
+  ],
+  "properties": {
+    "role": {
+      "enum": [
+        "plan",
+        "review",
+        "scout"
+      ]
+    },
+    "model": {
+      "$ref": "../common.json#/$defs/model"
+    },
+    "effort": {
+      "$ref": "../common.json#/$defs/effort"
+    }
+  }
+}

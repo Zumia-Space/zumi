@@ -1,0 +1,2429 @@
+{
+  "_source": {
+    "url": "https://openrouter.ai/api/v1/models",
+    "readAt": "2026-10-10T09:41:04Z",
+    "rules": "pricing.prompt / pricing.completion per token x 1e6. Time-of-day overrides (peak vs base): the highest rate, since the ledger keeps no time of day and a higher rate never under-counts. Prompt-size overrides (min_prompt_tokens >= 32k): the base rate, a Zumi request stays far below. Output = max(completion, internal_reasoning). Price -1: unverified. Written by scripts/refresh-usage-prices.mjs."
+  },
+  "_webSearch": {
+    "usdPerRequest": 0.007,
+    "source": "OpenRouter docs features/web-search, read 2026-10-10: Exa engine $0.007 per request including up to 10 results (+$0.001 per extra result; Zumi asks for 5). Results also bill as prompt tokens, counted in the row's token cost."
+  },
+  "stepfun/step-5-preview": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 2.7,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-nano-banana-2.1": {
+    "inputPerMtok": 1.5,
+    "outputPerMtok": 7.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mistral-large-4-0": {
+    "inputPerMtok": 0.68,
+    "outputPerMtok": 2.09,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "inclusionai/ling-3.1-flash": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "apodex/apodex-1.1-mini:free": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "unbiased/pareto-26.10-preview": {
+    "inputPerMtok": 0.8,
+    "outputPerMtok": 3.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-6.1-sol-pro": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-6.1-sol-pro:batch": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-6.1-sol": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-6.1-sol:batch": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "perceptron/perceptron-mk1.5": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 1.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "fireworks/ember-1": {
+    "inputPerMtok": 3,
+    "outputPerMtok": 15,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-5.3-prime": {
+    "inputPerMtok": 2.8,
+    "outputPerMtok": 8.8,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3.8-max-prime": {
+    "inputPerMtok": 4,
+    "outputPerMtok": 12,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "aion-labs/aion-3.5-mini": {
+    "inputPerMtok": 0.7,
+    "outputPerMtok": 1.4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "aion-labs/aion-3.5": {
+    "inputPerMtok": 3,
+    "outputPerMtok": 6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "upstage/solar-mini4": {
+    "inputPerMtok": 0.05,
+    "outputPerMtok": 0.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "cohere/command-a-plus": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 1.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-6-luna-pro": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-6-luna-pro:batch": {
+    "inputPerMtok": 0.05,
+    "outputPerMtok": 0.25,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-6-luna": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-6-luna:batch": {
+    "inputPerMtok": 0.05,
+    "outputPerMtok": 0.25,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-6-sol-pro": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-6-sol-pro:batch": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-6-sol": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-6-sol:batch": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "xiaomi/mimo-v2.6-pro-ultraspeed": {
+    "inputPerMtok": 4.35,
+    "outputPerMtok": 8.7,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "xiaomi/mimo-v2.6-flash": {
+    "inputPerMtok": 0.14,
+    "outputPerMtok": 0.28,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "xiaomi/mimo-v2.6-pro": {
+    "inputPerMtok": 0.435,
+    "outputPerMtok": 0.87,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "x-ai/grok-4.7": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 200000 prompt tokens not used"
+  },
+  "qwen/qwen3.8-omni-flash": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 0.47,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "prism-ml/ternary-bonsai-2-27b": {
+    "inputPerMtok": 0.075,
+    "outputPerMtok": 0.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-5.3-flashx": {
+    "inputPerMtok": 0.37,
+    "outputPerMtok": 1.25,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "unbiased/pareto": {
+    "inputPerMtok": 2.5,
+    "outputPerMtok": 7.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "inference-net/schematron-v2-turbo": {
+    "inputPerMtok": 0.03,
+    "outputPerMtok": 0.15,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "inference-net/schematron-v2-small": {
+    "inputPerMtok": 0.05,
+    "outputPerMtok": 0.23,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "sakana/fugu-ultra-v2": {
+    "inputPerMtok": 5,
+    "outputPerMtok": 30,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "sakana/fugu-max": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "inclusionai/ling-3.0-flash-vl": {
+    "inputPerMtok": 0.021,
+    "outputPerMtok": 0.0616,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "deepseek/deepseek-v4.1-flash": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 1.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "deepseek/deepseek-v4.1-flash:batch": {
+    "inputPerMtok": 0.112,
+    "outputPerMtok": 0.336,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "inception/mercury-2.5": {
+    "inputPerMtok": 0.04,
+    "outputPerMtok": 0.15,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "nex-agi/nex-n2.5-mini": {
+    "inputPerMtok": 0.025,
+    "outputPerMtok": 0.1,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "nex-agi/nex-n2.5-pro": {
+    "inputPerMtok": 0.075,
+    "outputPerMtok": 0.25,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-6-astra": {
+    "inputPerMtok": 10,
+    "outputPerMtok": 50,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-6-astra:batch": {
+    "inputPerMtok": 5,
+    "outputPerMtok": 25,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-6-astra-pro": {
+    "inputPerMtok": 10,
+    "outputPerMtok": 50,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-6-astra-pro:batch": {
+    "inputPerMtok": 5,
+    "outputPerMtok": 25,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "inclusionai/ling-3.0-flash-sante": {
+    "inputPerMtok": 0.042,
+    "outputPerMtok": 0.1232,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3.8-max-0902": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "meta/muse-spark-1.3-contributor": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "meta/muse-spark-1.3": {
+    "inputPerMtok": 1.25,
+    "outputPerMtok": 4.25,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3.8-flash": {
+    "inputPerMtok": 0.75,
+    "outputPerMtok": 3.75,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3.8-flash:batch": {
+    "inputPerMtok": 0.375,
+    "outputPerMtok": 1.875,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "ibm-granite/granite-4.2-8b": {
+    "inputPerMtok": 0.06,
+    "outputPerMtok": 0.25,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "tencent/hy4-preview": {
+    "inputPerMtok": 0.834,
+    "outputPerMtok": 2.501,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: pricing.overrides by UTC time, highest rate kept ($0.834 / $2.501 per Mtok; base $0.834 / $2.501)"
+  },
+  "inclusionai/ling-3.0-flash-fin": {
+    "inputPerMtok": 0.042,
+    "outputPerMtok": 0.1232,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3.8-flash": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 0.47,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-5.3-flash": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 0.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-5.3-flash:batch": {
+    "inputPerMtok": 0.06,
+    "outputPerMtok": 0.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "meta/muse-spark-1.2-contributor": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "deepseek/deepseek-v4-flash-vision-exp": {
+    "inputPerMtok": 0.2156,
+    "outputPerMtok": 0.6468,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "tencent/hy-mt2-1.8b": {
+    "inputPerMtok": 0.044,
+    "outputPerMtok": 0.177,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "tencent/hy-mt2-30b-a3b": {
+    "inputPerMtok": 0.074,
+    "outputPerMtok": 0.295,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "tencent/hy-mt2-7b": {
+    "inputPerMtok": 0.074,
+    "outputPerMtok": 0.295,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-5.3": {
+    "inputPerMtok": 0.039,
+    "outputPerMtok": 4.8,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-5.3:batch": {
+    "inputPerMtok": 0.45,
+    "outputPerMtok": 2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3.8-27b": {
+    "inputPerMtok": 0.425,
+    "outputPerMtok": 2.55,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "dots-studio/dots-3-note-preview:free": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3.7-flash": {
+    "inputPerMtok": 0.75,
+    "outputPerMtok": 3.75,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3.7-flash:batch": {
+    "inputPerMtok": 0.375,
+    "outputPerMtok": 1.875,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "bytedance-seed/seed-2-1-turbo": {
+    "inputPerMtok": 0.5,
+    "outputPerMtok": 2.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3.8-2.4t-a95b": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "bytedance-seed/seed-2.0-code": {
+    "inputPerMtok": 0.5,
+    "outputPerMtok": 3,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 128000 prompt tokens not used"
+  },
+  "deepseek/deepseek-v4-pro-0813": {
+    "inputPerMtok": 1.32,
+    "outputPerMtok": 3.96,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: pricing.overrides by UTC time, highest rate kept ($1.32 / $3.96 per Mtok; base $0.66 / $1.98)"
+  },
+  "x-ai/grok-4.6": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 200000 prompt tokens not used"
+  },
+  "liquid/lfm-2.5-2.6b:free": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "nvidia/nemotron-3.5-lightning": {
+    "inputPerMtok": 0.07,
+    "outputPerMtok": 0.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "nvidia/nemotron-3.5-lightning:free": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "sakana/sakana-namazu": {
+    "inputPerMtok": 0.95,
+    "outputPerMtok": 4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "upstage/solar-pro4": {
+    "inputPerMtok": 0.09,
+    "outputPerMtok": 0.36,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "meta/muse-glimmer-30b": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 1.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "meta/muse-spark-1.2": {
+    "inputPerMtok": 1.25,
+    "outputPerMtok": 4.25,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "deepseek/deepseek-v4-flash-0731": {
+    "inputPerMtok": 0.0082,
+    "outputPerMtok": 1.28,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "thinkingmachines/inkling-small": {
+    "inputPerMtok": 0.45,
+    "outputPerMtok": 1.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "thinkingmachines/inkling-small:free": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3.7-flash": {
+    "inputPerMtok": 0.03,
+    "outputPerMtok": 0.13,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 32000 prompt tokens not used"
+  },
+  "inclusionai/ling-3.0-flash": {
+    "inputPerMtok": 0.021,
+    "outputPerMtok": 0.063,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "poolside/laguna-s-2.1": {
+    "inputPerMtok": 0.09,
+    "outputPerMtok": 0.18,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "poolside/laguna-s-2.1:free": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3.6-flash": {
+    "inputPerMtok": 0.75,
+    "outputPerMtok": 3.75,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3.6-flash:batch": {
+    "inputPerMtok": 0.375,
+    "outputPerMtok": 1.875,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3.5-flash-lite": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 2.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3.5-flash-lite:batch": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 1.25,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "meituan/longcat-2.0": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 1.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "thinkingmachines/inkling": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 4.05,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "thinkingmachines/inkling:free": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "moonshotai/kimi-k3": {
+    "inputPerMtok": 0.64,
+    "outputPerMtok": 13.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "moonshotai/kimi-k3:batch": {
+    "inputPerMtok": 2.28,
+    "outputPerMtok": 11.4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "meta/muse-spark-1.1": {
+    "inputPerMtok": 1.25,
+    "outputPerMtok": 4.25,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.6-luna-pro": {
+    "inputPerMtok": 0.2,
+    "outputPerMtok": 1.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.6-luna-pro:batch": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.6-luna": {
+    "inputPerMtok": 0.2,
+    "outputPerMtok": 1.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.6-luna:batch": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.6-terra-pro": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 12,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.6-terra-pro:batch": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.6-terra": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 12,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.6-terra:batch": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.6-sol-pro": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.6-sol-pro:batch": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.6-sol": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.6-sol:batch": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "x-ai/grok-4.5": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 200000 prompt tokens not used"
+  },
+  "aion-labs/aion-3.0-mini": {
+    "inputPerMtok": 0.7,
+    "outputPerMtok": 1.4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "aion-labs/aion-3.0": {
+    "inputPerMtok": 3,
+    "outputPerMtok": 6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "tencent/hy3": {
+    "inputPerMtok": 0.132,
+    "outputPerMtok": 0.528,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: pricing.overrides by UTC time, highest rate kept ($0.132 / $0.528 per Mtok; base $0.132 / $0.528)"
+  },
+  "poolside/laguna-xs-2.1": {
+    "inputPerMtok": 0.06,
+    "outputPerMtok": 0.12,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "poolside/laguna-xs-2.1:free": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3.1-flash-lite-image": {
+    "inputPerMtok": 0.25,
+    "outputPerMtok": 1.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "sakana/fugu-ultra": {
+    "inputPerMtok": 5,
+    "outputPerMtok": 30,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "google/gemini-3.1-flash-image": {
+    "inputPerMtok": 0.5,
+    "outputPerMtok": 3,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3-pro-image": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 12,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "cohere/north-mini-code:free": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-5.2": {
+    "inputPerMtok": 0.06,
+    "outputPerMtok": 7,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "moonshotai/kimi-k2.7-code": {
+    "inputPerMtok": 0.6712,
+    "outputPerMtok": 3.35,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "nvidia/nemotron-3.5-content-safety": {
+    "inputPerMtok": 0.2,
+    "outputPerMtok": 0.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "nvidia/nemotron-3.5-content-safety:free": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "nvidia/nemotron-3-ultra-550b-a55b": {
+    "inputPerMtok": 0.5,
+    "outputPerMtok": 2.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "nvidia/nemotron-3-ultra-550b-a55b:free": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3.7-plus": {
+    "inputPerMtok": 0.32,
+    "outputPerMtok": 1.28,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 256000 prompt tokens not used"
+  },
+  "minimax/minimax-m3": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 1.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "stepfun/step-3.7-flash": {
+    "inputPerMtok": 0.2,
+    "outputPerMtok": 1.15,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3.7-max": {
+    "inputPerMtok": 1.475,
+    "outputPerMtok": 4.425,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "x-ai/grok-build-0.1": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 200000 prompt tokens not used"
+  },
+  "google/gemini-3.5-flash": {
+    "inputPerMtok": 1.5,
+    "outputPerMtok": 9,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3.5-flash:batch": {
+    "inputPerMtok": 0.75,
+    "outputPerMtok": 4.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "perceptron/perceptron-mk1": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 1.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3.1-flash-lite": {
+    "inputPerMtok": 0.25,
+    "outputPerMtok": 1.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3.1-flash-lite:batch": {
+    "inputPerMtok": 0.125,
+    "outputPerMtok": 0.75,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-chat-latest": {
+    "inputPerMtok": 5,
+    "outputPerMtok": 30,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "x-ai/grok-4.3": {
+    "inputPerMtok": 1.25,
+    "outputPerMtok": 2.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 200000 prompt tokens not used"
+  },
+  "x-ai/grok-4.3:batch": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 200000 prompt tokens not used"
+  },
+  "mistralai/mistral-medium-3-5": {
+    "inputPerMtok": 1.5,
+    "outputPerMtok": 7.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mistral-medium-3-5:batch": {
+    "inputPerMtok": 0.75,
+    "outputPerMtok": 3.75,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3.5-plus-20260420": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 1.8,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 256000 prompt tokens not used"
+  },
+  "qwen/qwen3.6-flash": {
+    "inputPerMtok": 0.1875,
+    "outputPerMtok": 1.125,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 256000 prompt tokens not used"
+  },
+  "qwen/qwen3.6-35b-a3b": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 1,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3.6-27b": {
+    "inputPerMtok": 0.32,
+    "outputPerMtok": 3.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.5-pro": {
+    "inputPerMtok": 30,
+    "outputPerMtok": 180,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.5-pro:batch": {
+    "inputPerMtok": 15,
+    "outputPerMtok": 90,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.5": {
+    "inputPerMtok": 5,
+    "outputPerMtok": 30,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.5:batch": {
+    "inputPerMtok": 2.5,
+    "outputPerMtok": 15,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "deepseek/deepseek-v4-pro": {
+    "inputPerMtok": 0.9483,
+    "outputPerMtok": 1.8966,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "deepseek/deepseek-v4-flash": {
+    "inputPerMtok": 0.0148,
+    "outputPerMtok": 1.28,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "tencent/hy3-preview": {
+    "inputPerMtok": 0.18,
+    "outputPerMtok": 0.6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "xiaomi/mimo-v2.5-pro": {
+    "inputPerMtok": 0.435,
+    "outputPerMtok": 0.87,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "xiaomi/mimo-v2.5": {
+    "inputPerMtok": 0.14,
+    "outputPerMtok": 0.28,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.4-image-2": {
+    "inputPerMtok": 8,
+    "outputPerMtok": 15,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "moonshotai/kimi-k2.6": {
+    "inputPerMtok": 0.465,
+    "outputPerMtok": 2.45,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-5.1": {
+    "inputPerMtok": 0.966,
+    "outputPerMtok": 3.036,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemma-4-26b-a4b-it": {
+    "inputPerMtok": 0.0675,
+    "outputPerMtok": 0.225,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemma-4-26b-a4b-it:free": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemma-4-31b-it": {
+    "inputPerMtok": 0.09,
+    "outputPerMtok": 0.34,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemma-4-31b-it:free": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3.6-plus": {
+    "inputPerMtok": 0.325,
+    "outputPerMtok": 1.95,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 256000 prompt tokens not used"
+  },
+  "z-ai/glm-5v-turbo": {
+    "inputPerMtok": 1.2,
+    "outputPerMtok": 4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "arcee-ai/trinity-large-thinking": {
+    "inputPerMtok": 0.25,
+    "outputPerMtok": 0.8,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "x-ai/grok-4.20-multi-agent": {
+    "inputPerMtok": 1.25,
+    "outputPerMtok": 2.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 200000 prompt tokens not used"
+  },
+  "x-ai/grok-4.20": {
+    "inputPerMtok": 1.25,
+    "outputPerMtok": 2.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 200000 prompt tokens not used"
+  },
+  "google/lyria-3-pro-preview": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/lyria-3-clip-preview": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "rekaai/reka-edge": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.1,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "minimax/minimax-m2.7": {
+    "inputPerMtok": 0.21,
+    "outputPerMtok": 0.84,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.4-nano": {
+    "inputPerMtok": 0.2,
+    "outputPerMtok": 1.25,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.4-nano:batch": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.625,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.4-mini": {
+    "inputPerMtok": 0.75,
+    "outputPerMtok": 4.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.4-mini:batch": {
+    "inputPerMtok": 0.375,
+    "outputPerMtok": 2.25,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mistral-small-2603": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 0.6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mistral-small-2603:batch": {
+    "inputPerMtok": 0.075,
+    "outputPerMtok": 0.3,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-5-turbo": {
+    "inputPerMtok": 1.2,
+    "outputPerMtok": 4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "nvidia/nemotron-3-super-120b-a12b": {
+    "inputPerMtok": 0.08,
+    "outputPerMtok": 0.45,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "nvidia/nemotron-3-super-120b-a12b:free": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "bytedance-seed/seed-2.0-lite": {
+    "inputPerMtok": 0.25,
+    "outputPerMtok": 2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 128000 prompt tokens not used"
+  },
+  "qwen/qwen3.5-9b": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.15,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.4-pro": {
+    "inputPerMtok": 30,
+    "outputPerMtok": 180,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.4-pro:batch": {
+    "inputPerMtok": 15,
+    "outputPerMtok": 90,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.4": {
+    "inputPerMtok": 2.5,
+    "outputPerMtok": 15,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "openai/gpt-5.4:batch": {
+    "inputPerMtok": 1.25,
+    "outputPerMtok": 7.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 272000 prompt tokens not used"
+  },
+  "inception/mercury-2": {
+    "inputPerMtok": 0.25,
+    "outputPerMtok": 0.75,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3.1-flash-lite-preview": {
+    "inputPerMtok": 0.25,
+    "outputPerMtok": 1.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "bytedance-seed/seed-2.0-mini": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 128000 prompt tokens not used"
+  },
+  "google/gemini-3.1-flash-image-preview": {
+    "inputPerMtok": 0.5,
+    "outputPerMtok": 3,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3.5-35b-a3b": {
+    "inputPerMtok": 0.08,
+    "outputPerMtok": 0.75,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3.5-27b": {
+    "inputPerMtok": 0.26,
+    "outputPerMtok": 2.6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3.5-122b-a10b": {
+    "inputPerMtok": 0.26,
+    "outputPerMtok": 2.08,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3.5-flash-02-23": {
+    "inputPerMtok": 0.065,
+    "outputPerMtok": 0.26,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3.1-pro-preview-customtools": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 12,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 200000 prompt tokens not used"
+  },
+  "openai/gpt-5.3-codex": {
+    "inputPerMtok": 1.75,
+    "outputPerMtok": 14,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "aion-labs/aion-2.0": {
+    "inputPerMtok": 0.8,
+    "outputPerMtok": 1.6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3.1-pro-preview": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 12,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 200000 prompt tokens not used"
+  },
+  "google/gemini-3.1-pro-preview:batch": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 200000 prompt tokens not used"
+  },
+  "qwen/qwen3.5-plus-02-15": {
+    "inputPerMtok": 0.26,
+    "outputPerMtok": 1.56,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 256000 prompt tokens not used"
+  },
+  "qwen/qwen3.5-397b-a17b": {
+    "inputPerMtok": 0.55,
+    "outputPerMtok": 3.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "minimax/minimax-m2.5": {
+    "inputPerMtok": 0.27,
+    "outputPerMtok": 1.08,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-5": {
+    "inputPerMtok": 0.6,
+    "outputPerMtok": 1.92,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3-coder-next": {
+    "inputPerMtok": 0.12,
+    "outputPerMtok": 0.8,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openrouter/free": {
+    "inputPerMtok": 0,
+    "outputPerMtok": 0,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "stepfun/step-3.5-flash": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.3,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "moonshotai/kimi-k2.5": {
+    "inputPerMtok": 0.5,
+    "outputPerMtok": 2.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "upstage/solar-pro-3": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 0.6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "minimax/minimax-m2-her": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 1.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "writer/palmyra-x5": {
+    "inputPerMtok": 0.6,
+    "outputPerMtok": 6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-audio": {
+    "inputPerMtok": 2.5,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-audio-mini": {
+    "inputPerMtok": 0.6,
+    "outputPerMtok": 2.4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-4.7-flash": {
+    "inputPerMtok": 0.0605,
+    "outputPerMtok": 0.4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.2-codex": {
+    "inputPerMtok": 1.75,
+    "outputPerMtok": 14,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "bytedance-seed/seed-1.6-flash": {
+    "inputPerMtok": 0.075,
+    "outputPerMtok": 0.3,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 128000 prompt tokens not used"
+  },
+  "bytedance-seed/seed-1.6": {
+    "inputPerMtok": 0.25,
+    "outputPerMtok": 2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 128000 prompt tokens not used"
+  },
+  "minimax/minimax-m2.1": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 1.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-4.7": {
+    "inputPerMtok": 0.6,
+    "outputPerMtok": 2.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3-flash-preview": {
+    "inputPerMtok": 0.5,
+    "outputPerMtok": 3,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3-flash-preview:batch": {
+    "inputPerMtok": 0.25,
+    "outputPerMtok": 1.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "nvidia/nemotron-3-nano-30b-a3b": {
+    "inputPerMtok": 0.06,
+    "outputPerMtok": 0.24,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.2-chat": {
+    "inputPerMtok": 1.75,
+    "outputPerMtok": 14,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.2-pro": {
+    "inputPerMtok": 21,
+    "outputPerMtok": 168,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.2-pro:batch": {
+    "inputPerMtok": 10.5,
+    "outputPerMtok": 84,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.2": {
+    "inputPerMtok": 1.75,
+    "outputPerMtok": 14,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.2:batch": {
+    "inputPerMtok": 0.875,
+    "outputPerMtok": 7,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/devstral-2512": {
+    "inputPerMtok": 0.4,
+    "outputPerMtok": 2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "relace/relace-search": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 3,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-4.6v": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 0.9,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.1-codex-max": {
+    "inputPerMtok": 1.25,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "amazon/nova-2-lite-v1": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 2.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/ministral-14b-2512": {
+    "inputPerMtok": 0.2,
+    "outputPerMtok": 0.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/ministral-8b-2512": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 0.15,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/ministral-8b-2512:batch": {
+    "inputPerMtok": 0.075,
+    "outputPerMtok": 0.075,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/ministral-3b-2512": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.1,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mistral-large-2512": {
+    "inputPerMtok": 0.5,
+    "outputPerMtok": 1.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mistral-large-2512:batch": {
+    "inputPerMtok": 0.25,
+    "outputPerMtok": 0.75,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "deepseek/deepseek-v3.2": {
+    "inputPerMtok": 0.259,
+    "outputPerMtok": 0.8,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-3-pro-image-preview": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 12,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.1": {
+    "inputPerMtok": 1.25,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.1:batch": {
+    "inputPerMtok": 0.625,
+    "outputPerMtok": 5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.1-codex": {
+    "inputPerMtok": 1.25,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5.1-codex-mini": {
+    "inputPerMtok": 0.25,
+    "outputPerMtok": 2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "moonshotai/kimi-k2-thinking": {
+    "inputPerMtok": 0.6,
+    "outputPerMtok": 2.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "amazon/nova-premier-v1": {
+    "inputPerMtok": 2.5,
+    "outputPerMtok": 12.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "perplexity/sonar-pro-search": {
+    "inputPerMtok": 3,
+    "outputPerMtok": 15,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/voxtral-small-24b-2507": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.3,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-oss-safeguard-20b": {
+    "inputPerMtok": 0.075,
+    "outputPerMtok": 0.3,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "minimax/minimax-m2": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 1.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "ibm-granite/granite-4.0-h-micro": {
+    "inputPerMtok": 0.017,
+    "outputPerMtok": 0.112,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5-image-mini": {
+    "inputPerMtok": 2.5,
+    "outputPerMtok": 2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3-vl-8b-instruct": {
+    "inputPerMtok": 0.25,
+    "outputPerMtok": 0.75,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5-image": {
+    "inputPerMtok": 10,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-2.5-flash-image": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 2.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3-vl-30b-a3b-thinking": {
+    "inputPerMtok": 0.29,
+    "outputPerMtok": 1,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3-vl-30b-a3b-instruct": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 0.6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5-pro": {
+    "inputPerMtok": 15,
+    "outputPerMtok": 120,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5-pro:batch": {
+    "inputPerMtok": 7.5,
+    "outputPerMtok": 60,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-4.6": {
+    "inputPerMtok": 0.5,
+    "outputPerMtok": 2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "deepseek/deepseek-v3.2-exp": {
+    "inputPerMtok": 0.27,
+    "outputPerMtok": 0.41,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "thedrummer/cydonia-24b-v4.1": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 0.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "relace/relace-apply-3": {
+    "inputPerMtok": 0.85,
+    "outputPerMtok": 1.25,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3-vl-235b-a22b-instruct": {
+    "inputPerMtok": 0.21,
+    "outputPerMtok": 1.9,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "deepseek/deepseek-v3.1-terminus": {
+    "inputPerMtok": 0.27,
+    "outputPerMtok": 1,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3-coder-flash": {
+    "inputPerMtok": 0.195,
+    "outputPerMtok": 0.975,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 32000 prompt tokens not used"
+  },
+  "qwen/qwen3-next-80b-a3b-thinking": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 1.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3-next-80b-a3b-instruct": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 1.1,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "moonshotai/kimi-k2-0905": {
+    "inputPerMtok": 0.6,
+    "outputPerMtok": 2.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "nousresearch/hermes-4-405b": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 3,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "deepseek/deepseek-chat-v3.1": {
+    "inputPerMtok": 0.25,
+    "outputPerMtok": 0.95,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mistral-medium-3.1": {
+    "inputPerMtok": 0.4,
+    "outputPerMtok": 2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mistral-medium-3.1:batch": {
+    "inputPerMtok": 0.2,
+    "outputPerMtok": 1,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-4.5v": {
+    "inputPerMtok": 0.6,
+    "outputPerMtok": 1.8,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5": {
+    "inputPerMtok": 1.25,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5:batch": {
+    "inputPerMtok": 0.625,
+    "outputPerMtok": 5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5-mini": {
+    "inputPerMtok": 0.25,
+    "outputPerMtok": 2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5-mini:batch": {
+    "inputPerMtok": 0.125,
+    "outputPerMtok": 1,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5-nano": {
+    "inputPerMtok": 0.05,
+    "outputPerMtok": 0.4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-5-nano:batch": {
+    "inputPerMtok": 0.025,
+    "outputPerMtok": 0.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-oss-120b": {
+    "inputPerMtok": 0.037,
+    "outputPerMtok": 0.17,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-oss-120b:batch": {
+    "inputPerMtok": 0.0296,
+    "outputPerMtok": 0.136,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-oss-20b": {
+    "inputPerMtok": 0.018,
+    "outputPerMtok": 0.09,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-oss-20b:batch": {
+    "inputPerMtok": 0.024,
+    "outputPerMtok": 0.112,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/codestral-2508": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 0.9,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/codestral-2508:batch": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 0.45,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3-coder-30b-a3b-instruct": {
+    "inputPerMtok": 0.07,
+    "outputPerMtok": 0.28,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3-30b-a3b-instruct-2507": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.3,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-4.5": {
+    "inputPerMtok": 0.6,
+    "outputPerMtok": 2.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "z-ai/glm-4.5-air": {
+    "inputPerMtok": 0.13,
+    "outputPerMtok": 0.85,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3-235b-a22b-thinking-2507": {
+    "inputPerMtok": 0.45,
+    "outputPerMtok": 3.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3-coder": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 1,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "bytedance/ui-tars-1.5-7b": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-2.5-flash-lite": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-2.5-flash-lite:batch": {
+    "inputPerMtok": 0.05,
+    "outputPerMtok": 0.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3-235b-a22b-2507": {
+    "inputPerMtok": 0.09,
+    "outputPerMtok": 0.55,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "moonshotai/kimi-k2": {
+    "inputPerMtok": 0.57,
+    "outputPerMtok": 2.3,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "cognitivecomputations/dolphin-mistral-24b-venice-edition": {
+    "inputPerMtok": 0.2,
+    "outputPerMtok": 0.9,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "tencent/hunyuan-a13b-instruct": {
+    "inputPerMtok": 0.14,
+    "outputPerMtok": 0.57,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "morph/morph-v3-large": {
+    "inputPerMtok": 0.9,
+    "outputPerMtok": 1.9,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "morph/morph-v3-fast": {
+    "inputPerMtok": 0.8,
+    "outputPerMtok": 1.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mistral-small-3.2-24b-instruct": {
+    "inputPerMtok": 0.09375,
+    "outputPerMtok": 0.25,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "minimax/minimax-m1": {
+    "inputPerMtok": 0.55,
+    "outputPerMtok": 2.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-2.5-flash": {
+    "inputPerMtok": 0.3,
+    "outputPerMtok": 2.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-2.5-flash:batch": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 1.25,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-2.5-pro": {
+    "inputPerMtok": 1.25,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 200000 prompt tokens not used"
+  },
+  "google/gemini-2.5-pro:batch": {
+    "inputPerMtok": 0.625,
+    "outputPerMtok": 5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 200000 prompt tokens not used"
+  },
+  "openai/o3-pro": {
+    "inputPerMtok": 20,
+    "outputPerMtok": 80,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemini-2.5-pro-preview": {
+    "inputPerMtok": 1.25,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 200000 prompt tokens not used"
+  },
+  "deepseek/deepseek-r1-0528": {
+    "inputPerMtok": 0.5,
+    "outputPerMtok": 2.15,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mistral-medium-3": {
+    "inputPerMtok": 0.4,
+    "outputPerMtok": 2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "meta-llama/llama-guard-4-12b": {
+    "inputPerMtok": 0.18,
+    "outputPerMtok": 0.18,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3-30b-a3b": {
+    "inputPerMtok": 0.12,
+    "outputPerMtok": 0.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3-14b": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.22,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen3-32b": {
+    "inputPerMtok": 0.08,
+    "outputPerMtok": 0.28,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/o4-mini-high": {
+    "inputPerMtok": 1.1,
+    "outputPerMtok": 4.4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/o3": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 8,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/o3:batch": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/o4-mini": {
+    "inputPerMtok": 1.1,
+    "outputPerMtok": 4.4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/o4-mini:batch": {
+    "inputPerMtok": 0.55,
+    "outputPerMtok": 2.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4.1": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 8,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4.1:batch": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4.1-mini": {
+    "inputPerMtok": 0.4,
+    "outputPerMtok": 1.6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4.1-mini:batch": {
+    "inputPerMtok": 0.2,
+    "outputPerMtok": 0.8,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4.1-nano": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4.1-nano:batch": {
+    "inputPerMtok": 0.05,
+    "outputPerMtok": 0.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "meta-llama/llama-4-maverick": {
+    "inputPerMtok": 0.1875,
+    "outputPerMtok": 0.6525,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "meta-llama/llama-4-scout": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.3,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "deepseek/deepseek-chat-v3-0324": {
+    "inputPerMtok": 0.29,
+    "outputPerMtok": 1.14,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/o1-pro": {
+    "inputPerMtok": 150,
+    "outputPerMtok": 600,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mistral-small-3.1-24b-instruct": {
+    "inputPerMtok": 0.351,
+    "outputPerMtok": 0.555,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemma-3-4b-it": {
+    "inputPerMtok": 0.05,
+    "outputPerMtok": 0.1,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemma-3-12b-it": {
+    "inputPerMtok": 0.05,
+    "outputPerMtok": 0.15,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "cohere/command-a": {
+    "inputPerMtok": 2.5,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "rekaai/reka-flash-3": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemma-3-27b-it": {
+    "inputPerMtok": 0.08,
+    "outputPerMtok": 0.45,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "thedrummer/skyfall-36b-v2": {
+    "inputPerMtok": 0.55,
+    "outputPerMtok": 0.8,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "perplexity/sonar-reasoning-pro": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 8,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "perplexity/sonar-pro": {
+    "inputPerMtok": 3,
+    "outputPerMtok": 15,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "perplexity/sonar-deep-research": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 8,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mistral-saba": {
+    "inputPerMtok": 0.2,
+    "outputPerMtok": 0.6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/o3-mini-high": {
+    "inputPerMtok": 1.1,
+    "outputPerMtok": 4.4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "aion-labs/aion-rp-llama-3.1-8b": {
+    "inputPerMtok": 0.8,
+    "outputPerMtok": 1.6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen2.5-vl-72b-instruct": {
+    "inputPerMtok": 0.8,
+    "outputPerMtok": 1,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen-plus": {
+    "inputPerMtok": 0.26,
+    "outputPerMtok": 0.78,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC: base rate; pricing.overrides above 256000 prompt tokens not used"
+  },
+  "openai/o3-mini": {
+    "inputPerMtok": 1.1,
+    "outputPerMtok": 4.4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/o3-mini:batch": {
+    "inputPerMtok": 0.55,
+    "outputPerMtok": 2.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mistral-small-24b-instruct-2501": {
+    "inputPerMtok": 0.05,
+    "outputPerMtok": 0.08,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "perplexity/sonar": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 1,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "deepseek/deepseek-r1": {
+    "inputPerMtok": 0.7,
+    "outputPerMtok": 2.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "minimax/minimax-01": {
+    "inputPerMtok": 0.2,
+    "outputPerMtok": 1.1,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "microsoft/phi-4": {
+    "inputPerMtok": 0.07,
+    "outputPerMtok": 0.14,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "deepseek/deepseek-chat": {
+    "inputPerMtok": 0.32,
+    "outputPerMtok": 0.89,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "sao10k/l3.3-euryale-70b": {
+    "inputPerMtok": 0.65,
+    "outputPerMtok": 0.75,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/o1": {
+    "inputPerMtok": 15,
+    "outputPerMtok": 60,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "cohere/command-r7b-12-2024": {
+    "inputPerMtok": 0.0375,
+    "outputPerMtok": 0.15,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "meta-llama/llama-3.3-70b-instruct": {
+    "inputPerMtok": 0.22,
+    "outputPerMtok": 0.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "amazon/nova-lite-v1": {
+    "inputPerMtok": 0.06,
+    "outputPerMtok": 0.24,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "amazon/nova-micro-v1": {
+    "inputPerMtok": 0.035,
+    "outputPerMtok": 0.14,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "amazon/nova-pro-v1": {
+    "inputPerMtok": 0.8,
+    "outputPerMtok": 3.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4o-2024-11-20": {
+    "inputPerMtok": 2.5,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mistral-large-2407": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen-2.5-coder-32b-instruct": {
+    "inputPerMtok": 0.66,
+    "outputPerMtok": 1,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "thedrummer/unslopnemo-12b": {
+    "inputPerMtok": 0.4,
+    "outputPerMtok": 0.4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "anthracite-org/magnum-v4-72b": {
+    "inputPerMtok": 2.5,
+    "outputPerMtok": 5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen-2.5-7b-instruct": {
+    "inputPerMtok": 0.1,
+    "outputPerMtok": 0.2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "meta-llama/llama-3.2-1b-instruct": {
+    "inputPerMtok": 0.027,
+    "outputPerMtok": 0.201,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "meta-llama/llama-3.2-3b-instruct": {
+    "inputPerMtok": 0.05,
+    "outputPerMtok": 0.33,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "qwen/qwen-2.5-72b-instruct": {
+    "inputPerMtok": 0.36,
+    "outputPerMtok": 0.4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "cohere/command-r-08-2024": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 0.6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "cohere/command-r-plus-08-2024": {
+    "inputPerMtok": 2.5,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "sao10k/l3.1-euryale-70b": {
+    "inputPerMtok": 0.85,
+    "outputPerMtok": 0.85,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "nousresearch/hermes-3-llama-3.1-70b": {
+    "inputPerMtok": 0.7,
+    "outputPerMtok": 0.7,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "nousresearch/hermes-3-llama-3.1-405b": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 1,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "sao10k/l3-lunaris-8b": {
+    "inputPerMtok": 0.04,
+    "outputPerMtok": 0.05,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4o-2024-08-06": {
+    "inputPerMtok": 2.5,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "meta-llama/llama-3.1-70b-instruct": {
+    "inputPerMtok": 0.4,
+    "outputPerMtok": 0.4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "meta-llama/llama-3.1-8b-instruct": {
+    "inputPerMtok": 0.05,
+    "outputPerMtok": 0.08,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mistral-nemo": {
+    "inputPerMtok": 0.029,
+    "outputPerMtok": 0.03,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4o-mini": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 0.6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4o-mini-2024-07-18": {
+    "inputPerMtok": 0.15,
+    "outputPerMtok": 0.6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4o-mini:batch": {
+    "inputPerMtok": 0.075,
+    "outputPerMtok": 0.3,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "google/gemma-2-27b-it": {
+    "inputPerMtok": 0.65,
+    "outputPerMtok": 0.65,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4o": {
+    "inputPerMtok": 2.5,
+    "outputPerMtok": 10,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4o-2024-05-13": {
+    "inputPerMtok": 5,
+    "outputPerMtok": 15,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4o:batch": {
+    "inputPerMtok": 1.25,
+    "outputPerMtok": 5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mixtral-8x22b-instruct": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "microsoft/wizardlm-2-8x22b": {
+    "inputPerMtok": 0.62,
+    "outputPerMtok": 0.62,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4-turbo": {
+    "inputPerMtok": 10,
+    "outputPerMtok": 30,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4-turbo:batch": {
+    "inputPerMtok": 5,
+    "outputPerMtok": 15,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mistralai/mistral-large": {
+    "inputPerMtok": 2,
+    "outputPerMtok": 6,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-3.5-turbo-0613": {
+    "inputPerMtok": 1,
+    "outputPerMtok": 2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-3.5-turbo-instruct": {
+    "inputPerMtok": 1.5,
+    "outputPerMtok": 2,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-3.5-turbo-16k": {
+    "inputPerMtok": 3,
+    "outputPerMtok": 4,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "mancer/weaver": {
+    "inputPerMtok": 0.4,
+    "outputPerMtok": 0.75,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "undi95/remm-slerp-l2-13b": {
+    "inputPerMtok": 0.35,
+    "outputPerMtok": 0.65,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "gryphe/mythomax-l2-13b": {
+    "inputPerMtok": 0.08,
+    "outputPerMtok": 0.11,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-3.5-turbo": {
+    "inputPerMtok": 0.5,
+    "outputPerMtok": 1.5,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-3.5-turbo:batch": {
+    "inputPerMtok": 0.25,
+    "outputPerMtok": 0.75,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "openai/gpt-4": {
+    "inputPerMtok": 30,
+    "outputPerMtok": 60,
+    "unverified": false,
+    "source": "OpenRouter public /api/v1/models, read 2026-10-10 09:41 UTC"
+  },
+  "typesafe/jev-1.13": {
+    "inputPerMtok": null,
+    "outputPerMtok": null,
+    "unverified": true,
+    "source": "not found on OpenRouter's public model-list pages as of 05-10 (it is called through the /api/alpha/decisions route, not a listed chat-completions model) -- edit this file once a real per-token price is confirmed"
+  }
+}

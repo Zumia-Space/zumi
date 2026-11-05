@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "event.json",
+  "title": "One line of the append-only event journal (events.ndjson)",
+  "description": "Written and fsynced before any projection changes. Never contains credentials: token.issue records only a sha256 verifier, attachment.add records only the blob hash.",
+  "type": "object", "additionalProperties": false,
+  "required": ["seq", "id", "at", "request_id", "body_sha256", "actor", "op", "target_id", "data", "result"],
+  "properties": {
+    "seq": { "type": "integer", "minimum": 1 },
+    "id": { "type": "string", "pattern": "^evt-[0-9]+$" },
+    "at": { "$ref": "common.json#/$defs/timestamp" },
+    "request_id": { "type": "string", "maxLength": 128 },
+    "body_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "actor": { "$ref": "common.json#/$defs/actor" },
+    "op": { "type": "string", "maxLength": 32 },
+    "target_id": { "type": "string", "maxLength": 80 },
+    "data": { "type": "object" },
+    "result": {
+      "type": "object", "additionalProperties": false, "required": ["id", "revision"],
+      "properties": { "id": { "type": "string", "maxLength": 80 }, "revision": { "type": "integer", "minimum": 0 } }
+    }
+  }
+}

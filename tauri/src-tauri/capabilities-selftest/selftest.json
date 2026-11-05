@@ -1,0 +1,6 @@
+{
+  "identifier": "selftest-cdp",
+  "description": "Parity 12-2 (GATE-ANSWER Q5): the test-only CDP command (guest_cdp). This file lives OUTSIDE capabilities/ so tauri-build never enables it by default; lib.rs adds it at runtime only when the host was launched with a self-test CLI flag. A normal launch has no grant, so the renderer cannot reach the command.",
+  "webviews": ["main"],
+  "permissions": ["allow-guest-cdp"]
+}

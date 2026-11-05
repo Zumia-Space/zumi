@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/steps.compact.json",
+  "title": "data for steps.compact",
+  "description": "Fold a task's older done steps into one history step (`lich-su`) and keep their records in state.archive. A dry run is GET /api/v1/compact/preview, never a write.",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-target": "taskId",
+  "x-revision": "required",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "keep_last": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 45,
+      "default": 10,
+      "description": "How many of the most recently done steps stay live. Older done steps are eligible (default 10)."
+    }
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/goals.import.json",
+  "title": "data for goals.import",
+  "description": "Migration: a predecessor board's locked goal for one task with its version history and lock times (its own clock), once per task, before any goal.lock on it.",
+  "x-roles": [
+    "owner"
+  ],
+  "x-target": "taskId",
+  "x-revision": "none",
+  "x-device": false,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "goal",
+    "output",
+    "outcome",
+    "version",
+    "locked_at"
+  ],
+  "properties": {
+    "goal": {
+      "$ref": "../common.json#/$defs/goalText"
+    },
+    "output": {
+      "$ref": "../common.json#/$defs/goalText"
+    },
+    "outcome": {
+      "$ref": "../common.json#/$defs/goalText"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "locked_at": {
+      "$ref": "../common.json#/$defs/timestamp"
+    },
+    "history": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "goal",
+          "output",
+          "outcome",
+          "version"
+        ],
+        "properties": {
+          "goal": {
+            "$ref": "../common.json#/$defs/goalText"
+          },
+          "output": {
+            "$ref": "../common.json#/$defs/goalText"
+          },
+          "outcome": {
+            "$ref": "../common.json#/$defs/goalText"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "locked_at": {
+            "$ref": "../common.json#/$defs/timestamp"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "goal.json",
+  "title": "Owner-locked goal of a task (projection), keyed by task id",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "version",
+    "goal",
+    "output",
+    "outcome",
+    "locked_at",
+    "history"
+  ],
+  "properties": {
+    "task_id": {
+      "$ref": "common.json#/$defs/taskId"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "goal": {
+      "$ref": "common.json#/$defs/goalText"
+    },
+    "output": {
+      "$ref": "common.json#/$defs/goalText"
+    },
+    "outcome": {
+      "$ref": "common.json#/$defs/goalText"
+    },
+    "locked_at": {
+      "$ref": "common.json#/$defs/timestamp"
+    },
+    "locked_by": {
+      "$ref": "common.json#/$defs/actor"
+    },
+    "imported": {
+      "type": "boolean"
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "goal",
+          "output",
+          "outcome"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "goal": {
+            "$ref": "common.json#/$defs/goalText"
+          },
+          "output": {
+            "$ref": "common.json#/$defs/goalText"
+          },
+          "outcome": {
+            "$ref": "common.json#/$defs/goalText"
+          },
+          "locked_at": {
+            "$ref": "common.json#/$defs/timestamp"
+          },
+          "locked_by": {
+            "$ref": "common.json#/$defs/actor"
+          }
+        }
+      }
+    }
+  }
+}

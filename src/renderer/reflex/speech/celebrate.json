@@ -1,0 +1,561 @@
+{
+ "intent": "celebrate",
+ "labelVi": "Ăn mừng — nhảy nhẹ",
+ "variants": [
+  {
+   "id": "excited-small-jump-s1",
+   "provenance": {
+    "source": "T-31 approach C round 3 (owner verdict 01-10: right side wins)",
+    "model": "gemini-3.8-flash",
+    "prompt": "excited small jump",
+    "sample": 1,
+    "latencyMs": 6260,
+    "file": "unimate/compare/C-llm-dsl/llm/excited-small-jump-s1.json"
+   },
+   "command": {
+    "id": "excited-small-jump",
+    "label": "Excited small jump",
+    "priority": 6,
+    "interrupt": true,
+    "mirror": "none",
+    "jitter": 0.05,
+    "root": {
+     "keys": [
+      {
+       "t": 150,
+       "pos": [
+        0,
+        -0.08,
+        0.02
+       ]
+      },
+      {
+       "t": 360,
+       "pos": [
+        0,
+        0.14,
+        -0.01
+       ]
+      },
+      {
+       "t": 540,
+       "pos": [
+        0,
+        -0.06,
+        0.01
+       ]
+      },
+      {
+       "t": 700,
+       "pos": [
+        0,
+        0,
+        0
+       ]
+      }
+     ],
+     "delayMs": 100,
+     "outMs": 200
+    },
+    "bones": [
+     {
+      "bone": "spine",
+      "keys": [
+       {
+        "t": 140,
+        "rot": [
+         8,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 360,
+        "rot": [
+         -6,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 540,
+        "rot": [
+         5,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 750,
+        "rot": [
+         0,
+         0,
+         0
+        ]
+       }
+      ],
+      "delayMs": 100,
+      "outMs": 200
+     },
+     {
+      "bone": "neck",
+      "keys": [
+       {
+        "t": 140,
+        "rot": [
+         -4,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 360,
+        "rot": [
+         -8,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 540,
+        "rot": [
+         -2,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 750,
+        "rot": [
+         0,
+         0,
+         0
+        ]
+       }
+      ],
+      "delayMs": 100,
+      "outMs": 200
+     },
+     {
+      "bone": "head",
+      "keys": [
+       {
+        "t": 140,
+        "rot": [
+         -5,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 360,
+        "rot": [
+         -10,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 540,
+        "rot": [
+         -3,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 750,
+        "rot": [
+         0,
+         0,
+         0
+        ]
+       }
+      ],
+      "delayMs": 100,
+      "outMs": 200
+     },
+     {
+      "bone": "leftShoulder",
+      "rot": [
+       -5,
+       0,
+       -10
+      ],
+      "delayMs": 200,
+      "inMs": 180,
+      "holdMs": 400,
+      "outMs": 350
+     },
+     {
+      "bone": "rightShoulder",
+      "rot": [
+       -5,
+       0,
+       10
+      ],
+      "delayMs": 200,
+      "inMs": 180,
+      "holdMs": 400,
+      "outMs": 350
+     }
+    ],
+    "reach": [
+     {
+      "hand": "left",
+      "target": {
+       "frame": "shoulder",
+       "pos": [
+        0.28,
+        -0.12,
+        0.25
+       ]
+      },
+      "delayMs": 150,
+      "inMs": 220,
+      "holdMs": 420,
+      "outMs": 350
+     },
+     {
+      "hand": "right",
+      "target": {
+       "frame": "shoulder",
+       "pos": [
+        0.28,
+        -0.12,
+        0.25
+       ]
+      },
+      "delayMs": 150,
+      "inMs": 220,
+      "holdMs": 420,
+      "outMs": 350
+     }
+    ],
+    "hands": [
+     {
+      "hand": "left",
+      "shape": "fist",
+      "delayMs": 150,
+      "inMs": 150,
+      "holdMs": 500,
+      "outMs": 300
+     },
+     {
+      "hand": "right",
+      "shape": "fist",
+      "delayMs": 150,
+      "inMs": 150,
+      "holdMs": 500,
+      "outMs": 300
+     }
+    ],
+    "expressions": [
+     {
+      "name": "surprised",
+      "weight": 0.4,
+      "delayMs": 80,
+      "inMs": 120,
+      "holdMs": 300,
+      "outMs": 300
+     },
+     {
+      "name": "happy",
+      "weight": 1,
+      "delayMs": 150,
+      "inMs": 180,
+      "holdMs": 850,
+      "outMs": 350
+     },
+     {
+      "name": "aa",
+      "weight": 0.45,
+      "delayMs": 220,
+      "inMs": 120,
+      "holdMs": 400,
+      "outMs": 250
+     }
+    ],
+    "lookAt": [
+     {
+      "target": "camera",
+      "weight": 1,
+      "inMs": 100,
+      "holdMs": 1200,
+      "outMs": 300
+     }
+    ]
+   }
+  },
+  {
+   "id": "excited-small-jump-s2",
+   "provenance": {
+    "source": "T-31 approach C round 3 (owner verdict 01-10: right side wins)",
+    "model": "gemini-3.8-flash",
+    "prompt": "excited small jump",
+    "sample": 2,
+    "latencyMs": 9654,
+    "file": "unimate/compare/C-llm-dsl/llm/excited-small-jump-s2.json"
+   },
+   "command": {
+    "id": "excited-small-jump",
+    "label": "Excited small jump",
+    "priority": 6,
+    "interrupt": true,
+    "mirror": "none",
+    "jitter": 0.05,
+    "root": {
+     "keys": [
+      {
+       "t": 0,
+       "pos": [
+        0,
+        0,
+        0
+       ]
+      },
+      {
+       "t": 180,
+       "pos": [
+        0,
+        -0.08,
+        0.02
+       ]
+      },
+      {
+       "t": 380,
+       "pos": [
+        0,
+        0.12,
+        -0.01
+       ]
+      },
+      {
+       "t": 540,
+       "pos": [
+        0,
+        -0.05,
+        0.02
+       ]
+      },
+      {
+       "t": 700,
+       "pos": [
+        0,
+        0,
+        0
+       ]
+      }
+     ],
+     "delayMs": 100,
+     "outMs": 200
+    },
+    "bones": [
+     {
+      "bone": "chest",
+      "keys": [
+       {
+        "t": 0,
+        "rot": [
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 180,
+        "rot": [
+         8,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 380,
+        "rot": [
+         -10,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 540,
+        "rot": [
+         4,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 700,
+        "rot": [
+         0,
+         0,
+         0
+        ]
+       }
+      ],
+      "delayMs": 100,
+      "outMs": 250
+     },
+     {
+      "bone": "head",
+      "keys": [
+       {
+        "t": 0,
+        "rot": [
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 180,
+        "rot": [
+         6,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 360,
+        "rot": [
+         -12,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 540,
+        "rot": [
+         5,
+         0,
+         0
+        ]
+       },
+       {
+        "t": 720,
+        "rot": [
+         0,
+         0,
+         0
+        ]
+       }
+      ],
+      "delayMs": 100,
+      "outMs": 250
+     },
+     {
+      "bone": "leftShoulder",
+      "rot": [
+       -5,
+       0,
+       8
+      ],
+      "delayMs": 150,
+      "inMs": 200,
+      "holdMs": 400,
+      "outMs": 300
+     },
+     {
+      "bone": "rightShoulder",
+      "rot": [
+       -5,
+       0,
+       -8
+      ],
+      "delayMs": 150,
+      "inMs": 200,
+      "holdMs": 400,
+      "outMs": 300
+     }
+    ],
+    "reach": [
+     {
+      "hand": "right",
+      "target": {
+       "frame": "shoulder",
+       "pos": [
+        0.25,
+        0.1,
+        0.2
+       ]
+      },
+      "delayMs": 120,
+      "inMs": 220,
+      "holdMs": 450,
+      "outMs": 350
+     },
+     {
+      "hand": "left",
+      "target": {
+       "frame": "shoulder",
+       "pos": [
+        0.25,
+        0.1,
+        0.2
+       ]
+      },
+      "delayMs": 120,
+      "inMs": 220,
+      "holdMs": 450,
+      "outMs": 350
+     }
+    ],
+    "hands": [
+     {
+      "hand": "right",
+      "shape": "fist",
+      "delayMs": 100,
+      "inMs": 150,
+      "holdMs": 600,
+      "outMs": 300
+     },
+     {
+      "hand": "left",
+      "shape": "fist",
+      "delayMs": 100,
+      "inMs": 150,
+      "holdMs": 600,
+      "outMs": 300
+     }
+    ],
+    "expressions": [
+     {
+      "name": "happy",
+      "weight": 0.95,
+      "delayMs": 50,
+      "inMs": 150,
+      "holdMs": 900,
+      "outMs": 350
+     },
+     {
+      "name": "surprised",
+      "weight": 0.3,
+      "delayMs": 200,
+      "inMs": 120,
+      "holdMs": 400,
+      "outMs": 300
+     },
+     {
+      "name": "aa",
+      "weight": 0.45,
+      "delayMs": 220,
+      "inMs": 100,
+      "holdMs": 380,
+      "outMs": 250
+     }
+    ],
+    "lookAt": [
+     {
+      "target": "camera",
+      "weight": 1,
+      "inMs": 100,
+      "holdMs": 1200,
+      "outMs": 300
+     }
+    ]
+   }
+  }
+ ]
+}

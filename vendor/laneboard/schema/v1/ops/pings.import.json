@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/pings.import.json",
+  "title": "data for pings.import",
+  "description": "Migration: a predecessor board's pings with their own times and seen marks, once, before any other ping.",
+  "x-roles": [
+    "owner"
+  ],
+  "x-target": "board",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "pings"
+  ],
+  "properties": {
+    "pings": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "at"
+        ],
+        "properties": {
+          "legacy_id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "at": {
+            "$ref": "../common.json#/$defs/timestamp"
+          },
+          "task_id": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "kind": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "open": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "seen_at": {
+            "$ref": "../common.json#/$defs/timestamp"
+          }
+        }
+      }
+    }
+  }
+}

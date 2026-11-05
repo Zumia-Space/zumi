@@ -1,0 +1,18 @@
+Zumi
+====
+
+Zumi desktop app source code: AGPL-3.0-only, see LICENSE; see THIRD_PARTY_LICENSES.md for third-party terms. The model below is separate from it.
+The AGPL gives no trademark rights: the Zumi and Zumia names and logos are reserved.
+
+The default Zumi model is NOT in this repository. It contains VRoid AvatarSample_K content © pixiv Inc. and ships only inside the official installer under the VRoid terms. To build from source, use your own VRM.
+
+Details of the bundled default model (resources/models/ in the installer):
+  - Own parts (modifications and original pieces): (c) 3K FOREST CO.,LTD.
+  - Contains VRoid AvatarSample_K content (c) pixiv Inc., used under the VRoid Studio
+    terms and sample-model conditions
+    (https://vroid.pixiv.help/hc/en-us/articles/4402394424089). Not CC0. pixiv's conditions forbid CC0 release and character-creation use.
+    3K FOREST CO.,LTD separately does not allow redistribution of this model.
+  - It is not covered by the AGPL and may not be copied, redistributed or re-published.
+  - Full notice: resources-pinned/default-model/LICENSE-zumi-default.txt
+    (shipped next to the model as LICENSE-zumi-default.txt).
+  - pixiv Inc. and VRoid do not support, recommend or endorse Zumi.

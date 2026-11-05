@@ -1,0 +1,38 @@
+/* The three whole themes (T-31 alpha.3 R1; look A was slice 1). Kept OUTSIDE src/renderer on purpose: scripts/check-palette.mjs allows colour
+   literals only in the tokens file, and the shared vendored tokens.css must stay at its 0.2.11 bytes. scripts/build-renderer.mjs copies this
+   file to build/renderer/next/tokens-a.css only when ZUMI_NEXT_UI is on, and links it before next/theme-a.css. Mirrored in theme-a-tokens.json
+   (the expected values, compared by scripts/check-theme-a-tokens.mjs). This is the ONLY file in the shell with colour literals.
+
+   The theme is <html data-theme="blue|black|white"> (src/renderer/theme.js; the build writes data-theme="blue" so there is no flash of another
+   look). The next-UI build sets the zumi-next class on <html> (build-renderer.mjs; boot.js also sets it), so with next/ absent the class is
+   never set and the shell looks exactly as in 0.2.11. Specificity (0,3,1) beats the shared .dark block (0,1,0), styles.css :root (--radius
+   10px) and html.dark[data-accent] (equal specificity, and this file loads later).
+
+   blue  = look A, today's look and the default: the base tokens plus the layer names below.
+   black = the shared tokens.css .dark palette untouched (theme.js keeps class "dark"): this block sets ONLY the layer names, from that palette,
+           so the shell is the same neutral black as the Board tab.
+   white = the shared tokens.css :root light palette untouched (theme.js removes class "dark"): the same layer names from the light palette. */
+html.zumi-next[data-theme="blue"] {
+  --primary: #5ff2e1; --primary-foreground: #02121a;
+  --background: #050b14; --foreground: #d9fbf6; --card: #071628; --muted: #0b2033; --muted-foreground: #8fb6b8;
+  --border: #5ff2e166; --input: #5ff2e155; --accent: #0e3040; --ring: #5ff2e199; --shadow: 0 0 14px #5ff2e122;
+  --question: #ffa43a; --question-text: #ffc37a; --ai: #a78bfa; --success: #6ff7a3; --focus: #5ff2e1; --danger: #ff5d6c; --warn: #ffa43a;
+  --radius: 2px; /* square corners; the -sm/-md/-xl variants derive from it */
+  /* theme layer names, read only by this file */
+  --line: #5ff2e1; --line-dim: #5ff2e166; --line-faint: #5ff2e11a; --glow: #5ff2e1aa; --glow-soft: #5ff2e133;
+  --panel: #071628f0; --cut: 12px; --grid: 18px; --rail-bg: #040c16;
+}
+html.zumi-next[data-theme="black"] {
+  --line: var(--muted-foreground); --line-dim: var(--input); --line-faint: var(--border); --glow: transparent; --glow-soft: transparent;
+  --panel: color-mix(in srgb, var(--card) 94%, transparent); --rail-bg: var(--card);
+  --radius: 2px; --cut: 12px; --grid: 18px;
+  --hud-tint: var(--muted-foreground); /* the HUD (hud.css) tints from this instead of the board's blue --focus */
+  color-scheme: dark;
+}
+html.zumi-next[data-theme="white"] {
+  --line: var(--muted-foreground); --line-dim: var(--input); --line-faint: var(--border); --glow: transparent; --glow-soft: transparent;
+  --panel: color-mix(in srgb, var(--card) 94%, transparent); --rail-bg: var(--card);
+  --radius: 2px; --cut: 12px; --grid: 18px;
+  --hud-tint: var(--muted-foreground);
+  color-scheme: light; /* styles.css :root says dark; scrollbars and form controls must follow the light palette */
+}

@@ -1,0 +1,23 @@
+[
+  { "text": "Could you draft a thank-you note to my team?", "gold": "listen", "gapMs": 1500 },
+  { "text": "Write a caption for my Instagram photo.", "gold": "listen", "gapMs": 1500 },
+  { "text": "Gửi giúp anh báo cáo này cho chị Lan nhé.", "gold": "listen", "gapMs": 1500 },
+  { "text": "Yes, that's perfect.", "gold": "nod", "gapMs": 1500 },
+  { "text": "Ừ, làm vậy đi.", "gold": "nod", "gapMs": 1500 },
+  { "text": "ok luon", "gold": "nod", "gapMs": 1500 },
+  { "text": "Wait, seriously? He said yes?!", "gold": "surprise", "gapMs": 1500 },
+  { "text": "You'll never guess who called me!", "gold": "surprise", "gapMs": 1500, "shot": "low-confidence-neutral" },
+  { "text": "Hả, thật luôn á?", "gold": "surprise", "gapMs": 1500 },
+  { "text": "What's the difference between a loan and a lease?", "gold": "think", "gapMs": 1500 },
+  { "text": "Làm thế nào để tiết kiệm tiền hiệu quả?", "gold": "think", "gapMs": 1500 },
+  { "text": "Hey Zumi, good to see you!", "gold": "happy", "gapMs": 1500, "shot": "jev-turn" },
+  { "text": "Chào em, hôm nay em xinh thế.", "gold": "happy", "gapMs": 1500 },
+  { "text": "chuc em ngu ngon nhe", "gold": "happy", "gapMs": 1500 },
+  { "text": "My laptop just died and I lost my files.", "gold": "concern", "gapMs": 1500 },
+  { "text": "Anh bị mất ví rồi.", "gold": "concern", "gapMs": 1500 },
+  { "text": "Dunno, you pick.", "gold": "shrug", "gapMs": 1500 },
+  { "text": "Tuỳ em thôi, anh sao cũng được.", "gold": "shrug", "gapMs": 1500 },
+  { "text": "uhh", "gold": "neutral", "gapMs": 1500 },
+  { "text": "ờm", "gold": "neutral", "gapMs": 1500 },
+  { "text": "thử cái", "gold": "neutral", "gapMs": 1500 }
+]

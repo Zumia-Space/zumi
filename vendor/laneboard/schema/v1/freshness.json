@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "freshness.json",
+  "title": "Status freshness settings (board-wide). Returned as `freshness` in the state view; defaults when never set.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "updated_at"
+  ],
+  "properties": {
+    "stale_h": {
+      "enum": [
+        0,
+        6,
+        12,
+        24,
+        48
+      ]
+    },
+    "auto_request": {
+      "type": "boolean"
+    },
+    "updated_at": {
+      "$ref": "common.json#/$defs/timestamp"
+    }
+  }
+}

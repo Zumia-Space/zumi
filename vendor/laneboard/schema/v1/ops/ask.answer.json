@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/ask.answer.json",
+  "title": "data for ask.answer",
+  "description": "Owner answers an ask, by option key and/or free text, or approve/reject (verdict). The answer is also recorded as an owner feedback on the task (choice, approve, reject or note) so it shows in the thread and stays open until the coordinator handles it.",
+  "x-roles": [
+    "owner"
+  ],
+  "x-target": "recordId",
+  "x-revision": "required",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "choice": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,16}$"
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 4000
+    },
+    "verdict": {
+      "enum": [
+        "approve",
+        "reject"
+      ],
+      "description": "Owner approves or rejects what the ask presents (recorded as approve/reject feedback)."
+    },
+    "feedback_id": {
+      "$ref": "../common.json#/$defs/recordId",
+      "description": "Migration: an existing owner feedback on the ask's task that already holds this answer; it is linked instead of a new feedback being written."
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/ping.send.json",
+  "title": "data for ping.send",
+  "description": "\"Send to the coordinator\": one ping for a finished batch of owner feedback (or, for the coordinator, kind ask: a lane raised a question). The coordinator's watcher wakes on unseen pings. Routing changes, owner registry status changes, goal locks and re-brief requests ping by themselves.",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-target": "board",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "task_id": {
+      "anyOf": [
+        {
+          "$ref": "../common.json#/$defs/taskId"
+        },
+        {
+          "const": ""
+        }
+      ]
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "kind": {
+      "enum": [
+        "send",
+        "ask"
+      ]
+    }
+  }
+}

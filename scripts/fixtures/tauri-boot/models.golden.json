@@ -1,0 +1,143 @@
+{
+  "source": "src/main/main.js listModels at e84631c (before the models-core.js extraction)",
+  "cases": {
+    "fresh": {
+      "models": [
+        {
+          "id": "a",
+          "label": "Alpha",
+          "source": "bundled",
+          "file": "a.vrm",
+          "isDefault": true,
+          "bytes": 111,
+          "url": "app://zumi/models/a.vrm"
+        },
+        {
+          "id": "b",
+          "label": "Beta",
+          "source": "bundled",
+          "file": "b.vrm",
+          "isDefault": false,
+          "bytes": 222,
+          "url": "app://zumi/models/b.vrm"
+        }
+      ],
+      "selected": "a",
+      "bundledCount": 2
+    },
+    "picked": {
+      "models": [
+        {
+          "id": "a",
+          "label": "Alpha",
+          "source": "bundled",
+          "file": "a.vrm",
+          "isDefault": true,
+          "bytes": 111,
+          "url": "app://zumi/models/a.vrm"
+        },
+        {
+          "id": "b",
+          "label": "Beta",
+          "source": "bundled",
+          "file": "b.vrm",
+          "isDefault": false,
+          "bytes": 222,
+          "url": "app://zumi/models/b.vrm"
+        }
+      ],
+      "selected": "b",
+      "bundledCount": 2
+    },
+    "userModel": {
+      "models": [
+        {
+          "id": "a",
+          "label": "Alpha",
+          "source": "bundled",
+          "file": "a.vrm",
+          "isDefault": true,
+          "bytes": 111,
+          "url": "app://zumi/models/a.vrm"
+        },
+        {
+          "id": "b",
+          "label": "Beta",
+          "source": "bundled",
+          "file": "b.vrm",
+          "isDefault": false,
+          "bytes": 222,
+          "url": "app://zumi/models/b.vrm"
+        },
+        {
+          "id": "user",
+          "label": "Model from this PC",
+          "source": "user",
+          "file": "user.vrm",
+          "path": "<ROOT>\\user.vrm",
+          "bytes": 333,
+          "url": "app://zumi/external/user.vrm?v=loyw3v28-99"
+        }
+      ],
+      "selected": "user",
+      "bundledCount": 2
+    },
+    "testModel": {
+      "models": [
+        {
+          "id": "a",
+          "label": "Alpha",
+          "source": "bundled",
+          "file": "a.vrm",
+          "isDefault": true,
+          "bytes": 111,
+          "url": "app://zumi/models/a.vrm"
+        },
+        {
+          "id": "b",
+          "label": "Beta",
+          "source": "bundled",
+          "file": "b.vrm",
+          "isDefault": false,
+          "bytes": 222,
+          "url": "app://zumi/models/b.vrm"
+        },
+        {
+          "id": "test",
+          "label": "Zumi (test build)",
+          "source": "test",
+          "file": "test.vrm",
+          "path": "<ROOT>\\test.vrm",
+          "bytes": 444,
+          "url": "app://zumi/external/test.vrm?v=loyw3v28-cc"
+        }
+      ],
+      "selected": "test",
+      "bundledCount": 2
+    },
+    "badPick": {
+      "models": [
+        {
+          "id": "a",
+          "label": "Alpha",
+          "source": "bundled",
+          "file": "a.vrm",
+          "isDefault": true,
+          "bytes": 111,
+          "url": "app://zumi/models/a.vrm"
+        },
+        {
+          "id": "b",
+          "label": "Beta",
+          "source": "bundled",
+          "file": "b.vrm",
+          "isDefault": false,
+          "bytes": 222,
+          "url": "app://zumi/models/b.vrm"
+        }
+      ],
+      "selected": "a",
+      "bundledCount": 2
+    }
+  }
+}

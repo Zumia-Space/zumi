@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/ping.seen.json",
+  "title": "data for ping.seen",
+  "description": "The coordinator's watcher marks every unseen ping seen (the owner's page shows when its last ping was picked up).",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-target": "board",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

@@ -1,0 +1,12 @@
+{
+  "productName": "ZumiUpdateE2E",
+  "mainBinaryName": "ZumiUpdateE2E",
+  "identifier": "space.zumia.update-e2e",
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": ["http://127.0.0.1:47822/latest.json"],
+      "dangerousInsecureTransportProtocol": true
+    }
+  }
+}

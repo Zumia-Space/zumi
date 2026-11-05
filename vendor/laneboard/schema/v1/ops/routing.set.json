@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/routing.set.json",
+  "title": "data for routing.set",
+  "description": "Owner picks the worker for a task. Wins over the coordinator default.",
+  "x-roles": [
+    "owner"
+  ],
+  "x-target": "taskId",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "model",
+    "effort"
+  ],
+  "properties": {
+    "model": {
+      "$ref": "../common.json#/$defs/model"
+    },
+    "effort": {
+      "$ref": "../common.json#/$defs/effort"
+    }
+  }
+}

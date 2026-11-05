@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ask.json",
+  "title": "Ask record: a structured question for the owner",
+  "description": "Open asks populate the owner-attention block automatically. Only the owner answers; the coordinator may clear.",
+  "type": "object", "additionalProperties": false,
+  "required": ["id", "task_id", "rev", "attribution", "text", "status"],
+  "properties": {
+    "id": { "$ref": "common.json#/$defs/recordId" },
+    "task_id": { "$ref": "common.json#/$defs/taskId" },
+    "step_id": { "$ref": "common.json#/$defs/stepId" },
+    "rev": { "$ref": "common.json#/$defs/revision" },
+    "attribution": { "$ref": "common.json#/$defs/attribution" },
+    "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "options": { "$ref": "common.json#/$defs/options" },
+    "lane": { "type": "string", "minLength": 1, "maxLength": 64, "description": "The lane that asked, when it is not the task's lane (absent = the task's lane). One open ask per (task, lane, step)." },
+    "status": { "enum": ["open", "answered", "cleared"] },
+    "waiting_since": { "$ref": "common.json#/$defs/timestamp", "description": "Start of the owner-attention age when it predates this record: set only by times.import from a predecessor board, or by an s21 migration splitting a composite ask." },
+    "via_inbox": { "$ref": "common.json#/$defs/recordId" },
+    "answer": {
+      "type": "object", "additionalProperties": false, "required": ["at", "by"],
+      "properties": { "choice": { "type": "string", "maxLength": 16 }, "text": { "type": "string", "maxLength": 4000 }, "at": { "$ref": "common.json#/$defs/timestamp" }, "by": { "$ref": "common.json#/$defs/actor" } }
+    },
+    "cleared": {
+      "type": "object", "additionalProperties": false, "required": ["at", "by"],
+      "properties": { "note": { "type": "string", "maxLength": 2000 }, "at": { "$ref": "common.json#/$defs/timestamp" }, "by": { "$ref": "common.json#/$defs/actor" } }
+    }
+  }
+}

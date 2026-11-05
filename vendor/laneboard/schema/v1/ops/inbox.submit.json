@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/inbox.submit.json",
+  "title": "data for inbox.submit",
+  "description": "Any session files a report, an ask proposal or a step-state proposal. Append-only; the coordinator merges it.",
+  "x-roles": [
+    "owner",
+    "coordinator",
+    "reporter"
+  ],
+  "x-target": "taskId",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "text"
+  ],
+  "properties": {
+    "kind": {
+      "enum": [
+        "ask",
+        "report",
+        "step"
+      ]
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 4000
+    },
+    "step_id": {
+      "$ref": "../common.json#/$defs/stepId"
+    },
+    "state": {
+      "$ref": "../common.json#/$defs/stepState"
+    },
+    "options": {
+      "$ref": "../common.json#/$defs/options"
+    }
+  }
+}

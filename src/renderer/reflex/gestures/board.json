@@ -1,0 +1,243 @@
+{
+  "trigger": "board",
+  "labelVi": "New message on the board",
+  "variants": [
+    {
+      "id": "quick-glance", "labelVi": "Quick glance at the task card, eyebrow raised",
+      "selftest": { "peakMs": 420 },
+      "command": {
+        "id": "board-quick-glance", "priority": 6, "interrupt": true,
+        "lookAt": [{ "target": "dynamic", "weight": 1, "inMs": 70, "holdMs": 700, "outMs": 350 }],
+        "bones": [{ "bone": "head", "rot": [0, 0, -4], "inMs": 120, "holdMs": 650, "outMs": 400 }],
+        "expressions": [{ "name": "surprised", "weight": 0.6, "inMs": 70, "holdMs": 600, "outMs": 400 }]
+      }
+    },
+    {
+      "id": "turn-point", "labelVi": "Turns and points at the board",
+      "selftest": { "peakMs": 850 },
+      "command": {
+        "id": "board-turn-point", "priority": 6, "interrupt": true,
+        "bones": [
+          { "bone": "head", "rot": [0, -24, 0], "inMs": 200, "holdMs": 1000, "outMs": 500 },
+          { "bone": "neck", "rot": [0, -6, 0], "inMs": 200, "holdMs": 1000, "outMs": 500 },
+          { "bone": "spine", "rot": [0, -7, 0], "inMs": 250, "holdMs": 1000, "outMs": 500 }
+        ],
+        "reach": [{ "hand": "right", "target": "point-sidebar", "inMs": 300, "holdMs": 900, "outMs": 500 }],
+        "hands": [{ "hand": "right", "shape": "loose", "weight": 1, "inMs": 300, "holdMs": 900, "outMs": 500 }],
+        "expressions": [
+          { "name": "surprised", "weight": 0.5, "inMs": 80, "holdMs": 900, "outMs": 400 },
+          { "name": "oh", "weight": 0.3, "inMs": 80, "holdMs": 300, "outMs": 300 }
+        ],
+        "lookAt": [{ "target": "sidebar", "weight": 1, "inMs": 100, "holdMs": 1100, "outMs": 400 }]
+      }
+    },
+    {
+      "id": "double-take", "labelVi": "Glance, turn back, then take a closer look at the card",
+      "selftest": { "peakMs": 1050 },
+      "command": {
+        "id": "board-double-take", "priority": 6, "interrupt": true,
+        "lookAt": [
+          { "target": "dynamic", "weight": 0.9, "inMs": 60, "holdMs": 200, "outMs": 150 },
+          { "target": "dynamic", "weight": 1, "delayMs": 650, "inMs": 120, "holdMs": 900, "outMs": 400 }
+        ],
+        "bones": [
+          { "bone": "head", "rot": [3, 0, 0], "inMs": 80, "holdMs": 200, "outMs": 150 },
+          { "bone": "head", "rot": [6, 0, -3], "delayMs": 650, "inMs": 180, "holdMs": 800, "outMs": 450 }
+        ],
+        "expressions": [
+          { "name": "surprised", "weight": 0.3, "inMs": 60, "holdMs": 200, "outMs": 150 },
+          { "name": "surprised", "weight": 0.85, "delayMs": 650, "inMs": 100, "holdMs": 800, "outMs": 400 },
+          { "name": "oh", "weight": 0.35, "delayMs": 650, "inMs": 100, "holdMs": 250, "outMs": 250 }
+        ]
+      }
+    },
+    {
+      "id": "nod-smile", "labelVi": "Nods, a happy little smile (task done)",
+      "selftest": { "peakMs": 640 },
+      "command": {
+        "id": "board-nod-smile", "priority": 6, "interrupt": true,
+        "lookAt": [{ "target": "dynamic", "weight": 1, "inMs": 80, "holdMs": 900, "outMs": 400 }],
+        "moves": [{ "move": "nod", "beats": 2, "deg": 14, "beatMs": 340 }],
+        "expressions": [{ "name": "happy", "weight": 0.55, "inMs": 120, "holdMs": 900, "outMs": 450 }]
+      }
+    },
+    {
+      "id": "concerned", "labelVi": "Concerned, looks at the stuck step",
+      "selftest": { "peakMs": 720 },
+      "command": {
+        "id": "board-concerned", "priority": 6, "interrupt": true,
+        "lookAt": [{ "target": "dynamic", "weight": 1, "inMs": 120, "holdMs": 1100, "outMs": 500 }],
+        "bones": [
+          { "bone": "head", "rot": [3, 0, -6], "inMs": 200, "holdMs": 900, "outMs": 500 },
+          { "bone": "neck", "rot": [2, 0, -2], "inMs": 200, "holdMs": 900, "outMs": 500 }
+        ],
+        "expressions": [{ "name": "sad", "weight": 0.55, "inMs": 150, "holdMs": 900, "outMs": 500 }]
+      }
+    },
+    {
+      "id": "card-point-done", "labelVi": "Points up at the new card with her free hand, happy (task done)",
+      "selftest": { "peakMs": 620 },
+      "command": {
+        "id": "board-card-point-done", "priority": 6, "interrupt": true,
+        "lookAt": [{ "target": "dynamic", "weight": 1, "inMs": 80, "holdMs": 900, "outMs": 400 }],
+        "bones": [
+          { "bone": "head", "rot": [0, 14, -3], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "neck", "rot": [0, 5, 0], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "spine", "rot": [0, 4, 0], "inMs": 200, "holdMs": 800, "outMs": 450 }
+        ],
+        "reach": [{ "hand": "left", "target": "point-up", "inMs": 280, "holdMs": 800, "outMs": 450, "osc": { "hz": 2.2, "amp": [0.05, 0, 0] } }],
+        "hands": [{ "hand": "left", "shape": "point", "weight": 1, "inMs": 280, "holdMs": 800, "outMs": 450 }],
+        "expressions": [
+          { "name": "happy", "weight": 0.55, "inMs": 120, "holdMs": 800, "outMs": 450 }
+        ]
+      }
+    },
+    {
+      "id": "card-point-blocked", "labelVi": "Points up at the stuck step, concerned",
+      "selftest": { "peakMs": 620 },
+      "command": {
+        "id": "board-card-point-blocked", "priority": 6, "interrupt": true,
+        "lookAt": [{ "target": "dynamic", "weight": 1, "inMs": 80, "holdMs": 900, "outMs": 400 }],
+        "bones": [
+          { "bone": "head", "rot": [0, 14, -6], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "neck", "rot": [0, 5, 0], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "spine", "rot": [0, 4, 0], "inMs": 200, "holdMs": 800, "outMs": 450 }
+        ],
+        "reach": [{ "hand": "left", "target": "point-up", "inMs": 280, "holdMs": 800, "outMs": 450, "osc": { "hz": 2.2, "amp": [0.05, 0, 0] } }],
+        "hands": [{ "hand": "left", "shape": "point", "weight": 1, "inMs": 280, "holdMs": 800, "outMs": 450 }],
+        "expressions": [
+          { "name": "sad", "weight": 0.55, "inMs": 150, "holdMs": 800, "outMs": 500 }
+        ]
+      }
+    },
+    {
+      "id": "card-point-focused", "labelVi": "Points up at the new card, focused (step running)",
+      "selftest": { "peakMs": 620 },
+      "command": {
+        "id": "board-card-point-focused", "priority": 6, "interrupt": true,
+        "lookAt": [{ "target": "dynamic", "weight": 1, "inMs": 80, "holdMs": 900, "outMs": 400 }],
+        "bones": [
+          { "bone": "head", "rot": [0, 14, -3], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "neck", "rot": [0, 5, 0], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "spine", "rot": [0, 4, 0], "inMs": 200, "holdMs": 800, "outMs": 450 }
+        ],
+        "reach": [{ "hand": "left", "target": "point-up", "inMs": 280, "holdMs": 800, "outMs": 450, "osc": { "hz": 2.2, "amp": [0.05, 0, 0] } }],
+        "hands": [{ "hand": "left", "shape": "point", "weight": 1, "inMs": 280, "holdMs": 800, "outMs": 450 }],
+        "expressions": [
+          { "name": "relaxed", "weight": 0.3, "inMs": 150, "holdMs": 800, "outMs": 450 }
+        ]
+      }
+    },
+    {
+      "id": "card-point-left-done", "labelVi": "Points across at the left card with her free hand, happy",
+      "selftest": { "peakMs": 620 },
+      "command": {
+        "id": "board-card-point-left-done", "priority": 6, "interrupt": true,
+        "lookAt": [{ "target": "dynamic", "weight": 1, "inMs": 80, "holdMs": 900, "outMs": 400 }],
+        "bones": [
+          { "bone": "head", "rot": [0, -14, 3], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "neck", "rot": [0, -5, 0], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "spine", "rot": [0, -4, 0], "inMs": 200, "holdMs": 800, "outMs": 450 }
+        ],
+        "reach": [{ "hand": "right", "target": "point-up", "inMs": 280, "holdMs": 800, "outMs": 450, "osc": { "hz": 2.2, "amp": [0.05, 0, 0] } }],
+        "hands": [{ "hand": "right", "shape": "point", "weight": 1, "inMs": 280, "holdMs": 800, "outMs": 450 }],
+        "expressions": [
+          { "name": "happy", "weight": 0.55, "inMs": 120, "holdMs": 800, "outMs": 450 }
+        ]
+      }
+    },
+    {
+      "id": "card-point-left-blocked", "labelVi": "Points across at the stuck left step, concerned",
+      "selftest": { "peakMs": 620 },
+      "command": {
+        "id": "board-card-point-left-blocked", "priority": 6, "interrupt": true,
+        "lookAt": [{ "target": "dynamic", "weight": 1, "inMs": 80, "holdMs": 900, "outMs": 400 }],
+        "bones": [
+          { "bone": "head", "rot": [0, -14, 6], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "neck", "rot": [0, -5, 0], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "spine", "rot": [0, -4, 0], "inMs": 200, "holdMs": 800, "outMs": 450 }
+        ],
+        "reach": [{ "hand": "right", "target": "point-up", "inMs": 280, "holdMs": 800, "outMs": 450, "osc": { "hz": 2.2, "amp": [0.05, 0, 0] } }],
+        "hands": [{ "hand": "right", "shape": "point", "weight": 1, "inMs": 280, "holdMs": 800, "outMs": 450 }],
+        "expressions": [
+          { "name": "sad", "weight": 0.55, "inMs": 150, "holdMs": 800, "outMs": 500 }
+        ]
+      }
+    },
+    {
+      "id": "card-point-left-focused", "labelVi": "Points across at the left card, focused",
+      "selftest": { "peakMs": 620 },
+      "command": {
+        "id": "board-card-point-left-focused", "priority": 6, "interrupt": true,
+        "lookAt": [{ "target": "dynamic", "weight": 1, "inMs": 80, "holdMs": 900, "outMs": 400 }],
+        "bones": [
+          { "bone": "head", "rot": [0, -14, 3], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "neck", "rot": [0, -5, 0], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "spine", "rot": [0, -4, 0], "inMs": 200, "holdMs": 800, "outMs": 450 }
+        ],
+        "reach": [{ "hand": "right", "target": "point-up", "inMs": 280, "holdMs": 800, "outMs": 450, "osc": { "hz": 2.2, "amp": [0.05, 0, 0] } }],
+        "hands": [{ "hand": "right", "shape": "point", "weight": 1, "inMs": 280, "holdMs": 800, "outMs": 450 }],
+        "expressions": [
+          { "name": "relaxed", "weight": 0.3, "inMs": 150, "holdMs": 800, "outMs": 450 }
+        ]
+      }
+    },
+    {
+      "id": "card-nod-wave-done", "labelVi": "Nods toward the left card and lifts her free hand, happy",
+      "selftest": { "peakMs": 620 },
+      "command": {
+        "id": "board-card-nod-wave-done", "priority": 6, "interrupt": true,
+        "lookAt": [{ "target": "dynamic", "weight": 1, "inMs": 80, "holdMs": 900, "outMs": 400 }],
+        "bones": [
+          { "bone": "head", "rot": [0, -14, 3], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "neck", "rot": [0, -5, 0], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "spine", "rot": [0, -4, 0], "inMs": 200, "holdMs": 800, "outMs": 450 }
+        ],
+        "moves": [{ "move": "nod", "beats": 1, "deg": 8, "beatMs": 300 }],
+        "reach": [{ "hand": "left", "target": "wave-small", "inMs": 280, "holdMs": 800, "outMs": 450, "osc": { "hz": 3, "amp": [0.06, 0, 0] } }],
+        "hands": [{ "hand": "left", "shape": "open-flat", "weight": 1, "inMs": 280, "holdMs": 800, "outMs": 450 }],
+        "expressions": [
+          { "name": "happy", "weight": 0.55, "inMs": 120, "holdMs": 800, "outMs": 450 }
+        ]
+      }
+    },
+    {
+      "id": "card-nod-wave-blocked", "labelVi": "Nods toward the stuck left step and lifts her free hand, concerned",
+      "selftest": { "peakMs": 620 },
+      "command": {
+        "id": "board-card-nod-wave-blocked", "priority": 6, "interrupt": true,
+        "lookAt": [{ "target": "dynamic", "weight": 1, "inMs": 80, "holdMs": 900, "outMs": 400 }],
+        "bones": [
+          { "bone": "head", "rot": [0, -14, 6], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "neck", "rot": [0, -5, 0], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "spine", "rot": [0, -4, 0], "inMs": 200, "holdMs": 800, "outMs": 450 }
+        ],
+        "moves": [{ "move": "nod", "beats": 1, "deg": 8, "beatMs": 300 }],
+        "reach": [{ "hand": "left", "target": "wave-small", "inMs": 280, "holdMs": 800, "outMs": 450, "osc": { "hz": 3, "amp": [0.06, 0, 0] } }],
+        "hands": [{ "hand": "left", "shape": "open-flat", "weight": 1, "inMs": 280, "holdMs": 800, "outMs": 450 }],
+        "expressions": [
+          { "name": "sad", "weight": 0.55, "inMs": 150, "holdMs": 800, "outMs": 500 }
+        ]
+      }
+    },
+    {
+      "id": "card-nod-wave-focused", "labelVi": "Nods toward the left card and lifts her free hand, focused",
+      "selftest": { "peakMs": 620 },
+      "command": {
+        "id": "board-card-nod-wave-focused", "priority": 6, "interrupt": true,
+        "lookAt": [{ "target": "dynamic", "weight": 1, "inMs": 80, "holdMs": 900, "outMs": 400 }],
+        "bones": [
+          { "bone": "head", "rot": [0, -14, 3], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "neck", "rot": [0, -5, 0], "inMs": 180, "holdMs": 800, "outMs": 450 },
+          { "bone": "spine", "rot": [0, -4, 0], "inMs": 200, "holdMs": 800, "outMs": 450 }
+        ],
+        "moves": [{ "move": "nod", "beats": 1, "deg": 8, "beatMs": 300 }],
+        "reach": [{ "hand": "left", "target": "wave-small", "inMs": 280, "holdMs": 800, "outMs": 450, "osc": { "hz": 3, "amp": [0.06, 0, 0] } }],
+        "hands": [{ "hand": "left", "shape": "open-flat", "weight": 1, "inMs": 280, "holdMs": 800, "outMs": 450 }],
+        "expressions": [
+          { "name": "relaxed", "weight": 0.3, "inMs": 150, "holdMs": 800, "outMs": 450 }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/plan.add.json",
+  "title": "data for plan.add",
+  "description": "A reviewer's re-plan for a task, append-only. verdict and eta are read from the body's 'VERDICT:' and 'ETA:' lines when not given. written_at is the reviewer's own declared time (unverified metadata); the server records posted_at and the task's goal version.",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-target": "taskId",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reviewer",
+    "body"
+  ],
+  "properties": {
+    "reviewer": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "body": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60000
+    },
+    "verdict": {
+      "$ref": "../common.json#/$defs/verdict"
+    },
+    "eta": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "written_at": {
+      "$ref": "../common.json#/$defs/timestamp"
+    }
+  }
+}

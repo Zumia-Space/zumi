@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/plans.import.json",
+  "title": "data for plans.import",
+  "description": "Migration: a predecessor board's reviewer plans for one task, with their own posted times and goal versions, once per task, before any plan.add on it.",
+  "x-roles": [
+    "owner"
+  ],
+  "x-target": "taskId",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "plans"
+  ],
+  "properties": {
+    "plans": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reviewer",
+          "body",
+          "posted_at"
+        ],
+        "properties": {
+          "legacy_id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "reviewer": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60000
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "../common.json#/$defs/verdict"
+              },
+              {
+                "const": ""
+              }
+            ]
+          },
+          "eta": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "written_at": {
+            "$ref": "../common.json#/$defs/timestamp"
+          },
+          "posted_at": {
+            "$ref": "../common.json#/$defs/timestamp"
+          },
+          "goal_version": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

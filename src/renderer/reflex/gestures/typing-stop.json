@@ -1,0 +1,43 @@
+{
+  "trigger": "typing-stop",
+  "labelVi": "You stopped typing",
+  "variants": [
+    {
+      "id": "look-up-blink", "labelVi": "Looks up, blinks",
+      "selftest": { "peakMs": 480 },
+      "command": {
+        "id": "typing-stop-blink", "priority": 4, "interrupt": true,
+        "expressions": [
+          { "name": "blink", "weight": 1, "inMs": 40, "holdMs": 40, "outMs": 90 },
+          { "name": "blink", "weight": 1, "delayMs": 280, "inMs": 40, "holdMs": 40, "outMs": 90 },
+          { "name": "surprised", "weight": 0.35, "inMs": 80, "holdMs": 450, "outMs": 400 }
+        ],
+        "bones": [{ "bone": "head", "rot": [-6, 0, 3], "inMs": 100, "holdMs": 450, "outMs": 400 }],
+        "lookAt": [{ "target": "camera", "weight": 0.9, "inMs": 100, "holdMs": 500, "outMs": 300 }]
+      }
+    },
+    {
+      "id": "look-up-smile", "labelVi": "Looks up, smiling",
+      "selftest": { "peakMs": 600 },
+      "command": {
+        "id": "typing-stop-smile", "priority": 4, "interrupt": true, "mirror": "random",
+        "expressions": [{ "name": "happy", "weight": 0.75, "inMs": 150, "holdMs": 600, "outMs": 500 }],
+        "bones": [{ "bone": "head", "rot": [-4, 0, 8], "inMs": 150, "holdMs": 600, "outMs": 500 }],
+        "lookAt": [{ "target": "camera", "weight": 0.9, "inMs": 120, "holdMs": 700, "outMs": 300 }]
+      }
+    },
+    {
+      "id": "look-up-tilt", "labelVi": "Looks up, head tilted 'hm?'",
+      "selftest": { "peakMs": 450 },
+      "command": {
+        "id": "typing-stop-tilt", "priority": 4, "interrupt": true, "mirror": "random",
+        "expressions": [
+          { "name": "oh", "weight": 0.35, "inMs": 80, "holdMs": 250, "outMs": 250 },
+          { "name": "surprised", "weight": 0.35, "inMs": 100, "holdMs": 500, "outMs": 400 }
+        ],
+        "bones": [{ "bone": "head", "rot": [-3, 6, 13], "inMs": 150, "holdMs": 550, "outMs": 450 }],
+        "lookAt": [{ "target": { "x": 0.25, "y": 0.2 }, "weight": 0.9, "inMs": 120, "holdMs": 600, "outMs": 300 }]
+      }
+    }
+  ]
+}

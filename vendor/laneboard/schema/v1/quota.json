@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "quota.json",
+  "title": "Claude-account quota document. One JSON document an external publisher (J-05 quota-pull) writes atomically to <data>/quota.json; derived data, never in the journal, so an older board that knows no quota route can replay this journal and start (rollback is safe). The page reads it as-is from GET /api/v1/quota and never recomputes it.",
+  "description": "Every time is an ISO timestamp. window5h / week are the account-wide Claude Code rate_limits as last seen (pct 0-100); a window that has no value (the plan sends none, or the collector never saw it) is null or left out, never written as 0. A window whose resets_at is already behind is NOT rewritten by the publisher: it sends the last merged value and the page shows it as reset / unknown. Whether a window is live, stale or already reset is decided by the page from as_of and resets_at against the clock. tokens count this machine's Claude Code only. Fields this schema does not name are allowed (a newer publisher may add some) and ignored.",
+  "type": "object",
+  "required": ["generated_at", "accounts"],
+  "properties": {
+    "schema": { "type": "integer", "const": 1 },
+    "generated_at": { "type": "string", "minLength": 10, "maxLength": 40, "description": "When the publisher built this document." },
+    "accounts": { "type": "array", "maxItems": 12, "items": { "$ref": "#/$defs/account" } }
+  },
+  "$defs": {
+    "iso": { "type": "string", "minLength": 10, "maxLength": 40 },
+    "count": { "type": "number", "minimum": 0 },
+    "window": {
+      "type": ["object", "null"],
+      "required": ["pct", "as_of"],
+      "properties": {
+        "pct": { "type": "number", "minimum": 0, "maximum": 100, "description": "Share of the window used when it was last seen." },
+        "resets_at": { "$ref": "#/$defs/iso", "description": "When the window resets; left out when the plan payload carried none (the page then cannot call the window passed)." },
+        "as_of": { "$ref": "#/$defs/iso", "description": "When this pct was first reported (the date of the value; a later re-render of the same or an older value does not move it)." },
+        "seen_at": { "$ref": "#/$defs/iso", "description": "Newest real snapshot of this window: the freshness signal the page judges live / stale by. Left out (older publisher, or a fallback source that cannot prove freshness) = as_of decides." }
+      }
+    },
+    "tokens": {
+      "type": ["object", "null"],
+      "required": ["today", "d7", "as_of"],
+      "properties": {
+        "today": { "$ref": "#/$defs/count", "description": "Input + output + cache-write tokens since local midnight." },
+        "d7": { "$ref": "#/$defs/count", "description": "The same over the last 7 days." },
+        "today_cache_read": { "$ref": "#/$defs/count" },
+        "d7_cache_read": { "$ref": "#/$defs/count" },
+        "last_activity": { "$ref": "#/$defs/iso", "description": "Last Claude Code use seen on the machine (shown when today is 0)." },
+        "as_of": { "$ref": "#/$defs/iso" }
+      }
+    },
+    "reach": {
+      "type": "object",
+      "required": ["status", "checked_at"],
+      "properties": {
+        "status": { "type": "string", "enum": ["ok", "offline", "error"] },
+        "checked_at": { "$ref": "#/$defs/iso" },
+        "since": { "$ref": "#/$defs/iso", "description": "Since when the machine has been unreachable (else checked_at is shown)." },
+        "msg": { "type": "string", "maxLength": 200 }
+      }
+    },
+    "account": {
+      "type": "object",
+      "required": ["id", "label", "machine", "reach"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Account name shown on the card, e.g. Premium A." },
+        "machine": { "type": "string", "maxLength": 120, "description": "Free text under the name, e.g. Main PC · this machine." },
+        "window5h": { "$ref": "#/$defs/window" },
+        "week": { "$ref": "#/$defs/window" },
+        "tokens": { "$ref": "#/$defs/tokens", "description": "null or left out = this machine could not be counted (unreachable, or its Claude Code transcripts folder is missing): unknown, never 0." },
+        "snap": { "type": "string", "enum": ["ok", "never_seen", "fallback"], "description": "never_seen = the collector has never written a rate_limits snapshot on this machine (not installed). fallback = the windows come from a last-payload dump that any session overwrites, so they may be older or lower than the truth: shown as unverified, never live. Left out = not stated." },
+        "warnings": { "type": "array", "maxItems": 8, "items": { "type": "string", "maxLength": 160 }, "description": "Short collector notes the owner should see, e.g. the transcripts folder is missing." },
+        "reach": { "$ref": "#/$defs/reach" }
+      }
+    }
+  }
+}

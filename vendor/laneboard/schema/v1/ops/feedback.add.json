@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/feedback.add.json",
+  "title": "data for feedback.add",
+  "description": "Owner note on a task, or coordinator reply. Kind sweep (owner-only, target * = the whole board, the Cập nhật button) asks the coordinator to re-check every task status; one may be open at a time (409 sweep_open); the coordinator closes it with a reply (reply_to, resolve_reply_to) or feedback.resolve. approve/reject/newtask/choice/goal-lock are owner-only; choice records an option the owner picked on a step (step_id) or a reviewer plan (plan_id) outside an ask; goal-lock (with goal_version) is how a migration records a predecessor's goal-lock row (goal.lock writes its own). target_id NEW is the board's thread of new-task requests (no task needed). An owner note/approve/reject/choice answers the open asks it lands on (on a step: that step's asks and the task's step-less asks; on the task: its step-less asks); the server journals their ids as answers_asks and the feedback stays open for the coordinator. With ask_id the message is scoped to that ask and answers only it. Kinds: redirect (Đổi hướng) and askback (Hỏi lại: the ask stays open, journaled as asks_back) are owner-only; receipt (Nhận) is coordinator-only, needs reply_to = an owner message of the task and a text with the lines 'Đổi:', 'Lịch:', 'Bước tiếp:' (parsed into receipt), is recorded on that message (received) and closes it.",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-target": "feedbackTarget",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "text"
+  ],
+  "properties": {
+    "kind": {
+      "enum": [
+        "note",
+        "approve",
+        "reject",
+        "newtask",
+        "choice",
+        "reply",
+        "goal-lock",
+        "redirect",
+        "askback",
+        "receipt",
+        "sweep"
+      ]
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 8000,
+      "minLength": 1
+    },
+    "step_id": {
+      "$ref": "../common.json#/$defs/stepId"
+    },
+    "ask_id": {
+      "type": "string",
+      "pattern": "^ask-[0-9]+$",
+      "description": "Scope: the message is about this ask of the task (preset when the owner opens a task from Waiting on you)."
+    },
+    "attachments": {
+      "type": "array",
+      "maxItems": 10,
+      "items": { "type": "string", "pattern": "^att-[0-9]+$" },
+      "description": "Images of this task (uploaded with purpose=message) shown with the message."
+    },
+    "reply_to": {
+      "$ref": "../common.json#/$defs/recordId"
+    },
+    "resolve_reply_to": {
+      "type": "boolean"
+    },
+    "plan_id": {
+      "type": "string",
+      "pattern": "^plan-[0-9]+(-[0-9]+)?$"
+    },
+    "goal_version": {
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

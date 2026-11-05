@@ -1,0 +1,36 @@
+node_modules/
+dist/
+build/renderer/
+selftest-*/
+.l0-tmp/
+.role-models-check-tmp/
+.room-picker-check-tmp/
+*.log
+_install-test/
+_internal-build/
+_internal-build-v*/
+.click-*/
+.hud-check-tmp/
+
+# T-31 Tauri preview: on-D: build caches created by tauri/build.ps1 (never committed).
+.cargo-home/
+.tauri-cache/
+.tauri-check-tmp/
+tauri/src-tauri/target/
+# Parity 7-1: staged bundle resources (contains the pinned node.exe and zumi-vault.exe -- never committed).
+tauri/src-tauri/bundle/*
+!tauri/src-tauri/bundle/.gitkeep
+
+# T-31 default avatar (VRoid AvatarSample_K lineage, restrictive, NOT AGPL): never committed; injected at build time from ZUMI_DEFAULT_VRM_PATH (resources-pinned/default-model/PIN-MANIFEST.json), same as Electron.
+*.vrm
+.no-dev-paths-check-tmp/
+
+# per-run check script output (scripts/lib/check-out-dir.mjs)
+out/
+
+# T-31 0.2.11: scratch output of scripts/check-third-party.mjs (removed by the gate itself)
+_third-party-check/
+
+# T-31 0.2.11: scratch manifests of scripts/check-third-party-attest.mjs (removed by the test itself)
+_third-party-attest-test/
+_third-party-openlegal-test/

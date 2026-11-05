@@ -1,0 +1,255 @@
+/* T-31 slice 1, look A "HUD-line": the Track-2 theme layer. Linked after styles.css by the next-UI build
+   (scripts/build-renderer.mjs fills the next-ui:head marker in index.html); copied by it. Every colour is a var(--token) (or a color-mix of tokens) from vendor/laneboard/public/
+   tokens.css; no colour literal belongs here (check:palette). The app is dark-only today, so this file does not branch on
+   a light theme. Ported from the concept source (concept-boards/20261027T120222Z/src/theme.css), minus its mock layout.
+
+   Decoration classes (4): .frame (chamfered panel), .gline (glow line), .scan (scan bar), .ring (segmented ring).
+   .frame draws its border + fill on ::before / ::after behind its content (isolation + z-index:-1), so it needs no child
+   markup and works on an existing element too (the Settings cards). Corner ticks are two gradient pairs on ::after. */
+
+/* The theme token values (blue = look A, black, white: html.zumi-next[data-theme=...]) are in src/next-tokens/tokens-a.css, linked just before this file. */
+:root { --tick: 8px; } /* corner tick size; .frame bottom padding is derived from it so a tick never touches the last text line */
+
+/* ---------- sidebar (the rail) ---------- */
+#sidebar { background: var(--rail-bg); border-right: 1px solid var(--line-dim); }
+.tab:hover { background: var(--line-faint); color: var(--foreground); }
+.tab.active {
+  color: var(--primary);
+  background: linear-gradient(90deg, var(--line-dim), var(--accent) 60%);
+  box-shadow: inset 0 0 0 1px var(--line-faint);
+}
+.tab.active svg { filter: drop-shadow(0 0 4px var(--glow)); }
+.tab.active::before { left: -6px; width: 2px; border-radius: 0; box-shadow: 0 0 8px var(--glow); }
+.tab:focus-visible { outline: 1px solid var(--line); outline-offset: 1px; }
+.badge { box-shadow: 0 0 0 2px var(--rail-bg); }
+
+/* ---------- shell chrome that follows the tokens (square corners, hairline lines) ---------- */
+.toolbar, .composer { background: var(--background); border-color: var(--line-faint); }
+select, .ghost, .primary, #msg { border-radius: var(--radius); }
+.lang-switch, .lang-switch button { border-radius: var(--radius); }
+.lang-switch { background: var(--card); border: 1px solid var(--line-dim); }
+.lang-switch button[aria-checked="true"] { background: var(--primary); color: var(--primary-foreground); box-shadow: none; }
+.stabbar { background: var(--card); border: 1px solid var(--line-dim); border-radius: var(--radius); }
+.stabbar .stab { border-radius: var(--radius); }
+.stabbar .stab.active { color: var(--primary); background: var(--accent); box-shadow: inset 0 -2px 0 var(--primary); }
+
+/* Settings is a full page (no room behind it): a faint grid + a soft glow, like the concept page. */
+#tab-settings {
+  background:
+    linear-gradient(var(--line-faint) 1px, transparent 1px) 0 0 / 100% 36px,
+    linear-gradient(90deg, var(--line-faint) 1px, transparent 1px) 0 0 / 36px 100%,
+    radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--primary) 6%, var(--background)), var(--background) 75%);
+}
+#tab-settings .toolbar { background: var(--rail-bg); border-bottom: 1px solid var(--line-dim); }
+
+/* ---------- decoration class 1: .frame (chamfered panel) ---------- */
+.frame, .settings .card {
+  position: relative; isolation: isolate; border: 0; border-radius: 0; background: none; color: var(--foreground);
+  padding-bottom: calc(var(--tick) + 10px); /* >= tick size + 4px: the last line clears the bottom-left tick */
+}
+.frame { padding: 11px 13px calc(var(--tick) + 10px); }
+.frame::before, .frame::after, .settings .card::before, .settings .card::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: -1; }
+.frame::before, .settings .card::before {
+  background: var(--line); opacity: .9;
+  clip-path: polygon(evenodd,
+    var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut),
+    calc(var(--cut) + .414px) 1px, calc(100% - 1px) 1px, calc(100% - 1px) calc(100% - var(--cut) - .414px), calc(100% - var(--cut) - .414px) calc(100% - 1px), 1px calc(100% - 1px), 1px calc(var(--cut) + .414px));
+}
+.frame::after, .settings .card::after {
+  /* top-right and bottom-left corner ticks (two 1px lines each), scan lines, grid, then the panel fill */
+  background:
+    linear-gradient(var(--line), var(--line)) right 5px top 5px / var(--tick) 1px no-repeat,
+    linear-gradient(var(--line), var(--line)) right 5px top 5px / 1px var(--tick) no-repeat,
+    linear-gradient(var(--line), var(--line)) left 5px bottom 5px / var(--tick) 1px no-repeat,
+    linear-gradient(var(--line), var(--line)) left 5px bottom 5px / 1px var(--tick) no-repeat,
+    repeating-linear-gradient(180deg, color-mix(in srgb, var(--line) 7%, transparent) 0 1px, transparent 1px 3px),
+    linear-gradient(var(--line-faint) 1px, transparent 1px) 0 0 / 100% var(--grid),
+    linear-gradient(90deg, var(--line-faint) 1px, transparent 1px) 0 0 / var(--grid) 100%,
+    var(--panel);
+  clip-path: polygon(calc(var(--cut) + .414px) 1px, calc(100% - 1px) 1px, calc(100% - 1px) calc(100% - var(--cut) - .414px), calc(100% - var(--cut) - .414px) calc(100% - 1px), 1px calc(100% - 1px), 1px calc(var(--cut) + .414px));
+}
+.settings .srow, .settings .gbody { border-top-color: var(--line-faint); }
+.settings .ghead { border-bottom: 0; }
+.settings .ghead + .srow, .settings .ghead + .gbody { border-top-color: var(--line-dim); }
+.frame .head {
+  display: flex; align-items: center; gap: 8px; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--primary);
+  padding-bottom: 7px; margin-bottom: 9px; border-bottom: 1px solid var(--line-dim);
+}
+.frame .head .tag { padding: 1px 7px; background: var(--line-faint); border: 1px solid var(--line-dim); clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%, 0 6px); }
+
+/* ---------- decoration class 2: .gline (glow line) ---------- */
+.gline { position: relative; height: 1px; margin: 8px 0; background: linear-gradient(90deg, var(--line), transparent); box-shadow: 0 0 8px var(--glow-soft); }
+/* the pulse fades a second, brighter glow in and out: opacity only (compositor), no box-shadow repaint per frame */
+.gline::after { content: ""; position: absolute; inset: 0; box-shadow: 0 0 12px var(--glow); opacity: .25; animation: gline-glow 3.2s ease-in-out infinite; }
+@keyframes gline-glow { 50% { opacity: 1; } }
+
+/* ---------- decoration class 3: .scan (scan bar). Without .live it is a still bar; .live sweeps a bright band ---------- */
+.scan { position: relative; height: 6px; overflow: hidden; background: var(--line-faint); border: 1px solid var(--line-dim); }
+.scan > i { position: absolute; top: 0; bottom: 0; left: 18%; width: 34%; background: linear-gradient(90deg, transparent, var(--line), transparent); }
+.scan > u { position: absolute; top: 0; bottom: 0; left: 0; background: var(--primary); opacity: .55; }
+/* the sweep moves with transform (compositor), not left: starts one band-width left of the bar (-100%) and ends at its right edge (100 / 34 = 294%) */
+.scan.live > i { left: 0; transform: translateX(-100%); will-change: transform; animation: scan-sweep 2.4s linear infinite; }
+@keyframes scan-sweep { to { transform: translateX(294%); } }
+
+/* ---------- decoration class 4: .ring (segmented ring). Set --p (0-100, share lit), --seg (segment count), --ring-w ---------- */
+.ring {
+  --p: 0; --seg: 30; --ring-w: 6px; width: 72px; aspect-ratio: 1; border-radius: 50%;
+  background: conic-gradient(from -90deg, var(--primary) calc(var(--p) * 1%), var(--line-dim) 0);
+  /* the mask keeps only the segment strokes (repeating gaps) on a ring of width --ring-w; the colour in the mask is irrelevant, only alpha */
+  -webkit-mask: repeating-conic-gradient(from -90deg, var(--foreground) 0 calc(360deg / var(--seg) - 3deg), transparent 0 calc(360deg / var(--seg))),
+    radial-gradient(farthest-side, transparent calc(100% - var(--ring-w)), var(--foreground) calc(100% - var(--ring-w) + .5px));
+  -webkit-mask-composite: source-in;
+  mask: repeating-conic-gradient(from -90deg, var(--foreground) 0 calc(360deg / var(--seg) - 3deg), transparent 0 calc(360deg / var(--seg))),
+    radial-gradient(farthest-side, transparent calc(100% - var(--ring-w)), var(--foreground) calc(100% - var(--ring-w) + .5px));
+  mask-composite: intersect;
+  filter: drop-shadow(0 0 4px var(--glow));
+}
+
+/* ---------- Devices card (concept A-1: a card over the room, like the HUD panels; created by next/boot.js) ---------- */
+/* Same corner and width rule as .hud-left (hud.css). While it is open the HUD's left group steps aside (visibility, not display: hud.js keeps measuring it).
+   .nx-yield is the arm-clearance fade (boot.js), the same behaviour as .hud-group.yield. */
+.nx-card { position: absolute; left: 14px; top: 14px; z-index: 5; width: clamp(210px, 25%, 330px); transition: opacity .2s linear; }
+.nx-card[hidden] { display: none; }
+.key-guide { padding: 14px 16px; }
+.key-guide h3 { margin: 0 0 6px; }
+.key-guide p { margin: 0 0 12px; }
+.key-guide-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.nx-card.nx-yield { opacity: 0; pointer-events: none; transition: none; }
+#stage.nx-devices-open .hud-left, #stage.nx-devices-open .hud-below[data-place="below-left"] { visibility: hidden; }
+.frame .head .sp { flex: 1; }
+.frame .head .meta { color: var(--muted-foreground); letter-spacing: .03em; text-transform: none; font-family: var(--mono); font-size: 10.5px; }
+.dev { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 9px 0; border-bottom: 1px dashed var(--line-faint); }
+.dev:last-child { border-bottom: 0; }
+.dev .ic { width: 38px; height: 38px; flex: none; display: flex; align-items: center; justify-content: center; color: var(--primary); background: var(--line-faint); border: 1px solid var(--line-dim); }
+.dev .ic svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.dev.soon .ic { color: var(--muted-foreground); background: transparent; border-style: dashed; }
+.dev .nm { flex: 1; min-width: 4.5rem; font-size: 14px; font-weight: 600; }
+.dev .st { margin-left: auto; } /* the chip drops under the name (wraps) when the card is too narrow, e.g. the longer vi labels */
+.dev .scan { flex: 0 0 calc(100% - 48px); margin-left: 48px; } /* 48px = icon 38 + gap 10, so the bar sits under the name */
+.dchip { display: inline-block; padding: 1px 7px; border: 1px solid var(--line-dim); color: var(--primary); font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; white-space: nowrap; }
+.dchip.progress { color: var(--question); border-color: var(--question); }
+.dchip.soon { color: var(--muted-foreground); border-color: var(--border); border-style: dashed; }
+
+/* ---------- Skills cards (T-31 slice 2, concept A-2): header card on the left, tree card on the right, over the room like the Devices card.
+   Created by next/boot.js, filled by skills/page.js. Tokens and the four decoration classes only. ---------- */
+/* Layout by window class, from where the avatar sits (measured in Electron, default pose, 916x639 / 1296x839 / 1440x900): the two floating
+   octagons beside the head end at about 25% of the stage width from each side, and the arm bones stay inside 64% of the width. The header
+   card keeps the left zone. The tree card takes the right zone: 25% of the stage minus the margin and a 12 px gap, so at 1296 and wider
+   it clears the right octagon and the arm; the nodes go compact below a 1440 px window. At a 916 px window that zone is only about 180 px
+   wide, so up to 1000 px the card is 180 px with one column of compact nodes (no overlap with the octagon). */
+.nx-skills-tree { left: auto; right: 14px; width: clamp(250px, calc(25% - 26px), 346px); max-height: calc(100% - 28px); overflow: auto; }
+@media (max-width: 1439px) {
+  .nx-skills-tree { padding: 9px 9px calc(var(--tick) + 8px); }
+  .nx-skills-tree .sk-tree { gap: 0 6px; padding-top: 10px; }
+  .nx-skills-tree .sk-item { margin-top: 10px; }
+  .nx-skills-tree .sk-link { top: -10px; height: 10px; }
+  .nx-skills-tree .sk { padding: 4px 3px 5px; }
+  .nx-skills-tree .sk .n { font-size: 11px; }
+  .nx-skills-tree .sk .lv { font-size: 9px; }
+  .nx-skills-tree .sk-branch .bl { letter-spacing: .08em; margin-bottom: 6px; }
+  .nx-skills-tree .sk-branch .bl::before { top: -10px; height: 10px; }
+  .nx-skills-tree .sk-how { font-size: 10.5px; margin-top: 4px; }
+  .nx-skills-tree .head > span:nth-child(2) { display: none; } /* "Learned from use" makes the head wrap at this width */
+}
+@media (max-width: 1000px) {
+  .nx-skills-head { width: 196px; } /* keeps 12 px clear of the "No model yet" panel (380 px, centred) at the 916 window */
+  .nx-skills-tree { width: 180px; padding: 8px 8px calc(var(--tick) + 6px); }
+  .nx-skills-tree .head .meta { font-size: 9.5px; }
+  .nx-skills-tree .sk-hub, .nx-skills-tree .sk-stem, .nx-skills-tree .sk-bus, .nx-skills-tree .sk-branch .bl::before { display: none; }
+  .nx-skills-tree .sk-tree { grid-template-columns: minmax(0, 1fr); gap: 0; padding-top: 2px; }
+  .nx-skills-tree .sk-branch { margin-bottom: 4px; }
+  .nx-skills-tree .sk-branch .bl { text-align: left; margin-bottom: 3px; font-size: 9.5px; }
+  .nx-skills-tree .sk-item { margin-top: 5px; }
+  .nx-skills-tree .sk-link { top: -5px; height: 5px; }
+  .nx-skills-tree .sk { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; align-items: center; text-align: left; padding: 3px 6px 4px; }
+  .nx-skills-tree .sk .lv { text-align: right; }
+  .nx-skills-tree .sk .pips { grid-column: 1 / -1; margin-top: 2px; }
+  .nx-skills-tree .sk-detail .sk-dhead + .sk-how { display: none; } /* the description line; the progress line stays */
+  .nx-skills-tree .sk-detail .scan { display: none; }
+}
+/* the tree collapses to its head strip while it would cover the "No model yet" panel (boot.js collapseOverEmpty) */
+.nx-skills-tree.nx-collapsed > :not(.head) { display: none; }
+.nx-skills-tree.nx-collapsed { padding-bottom: calc(var(--tick) + 4px); overflow: hidden; }
+#stage.nx-skills-open .hud-left, #stage.nx-skills-open .hud-right, #stage.nx-skills-open .hud-below { visibility: hidden; }
+.nx-skills .mute, .sk-small { color: var(--muted-foreground); }
+.nx-skills .mono { font-family: var(--mono); }
+.nx-skills .sp { flex: 1; }
+.nx-skills .meta { font-family: var(--mono); letter-spacing: .04em; text-transform: none; color: var(--muted-foreground); }
+.nx-skills .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; background: var(--primary); box-shadow: 0 0 8px var(--glow); }
+.nx-skills .sk-chip { font-size: 10px; padding: 1px 7px; border: 1px solid var(--line-dim); color: var(--primary); font-family: var(--mono); letter-spacing: .06em; white-space: nowrap; }
+.nx-skills .sk-chip.dim { color: var(--muted-foreground); border-color: var(--border); border-style: dashed; }
+.nx-skills .sk-chip.q { color: var(--question); border-color: var(--question); }
+.sk-small { font-size: 11.5px; line-height: 1.4; }
+
+/* header: portrait + Lv, XP bar, closeness ring */
+.sk-top { display: flex; gap: 12px; align-items: center; }
+.sk-portrait { width: 76px; height: 86px; flex: none; display: flex; align-items: center; justify-content: center; color: var(--primary); background: var(--line-faint); border: 1px solid var(--line-dim); clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+.sk-portrait svg { width: 46px; height: 46px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.sk-portrait svg .fill { fill: currentColor; stroke: none; }
+.sk-lv { font-size: 19px; font-weight: 700; line-height: 1.1; }
+.sk-xp { font-size: 10.5px; margin-top: 6px; }
+.sk-segbar { display: flex; gap: 3px; margin: 9px 0 3px; }
+.sk-segbar i { flex: 1; height: 7px; background: var(--line-faint); border: 1px solid var(--line-dim); }
+.sk-segbar i.on { background: var(--primary); border-color: var(--primary); box-shadow: 0 0 5px var(--glow-soft); }
+.sk-segbar i.half { background: linear-gradient(90deg, var(--primary) 50%, var(--line-faint) 50%); border-color: var(--primary); }
+.sk-close { display: flex; gap: 12px; align-items: center; }
+.ring-wrap { position: relative; width: 84px; height: 84px; flex: none; }
+.ring-wrap .ring { width: 84px; --ring-w: 7px; }
+.ring-txt { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
+.ring-txt b { font-size: 16px; }
+.ring-txt span { font-size: 9px; color: var(--muted-foreground); }
+.sk-date { font-size: 14px; font-weight: 600; margin: 1px 0 5px; }
+.sk-tierline { font-size: 12px; color: var(--primary); letter-spacing: .06em; margin-top: 2px; }
+.sk-nextbar { margin-top: 8px; }
+.sk-next { margin-top: 5px; }
+
+/* tree: one column per branch, nodes chamfered like the frame, locked ones dashed */
+.sk-hub { width: 32px; height: 32px; margin: 2px auto 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 9.5px; color: var(--primary); background: var(--card); border: 1.2px solid var(--primary); box-shadow: 0 0 8px var(--glow-soft); }
+.sk-stem { display: block; width: 0; height: 8px; margin: 0 auto; border-left: 1.2px solid var(--primary); }
+/* the bus runs from the first branch centre to the last: half a column in from each side (columns are 12px apart) */
+.sk-bus { height: 0; border-top: 1.2px solid var(--primary); margin: 0 calc((100% - 12px * (var(--cols, 3) - 1)) / (2 * var(--cols, 3))); }
+.sk-tree { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 0 12px; padding-top: 12px; }
+.sk-branch { display: flex; flex-direction: column; align-items: stretch; min-width: 0; }
+.sk-branch .bl { position: relative; text-align: center; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--primary); margin-bottom: 8px; }
+.sk-branch .bl::before { content: ""; position: absolute; left: 50%; top: -12px; height: 12px; border-left: 1.2px solid var(--primary); }
+.sk-empty { font-size: 11px; text-align: center; padding: 8px 4px; border: 1px dashed var(--border); }
+.sk-item { position: relative; margin-top: 16px; }
+.bl + .sk-item { margin-top: 0; }
+.sk-link { position: absolute; left: 50%; top: -16px; height: 16px; width: 0; border-left: 1.2px solid var(--line-dim); }
+.sk-link.on { border-left-color: var(--primary); filter: drop-shadow(0 0 3px var(--glow)); }
+.sk-link.off { border-left-style: dashed; opacity: .6; }
+.sk {
+  position: relative; isolation: isolate; display: block; width: 100%; padding: 6px 8px 7px; text-align: center; font: inherit; color: var(--foreground); cursor: pointer;
+  border: 0; background: none;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+.sk::before, .sk::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.sk::before { background: var(--line); }
+.sk::after { inset: 1px; background: var(--card); clip-path: polygon(7.4px 0, 100% 0, 100% calc(100% - 7.4px), calc(100% - 7.4px) 100%, 0 100%, 0 7.4px); }
+.sk .n { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.sk-lock { display: inline-block; vertical-align: -1px; margin-left: 4px; line-height: 0; }
+.sk-lock svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sk .lv { font-size: 10px; color: var(--muted-foreground); font-family: var(--mono); overflow-wrap: anywhere; }
+.sk .pips { display: flex; gap: 2px; margin-top: 4px; }
+.sk .pips i { flex: 1; height: 4px; background: var(--line-faint); border: 1px solid var(--line-dim); }
+.sk .pips i.on { background: var(--primary); border-color: var(--primary); }
+.sk.available { opacity: .85; }
+.sk.available::before { background: var(--line-dim); }
+.sk.locked { color: var(--muted-foreground); }
+.sk.locked::before { background: repeating-linear-gradient(90deg, var(--border) 0 4px, transparent 4px 7px); opacity: .9; }
+.sk.locked::after { background: var(--background); }
+.sk.rest .n { color: var(--muted-foreground); }
+.sk.sel { box-shadow: 0 0 16px var(--glow); }
+.sk.sel::before { background: var(--primary); }
+.sk.sel .n { color: var(--primary); }
+.sk:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
+.sk-detail .sk-dhead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.sk-how { font-size: 11.5px; color: var(--muted-foreground); margin: 6px 0 0; line-height: 1.4; }
+.sk-detail .scan { margin-top: 9px; }
+
+/* ---------- reduced motion: no glow pulse, no scan sweep (the still shapes stay) ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .gline::after, .scan.live > i { animation: none; }
+  .gline::after { opacity: .6; }
+  .scan.live > i { transform: translateX(53%); will-change: auto; } /* 18% of the bar = 53% of the band: the still shape of .scan > i */
+}

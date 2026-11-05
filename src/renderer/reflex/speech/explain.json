@@ -1,0 +1,399 @@
+{
+ "intent": "explain",
+ "labelVi": "Giải thích bằng tay",
+ "variants": [
+  {
+   "id": "explain-p5-1",
+   "provenance": {
+    "source": "T-31 P5 library: composed with the desktop gesture prompt + gate (services/desktopTalk) called directly on staging; coordinator eye-QC 01-10",
+    "model": "gemini-3.8-flash",
+    "request": {
+     "intent": "explain",
+     "brief": "both open hands in front of the chest, small alternating beats while talking",
+     "energy": "mid",
+     "deixis": "none",
+     "targetMs": 2600
+    },
+    "repaired": false,
+    "latencyMs": 5426,
+    "file": "out-20261001/explain-1.json"
+   },
+   "command": {
+    "id": "explain-hands",
+    "label": "Explaining with alternating open hands",
+    "priority": 6,
+    "interrupt": true,
+    "mirror": "none",
+    "jitter": 0.05,
+    "reach": [
+     {
+      "hand": "left",
+      "target": {
+       "frame": "shoulder",
+       "pos": [
+        0.22,
+        -0.2,
+        0.38
+       ]
+      },
+      "delayMs": 200,
+      "inMs": 350,
+      "holdMs": 1500,
+      "outMs": 450,
+      "osc": {
+       "hz": 1.8,
+       "amp": [
+        0,
+        0.08,
+        0.03
+       ],
+       "wave": "sine",
+       "phase": 0
+      }
+     },
+     {
+      "hand": "right",
+      "target": {
+       "frame": "shoulder",
+       "pos": [
+        0.22,
+        -0.2,
+        0.38
+       ]
+      },
+      "delayMs": 200,
+      "inMs": 350,
+      "holdMs": 1500,
+      "outMs": 450,
+      "osc": {
+       "hz": 1.8,
+       "amp": [
+        0,
+        0.08,
+        0.03
+       ],
+       "wave": "sine",
+       "phase": 0.5
+      }
+     }
+    ],
+    "hands": [
+     {
+      "hand": "left",
+      "shape": "loose",
+      "delayMs": 150,
+      "inMs": 250,
+      "holdMs": 1650,
+      "outMs": 400
+     },
+     {
+      "hand": "right",
+      "shape": "loose",
+      "delayMs": 150,
+      "inMs": 250,
+      "holdMs": 1650,
+      "outMs": 400
+     }
+    ],
+    "bones": [
+     {
+      "bone": "spine",
+      "rot": [
+       4,
+       0,
+       0
+      ],
+      "delayMs": 100,
+      "inMs": 300,
+      "holdMs": 1700,
+      "outMs": 400
+     },
+     {
+      "bone": "chest",
+      "rot": [
+       3,
+       0,
+       0
+      ],
+      "delayMs": 150,
+      "inMs": 300,
+      "holdMs": 1650,
+      "outMs": 400,
+      "osc": {
+       "hz": 1.8,
+       "amp": [
+        2,
+        0,
+        0
+       ],
+       "wave": "sine"
+      }
+     },
+     {
+      "bone": "head",
+      "rot": [
+       5,
+       0,
+       0
+      ],
+      "delayMs": 100,
+      "inMs": 300,
+      "holdMs": 1700,
+      "outMs": 400,
+      "osc": {
+       "hz": 1.8,
+       "amp": [
+        4,
+        2,
+        0
+       ],
+       "wave": "sine"
+      }
+     },
+     {
+      "bone": "leftHand",
+      "rot": [
+       0,
+       0,
+       15
+      ],
+      "delayMs": 250,
+      "inMs": 300,
+      "holdMs": 1500,
+      "outMs": 400
+     },
+     {
+      "bone": "rightHand",
+      "rot": [
+       0,
+       0,
+       -15
+      ],
+      "delayMs": 250,
+      "inMs": 300,
+      "holdMs": 1500,
+      "outMs": 400
+     }
+    ],
+    "expressions": [
+     {
+      "name": "relaxed",
+      "weight": 0.7,
+      "delayMs": 100,
+      "inMs": 250,
+      "holdMs": 1800,
+      "outMs": 400
+     },
+     {
+      "name": "happy",
+      "weight": 0.3,
+      "delayMs": 100,
+      "inMs": 250,
+      "holdMs": 1800,
+      "outMs": 400
+     },
+     {
+      "name": "aa",
+      "weight": 0.35,
+      "delayMs": 300,
+      "inMs": 150,
+      "holdMs": 1400,
+      "outMs": 350,
+      "osc": {
+       "hz": 3.2,
+       "amp": 0.2,
+       "wave": "sine"
+      }
+     }
+    ],
+    "lookAt": [
+     {
+      "target": "camera",
+      "weight": 0.9,
+      "delayMs": 0,
+      "inMs": 200,
+      "holdMs": 2100,
+      "outMs": 300
+     }
+    ]
+   }
+  },
+  {
+   "id": "explain-p5-3",
+   "provenance": {
+    "source": "T-31 P5 library: composed with the desktop gesture prompt + gate (services/desktopTalk) called directly on staging; coordinator eye-QC 01-10",
+    "model": "gemini-3.8-flash",
+    "request": {
+     "intent": "explain",
+     "brief": "open palms move apart in front of the waist, then back, calm face",
+     "energy": "low",
+     "deixis": "none",
+     "targetMs": 2600
+    },
+    "repaired": false,
+    "latencyMs": 6282,
+    "file": "out-20261001/explain-3.json"
+   },
+   "command": {
+    "id": "explain-calm-hands",
+    "label": "Explain calmly with open hands",
+    "priority": 6,
+    "interrupt": true,
+    "mirror": "none",
+    "jitter": 0.05,
+    "reach": [
+     {
+      "hand": "right",
+      "target": {
+       "frame": "shoulder",
+       "pos": [
+        0.28,
+        -0.2,
+        0.38
+       ]
+      },
+      "delayMs": 250,
+      "inMs": 550,
+      "holdMs": 1100,
+      "outMs": 600
+     },
+     {
+      "hand": "left",
+      "target": {
+       "frame": "shoulder",
+       "pos": [
+        0.28,
+        -0.2,
+        0.38
+       ]
+      },
+      "delayMs": 250,
+      "inMs": 550,
+      "holdMs": 1100,
+      "outMs": 600
+     }
+    ],
+    "bones": [
+     {
+      "bone": "spine",
+      "rot": [
+       3,
+       0,
+       0
+      ],
+      "delayMs": 150,
+      "inMs": 450,
+      "holdMs": 1300,
+      "outMs": 550
+     },
+     {
+      "bone": "chest",
+      "rot": [
+       2,
+       0,
+       0
+      ],
+      "delayMs": 200,
+      "inMs": 400,
+      "holdMs": 1350,
+      "outMs": 550
+     },
+     {
+      "bone": "neck",
+      "rot": [
+       -2,
+       0,
+       0
+      ],
+      "delayMs": 200,
+      "inMs": 450,
+      "holdMs": 1300,
+      "outMs": 550
+     },
+     {
+      "bone": "head",
+      "rot": [
+       4,
+       0,
+       0
+      ],
+      "delayMs": 250,
+      "inMs": 500,
+      "holdMs": 1200,
+      "outMs": 500
+     },
+     {
+      "bone": "rightHand",
+      "rot": [
+       -10,
+       12,
+       -15
+      ],
+      "delayMs": 300,
+      "inMs": 450,
+      "holdMs": 1150,
+      "outMs": 550
+     },
+     {
+      "bone": "leftHand",
+      "rot": [
+       -10,
+       -12,
+       15
+      ],
+      "delayMs": 300,
+      "inMs": 450,
+      "holdMs": 1150,
+      "outMs": 550
+     }
+    ],
+    "hands": [
+     {
+      "hand": "right",
+      "shape": "loose",
+      "delayMs": 200,
+      "inMs": 400,
+      "holdMs": 1300,
+      "outMs": 550
+     },
+     {
+      "hand": "left",
+      "shape": "loose",
+      "delayMs": 200,
+      "inMs": 400,
+      "holdMs": 1300,
+      "outMs": 550
+     }
+    ],
+    "expressions": [
+     {
+      "name": "relaxed",
+      "weight": 0.7,
+      "delayMs": 100,
+      "inMs": 400,
+      "holdMs": 1700,
+      "outMs": 400
+     },
+     {
+      "name": "happy",
+      "weight": 0.25,
+      "delayMs": 200,
+      "inMs": 350,
+      "holdMs": 1600,
+      "outMs": 450
+     }
+    ],
+    "lookAt": [
+     {
+      "target": "camera",
+      "weight": 0.9,
+      "delayMs": 100,
+      "inMs": 300,
+      "holdMs": 1800,
+      "outMs": 400
+     }
+    ]
+   }
+  }
+ ]
+}

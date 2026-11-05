@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/ask.clear.json",
+  "title": "data for ask.clear",
+  "description": "Withdraw an open ask without an owner answer.",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-target": "recordId",
+  "x-revision": "required",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "note": {
+      "type": "string",
+      "maxLength": 2000
+    }
+  }
+}

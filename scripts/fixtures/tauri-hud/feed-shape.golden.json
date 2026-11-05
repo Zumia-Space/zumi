@@ -1,0 +1,77 @@
+{
+  "answer": {
+    "live": "boolean",
+    "owner": "boolean"
+  },
+  "feed": {
+    "updates": [
+      {
+        "askCount": "number",
+        "at": "string",
+        "doneAts": [],
+        "doneCount": "number",
+        "goal": "string",
+        "health": "string",
+        "id": "string",
+        "lane": "string",
+        "log": [],
+        "now": "string",
+        "refs": [
+          {
+            "kind": "string",
+            "label": "string",
+            "target": "string"
+          }
+        ],
+        "roles": {
+          "code": "string",
+          "review": "string"
+        },
+        "status": "string",
+        "step": "string",
+        "stepId": "string",
+        "stepState": "string",
+        "stepTotal": "number",
+        "steps": [
+          {
+            "id": "string",
+            "label": "string",
+            "state": "string",
+            "sub": "string"
+          }
+        ],
+        "title": "string"
+      }
+    ],
+    "waiting": [
+      {
+        "id": "string",
+        "key": "string",
+        "kind": "string",
+        "options": [
+          {
+            "key": "string",
+            "label": "string"
+          }
+        ],
+        "refs": [
+          {
+            "kind": "string",
+            "label": "string",
+            "target": "string"
+          }
+        ],
+        "rev": "number",
+        "since": "string",
+        "speak": "string",
+        "step": "string",
+        "taskId": "string",
+        "text": "string",
+        "title": "string"
+      }
+    ],
+    "waitingCount": "number"
+  },
+  "reaction": "null",
+  "style": "string"
+}

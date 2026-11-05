@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stats.json",
+  "title": "Task-statistics document. One aggregated JSON document the CoS stats command builds offline and PUTs to /api/admin/stats; it is derived data kept in <data>/stats.json, never in the journal, and the page reads it as-is from GET /api/stats and never recomputes it.",
+  "description": "generated_at + attributed_pct are board-wide; tasks[CODE] carries the per-day rows and the totals of one board task; top holds the token ranking for the 7-day and today windows. A day/row whose value is unknown is left out, never written as zero (the collector's 'unknown != zero' rule).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["generated_at", "attributed_pct", "tasks", "top"],
+  "properties": {
+    "schema": { "type": "integer", "const": 1 },
+    "generated_at": { "type": "string", "minLength": 10, "maxLength": 40, "description": "ISO timestamp of when the document was built." },
+    "attributed_pct": { "type": "number", "minimum": 0, "maximum": 100, "description": "Share of observed tokens attributed to a task (task-usage.json summary.shares_of_observed_tokens_pct.task_attributed). Under 60 the UI shows the 'dang do' gate instead of numbers." },
+    "window_days": { "type": "integer", "minimum": 1, "maximum": 90, "description": "Length of the per-day window (default 14)." },
+    "tasks": { "type": "object", "additionalProperties": { "$ref": "#/$defs/taskStats" } },
+    "top": { "$ref": "#/$defs/top" },
+    "models": { "$ref": "#/$defs/models" },
+    "caveats": { "type": "array", "maxItems": 20, "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
+  },
+  "$defs": {
+    "counts": { "type": "object", "additionalProperties": { "type": "number", "minimum": 0 }, "description": "tokens keyed by model id or role name." },
+    "qc": {
+      "type": "object", "additionalProperties": false, "required": ["pass", "fail"],
+      "properties": { "pass": { "type": "integer", "minimum": 0 }, "fail": { "type": "integer", "minimum": 0 } }
+    },
+    "day": {
+      "type": "object", "additionalProperties": false, "required": ["date"],
+      "properties": {
+        "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "weekday": { "type": "integer", "minimum": 0, "maximum": 6, "description": "0 = Monday ... 6 = Sunday." },
+        "active_ms": { "type": "integer", "minimum": 0 },
+        "tokens": { "type": "integer", "minimum": 0 },
+        "by_model": { "$ref": "#/$defs/counts" },
+        "by_role": { "$ref": "#/$defs/counts" },
+        "qc": { "$ref": "#/$defs/qc" }
+      }
+    },
+    "taskStats": {
+      "type": "object", "additionalProperties": false, "required": ["days", "qc"],
+      "properties": {
+        "title": { "type": "string", "maxLength": 300 },
+        "days": { "type": "array", "maxItems": 90, "items": { "$ref": "#/$defs/day" } },
+        "by_model": { "$ref": "#/$defs/counts" },
+        "by_role": { "$ref": "#/$defs/counts" },
+        "qc": { "$ref": "#/$defs/qc" }
+      }
+    },
+    "modelShare": {
+      "type": "object", "additionalProperties": false, "required": ["model", "tokens", "share"],
+      "properties": {
+        "model": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "tokens": { "type": "number", "minimum": 0 },
+        "share": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "topRow": {
+      "type": "object", "additionalProperties": false, "required": ["code", "tokens", "share_pct"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "title": { "type": "string", "maxLength": 300 },
+        "tokens": { "type": "number", "minimum": 0 },
+        "share_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "trend_pct": { "type": "number", "minimum": -1000, "maximum": 10000 },
+        "trend": { "type": "string", "enum": ["up", "down", "flat"] },
+        "model": { "type": "string", "maxLength": 40 },
+        "by_model": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/modelShare" } },
+        "qc_per_round": { "type": "number", "minimum": 0 },
+        "qc_fail": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "modelUsage": {
+      "type": "object", "additionalProperties": false, "required": ["model", "tokens", "tasks", "unattributed", "lane_overhead"],
+      "description": "One model's tokens (in+out+thinking) in a window, split into what is attributed to a task, unattributed and lane overhead.",
+      "properties": {
+        "model": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "tokens": { "type": "number", "minimum": 0 },
+        "tasks": { "type": "number", "minimum": 0 },
+        "unattributed": { "type": "number", "minimum": 0 },
+        "lane_overhead": { "type": "number", "minimum": 0 }
+      }
+    },
+    "models": {
+      "type": "object", "additionalProperties": false,
+      "description": "Overall usage per model for today / the last 7 days / all time. Never gated by attributed_pct: the 60% gate covers the per-task ranking only.",
+      "properties": {
+        "today": { "type": "array", "maxItems": 50, "items": { "$ref": "#/$defs/modelUsage" } },
+        "w7": { "type": "array", "maxItems": 50, "items": { "$ref": "#/$defs/modelUsage" } },
+        "all": { "type": "array", "maxItems": 50, "items": { "$ref": "#/$defs/modelUsage" } }
+      }
+    },
+    "top": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "w7": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/topRow" } },
+        "today": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/topRow" } }
+      }
+    }
+  }
+}

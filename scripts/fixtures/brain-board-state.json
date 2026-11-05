@@ -1,0 +1,1355 @@
+{
+ "version": 1,
+ "seq": 19,
+ "now": "2026-10-27T10:34:00.000Z",
+ "config": {
+  "version": "0.1.0",
+  "stall_ms": 10800000,
+  "max_attachment_bytes": 262144,
+  "max_upload_bytes": 67108864,
+  "models": [
+   "opus",
+   "sonnet",
+   "haiku",
+   "deepseek",
+   "gpt",
+   "gemini"
+  ],
+  "model_labels": {}
+ },
+ "me": {
+  "token_id": "tok-1",
+  "name": "owner",
+  "role": "owner",
+  "label": "owner",
+  "scope_tasks": [
+   "*"
+  ],
+  "prefs": {},
+  "via": "proxy"
+ },
+ "tasks": [
+  {
+   "id": "T-31",
+   "rev": 1,
+   "visibility": "internal",
+   "attribution": {
+    "created_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "created_at": "2026-10-27T08:28:00.000Z",
+    "updated_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "updated_at": "2026-10-27T08:28:00.000Z"
+   },
+   "title": "Zumi agent: Brain panel (memory + task library)",
+   "lane": "Pi CoS",
+   "health": "yellow",
+   "status": "doing",
+   "text_at": "2026-10-27T08:28:00.000Z",
+   "goal": "Let anh read every task and its dossier inside the app, with plan, diagram and media, and manage memory in the same panel.",
+   "now": "27-10 18:20: library and detail built against the board state; diagrams next.",
+   "next": "Memory list against the fixture, then the three read-only host calls behind the CoS gate.",
+   "context": "Two stores, one panel: the board stays the task database, Brain only reads it.",
+   "order": 1,
+   "dossier": "D:/data/notes/t31/next/PLAN-SLICE3-BRAIN.md",
+   "architecture": {
+    "format": "graph",
+    "groups": [
+     {
+      "id": "host",
+      "label": "Host"
+     },
+     {
+      "id": "ui",
+      "label": "Brain panel"
+     },
+     {
+      "id": "store",
+      "label": "Stores"
+     }
+    ],
+    "nodes": [
+     {
+      "id": "reader",
+      "label": "Board reader",
+      "sub": "cached 60 s",
+      "group": "host"
+     },
+     {
+      "id": "state",
+      "label": "board.state",
+      "sub": "read-only host call",
+      "group": "host"
+     },
+     {
+      "id": "library",
+      "label": "Task library",
+      "group": "ui"
+     },
+     {
+      "id": "detail",
+      "label": "Task detail",
+      "sub": "steps, asks, plans, media",
+      "group": "ui"
+     },
+     {
+      "id": "board",
+      "label": "Board (tasks)",
+      "group": "store"
+     },
+     {
+      "id": "memory",
+      "label": "Memory (notes)",
+      "group": "store"
+     }
+    ],
+    "edges": [
+     {
+      "from": "board",
+      "to": "reader"
+     },
+     {
+      "from": "reader",
+      "to": "state"
+     },
+     {
+      "from": "state",
+      "to": "library"
+     },
+     {
+      "from": "library",
+      "to": "detail",
+      "label": "open"
+     },
+     {
+      "from": "memory",
+      "to": "library",
+      "dashed": true
+     }
+    ]
+   },
+   "worker": null,
+   "loops": [],
+   "step_ids": [
+    "plan",
+    "library",
+    "diagrams",
+    "memory",
+    "gate",
+    "ship"
+   ],
+   "steps": [
+    {
+     "id": "T-31/plan",
+     "task_id": "T-31",
+     "rev": 1,
+     "attribution": {
+      "created_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "created_at": "2026-10-27T08:28:00.000Z",
+      "updated_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "updated_at": "2026-10-27T08:28:00.000Z"
+     },
+     "label": "Slice 3 plan",
+     "zone": "plan",
+     "state": "done",
+     "state_at": "2026-10-27T08:28:00.000Z"
+    },
+    {
+     "id": "T-31/library",
+     "task_id": "T-31",
+     "rev": 1,
+     "attribution": {
+      "created_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "created_at": "2026-10-27T08:28:00.000Z",
+      "updated_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "updated_at": "2026-10-27T08:28:00.000Z"
+     },
+     "label": "Task library and detail",
+     "sub": "AC-B1..B6",
+     "zone": "build",
+     "state": "done",
+     "state_at": "2026-10-27T08:28:00.000Z"
+    },
+    {
+     "id": "T-31/diagrams",
+     "task_id": "T-31",
+     "rev": 3,
+     "attribution": {
+      "created_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "created_at": "2026-10-27T08:28:00.000Z",
+      "updated_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "updated_at": "2026-10-27T09:17:00.000Z"
+     },
+     "label": "Step-flow and structure diagrams",
+     "sub": "vendored layout, read-only",
+     "zone": "build",
+     "state": "active",
+     "detail": "Boxes from layoutTask, SVG drawn in the panel.",
+     "state_at": "2026-10-27T09:17:00.000Z"
+    },
+    {
+     "id": "T-31/memory",
+     "task_id": "T-31",
+     "rev": 1,
+     "attribution": {
+      "created_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "created_at": "2026-10-27T08:28:00.000Z",
+      "updated_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "updated_at": "2026-10-27T08:28:00.000Z"
+     },
+     "label": "Memory list against a fixture",
+     "zone": "test",
+     "state": "todo",
+     "state_at": "2026-10-27T08:28:00.000Z"
+    },
+    {
+     "id": "T-31/gate",
+     "task_id": "T-31",
+     "rev": 1,
+     "attribution": {
+      "created_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "created_at": "2026-10-27T08:28:00.000Z",
+      "updated_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "updated_at": "2026-10-27T08:28:00.000Z"
+     },
+     "label": "Owner look at the Brain card",
+     "zone": "owner",
+     "state": "waiting",
+     "state_at": "2026-10-27T08:28:00.000Z"
+    },
+    {
+     "id": "T-31/ship",
+     "task_id": "T-31",
+     "rev": 1,
+     "attribution": {
+      "created_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "created_at": "2026-10-27T08:28:00.000Z",
+      "updated_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "updated_at": "2026-10-27T08:28:00.000Z"
+     },
+     "label": "Merge behind ZUMI_NEXT_UI",
+     "zone": "ship",
+     "state": "todo",
+     "state_at": "2026-10-27T08:28:00.000Z"
+    }
+   ],
+   "current_step": {
+    "id": "T-31/diagrams",
+    "label": "Step-flow and structure diagrams",
+    "state": "active"
+   },
+   "last_activity_at": "2026-10-27T10:20:00.000Z",
+   "worker_default": null,
+   "roles": {
+    "plan": {
+     "model": "opus",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "code": {
+     "model": "sonnet",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "review": {
+     "model": "opus",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "scout": {
+     "model": "haiku",
+     "effort": "low",
+     "by": "coordinator",
+     "default": true,
+     "can_verdict": false
+    }
+   },
+   "gate_fails": {},
+   "measured": {
+    "started_at": "2026-10-27T08:28:00.000Z",
+    "work_ms": 0,
+    "wait_ms": 7560000
+   },
+   "status_request": null
+  },
+  {
+   "id": "F-04",
+   "rev": 1,
+   "visibility": "internal",
+   "attribution": {
+    "created_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "created_at": "2026-10-27T08:35:00.000Z",
+    "updated_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "updated_at": "2026-10-27T08:35:00.000Z"
+   },
+   "title": "Wardrobe: outfit round 4",
+   "lane": "Vesta",
+   "health": "green",
+   "status": "waiting",
+   "text_at": "2026-10-27T08:35:00.000Z",
+   "goal": "Pick the final look for outfit round 4.",
+   "now": "Round 4 looks are ready; waiting for anh.",
+   "order": 2,
+   "dossier": "D:/data/notes/f04/round4/DOSSIER.md",
+   "worker": null,
+   "loops": [],
+   "step_ids": [
+    "r4-render",
+    "r4-pick"
+   ],
+   "steps": [
+    {
+     "id": "F-04/r4-render",
+     "task_id": "F-04",
+     "rev": 1,
+     "attribution": {
+      "created_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "created_at": "2026-10-27T08:35:00.000Z",
+      "updated_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "updated_at": "2026-10-27T08:35:00.000Z"
+     },
+     "label": "Round 4 renders",
+     "zone": "build",
+     "state": "done",
+     "state_at": "2026-10-27T08:35:00.000Z"
+    },
+    {
+     "id": "F-04/r4-pick",
+     "task_id": "F-04",
+     "rev": 1,
+     "attribution": {
+      "created_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "created_at": "2026-10-27T08:35:00.000Z",
+      "updated_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "updated_at": "2026-10-27T08:35:00.000Z"
+     },
+     "label": "Round 4 looks ready for review",
+     "zone": "owner",
+     "state": "waiting",
+     "state_at": "2026-10-27T08:35:00.000Z"
+    }
+   ],
+   "current_step": {
+    "id": "F-04/r4-pick",
+    "label": "Round 4 looks ready for review",
+    "state": "waiting"
+   },
+   "last_activity_at": "2026-10-27T10:27:00.000Z",
+   "worker_default": null,
+   "roles": {
+    "plan": {
+     "model": "opus",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "code": {
+     "model": "sonnet",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "review": {
+     "model": "opus",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "scout": {
+     "model": "haiku",
+     "effort": "low",
+     "by": "coordinator",
+     "default": true,
+     "can_verdict": false
+    }
+   },
+   "gate_fails": {},
+   "measured": null,
+   "status_request": null
+  },
+  {
+   "id": "C-52",
+   "rev": 1,
+   "visibility": "internal",
+   "attribution": {
+    "created_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "created_at": "2026-10-27T08:42:00.000Z",
+    "updated_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "updated_at": "2026-10-27T08:42:00.000Z"
+   },
+   "title": "Content factory: crawl + classify",
+   "lane": "Pi",
+   "health": "green",
+   "status": "doing",
+   "text_at": "2026-10-27T08:42:00.000Z",
+   "order": 3,
+   "worker": null,
+   "loops": [],
+   "step_ids": [
+    "gate"
+   ],
+   "steps": [
+    {
+     "id": "C-52/gate",
+     "task_id": "C-52",
+     "rev": 1,
+     "attribution": {
+      "created_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "created_at": "2026-10-27T08:42:00.000Z",
+      "updated_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "updated_at": "2026-10-27T08:42:00.000Z"
+     },
+     "label": "Quality gate on 40 drafts",
+     "zone": "test",
+     "state": "active",
+     "state_at": "2026-10-27T08:42:00.000Z"
+    }
+   ],
+   "current_step": {
+    "id": "C-52/gate",
+    "label": "Quality gate on 40 drafts",
+    "state": "active"
+   },
+   "last_activity_at": "2026-10-27T08:42:00.000Z",
+   "worker_default": null,
+   "roles": {
+    "plan": {
+     "model": "opus",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "code": {
+     "model": "sonnet",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "review": {
+     "model": "opus",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "scout": {
+     "model": "haiku",
+     "effort": "low",
+     "by": "coordinator",
+     "default": true,
+     "can_verdict": false
+    }
+   },
+   "gate_fails": {},
+   "measured": {
+    "started_at": "2026-10-27T08:42:00.000Z",
+    "work_ms": 6720000,
+    "wait_ms": 0
+   },
+   "status_request": null
+  },
+  {
+   "id": "H-03",
+   "rev": 1,
+   "visibility": "internal",
+   "attribution": {
+    "created_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "created_at": "2026-10-27T08:49:00.000Z",
+    "updated_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "updated_at": "2026-10-27T08:49:00.000Z"
+   },
+   "title": "Hunter: job review board",
+   "lane": "Pi",
+   "health": "red",
+   "status": "doing",
+   "text_at": "2026-10-27T08:49:00.000Z",
+   "order": 4,
+   "worker": null,
+   "loops": [],
+   "step_ids": [
+    "scan"
+   ],
+   "steps": [
+    {
+     "id": "H-03/scan",
+     "task_id": "H-03",
+     "rev": 1,
+     "attribution": {
+      "created_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "created_at": "2026-10-27T08:49:00.000Z",
+      "updated_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "updated_at": "2026-10-27T08:49:00.000Z"
+     },
+     "label": "Link scanner pass",
+     "zone": "build",
+     "state": "blocked",
+     "state_at": "2026-10-27T08:49:00.000Z"
+    }
+   ],
+   "current_step": {
+    "id": "H-03/scan",
+    "label": "Link scanner pass",
+    "state": "blocked"
+   },
+   "last_activity_at": "2026-10-27T08:49:00.000Z",
+   "worker_default": null,
+   "roles": {
+    "plan": {
+     "model": "opus",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "code": {
+     "model": "sonnet",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "review": {
+     "model": "opus",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "scout": {
+     "model": "haiku",
+     "effort": "low",
+     "by": "coordinator",
+     "default": true,
+     "can_verdict": false
+    }
+   },
+   "gate_fails": {},
+   "measured": null,
+   "status_request": null
+  },
+  {
+   "id": "P-02",
+   "rev": 1,
+   "visibility": "internal",
+   "attribution": {
+    "created_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "created_at": "2026-10-27T08:56:00.000Z",
+    "updated_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "updated_at": "2026-10-27T08:56:00.000Z"
+   },
+   "title": "Tidewell Tours: schedule page",
+   "lane": "Pi",
+   "health": "grey",
+   "status": "paused",
+   "text_at": "2026-10-27T08:56:00.000Z",
+   "order": 5,
+   "worker": null,
+   "loops": [],
+   "step_ids": [
+    "page"
+   ],
+   "steps": [
+    {
+     "id": "P-02/page",
+     "task_id": "P-02",
+     "rev": 1,
+     "attribution": {
+      "created_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "created_at": "2026-10-27T08:56:00.000Z",
+      "updated_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "updated_at": "2026-10-27T08:56:00.000Z"
+     },
+     "label": "Schedule page",
+     "zone": "build",
+     "state": "todo",
+     "state_at": "2026-10-27T08:56:00.000Z"
+    }
+   ],
+   "current_step": {
+    "id": "P-02/page",
+    "label": "Schedule page",
+    "state": "todo"
+   },
+   "last_activity_at": "2026-10-27T08:56:00.000Z",
+   "worker_default": null,
+   "roles": {
+    "plan": {
+     "model": "opus",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "code": {
+     "model": "sonnet",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "review": {
+     "model": "opus",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "scout": {
+     "model": "haiku",
+     "effort": "low",
+     "by": "coordinator",
+     "default": true,
+     "can_verdict": false
+    }
+   },
+   "gate_fails": {},
+   "measured": null,
+   "status_request": null
+  },
+  {
+   "id": "Z-09",
+   "rev": 1,
+   "visibility": "internal",
+   "attribution": {
+    "created_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "created_at": "2026-10-27T09:03:00.000Z",
+    "updated_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "updated_at": "2026-10-27T09:03:00.000Z"
+   },
+   "title": "Old: release 0.2.10 notes",
+   "lane": "Pi",
+   "health": "green",
+   "status": "closed",
+   "text_at": "2026-10-27T09:03:00.000Z",
+   "order": 6,
+   "worker": null,
+   "loops": [],
+   "step_ids": [
+    "notes"
+   ],
+   "steps": [
+    {
+     "id": "Z-09/notes",
+     "task_id": "Z-09",
+     "rev": 1,
+     "attribution": {
+      "created_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "created_at": "2026-10-27T09:03:00.000Z",
+      "updated_by": {
+       "token_id": "tok-1",
+       "name": "owner",
+       "role": "owner",
+       "label": "owner"
+      },
+      "updated_at": "2026-10-27T09:03:00.000Z"
+     },
+     "label": "Release notes",
+     "zone": "ship",
+     "state": "done",
+     "state_at": "2026-10-27T09:03:00.000Z"
+    }
+   ],
+   "current_step": null,
+   "last_activity_at": "2026-10-27T09:03:00.000Z",
+   "worker_default": null,
+   "roles": {
+    "plan": {
+     "model": "opus",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "code": {
+     "model": "sonnet",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "review": {
+     "model": "opus",
+     "effort": "high",
+     "by": "coordinator",
+     "default": true
+    },
+    "scout": {
+     "model": "haiku",
+     "effort": "low",
+     "by": "coordinator",
+     "default": true,
+     "can_verdict": false
+    }
+   },
+   "gate_fails": {},
+   "measured": null,
+   "status_request": null
+  }
+ ],
+ "asks": [
+  {
+   "id": "ask-10",
+   "task_id": "T-31",
+   "rev": 1,
+   "attribution": {
+    "created_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "created_at": "2026-10-27T09:24:00.000Z",
+    "updated_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "updated_at": "2026-10-27T09:24:00.000Z"
+   },
+   "step_id": "gate",
+   "text": "Name the sidebar item \"Brain\" or keep \"Memory\"?",
+   "options": [
+    {
+     "key": "A",
+     "label": "Brain"
+    },
+    {
+     "key": "B",
+     "label": "Memory"
+    }
+   ],
+   "status": "open"
+  },
+  {
+   "id": "ask-11",
+   "task_id": "T-31",
+   "rev": 2,
+   "attribution": {
+    "created_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "created_at": "2026-10-27T09:31:00.000Z",
+    "updated_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "updated_at": "2026-10-27T09:38:00.000Z"
+   },
+   "step_id": "library",
+   "text": "Should Brain edit tasks or only read them?",
+   "status": "answered",
+   "answer": {
+    "text": "Read only, edits go through Open on board.",
+    "at": "2026-10-27T09:38:00.000Z",
+    "by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    }
+   }
+  },
+  {
+   "id": "ask-13",
+   "task_id": "F-04",
+   "rev": 1,
+   "attribution": {
+    "created_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "created_at": "2026-10-27T09:45:00.000Z",
+    "updated_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "updated_at": "2026-10-27T09:45:00.000Z"
+   },
+   "step_id": "r4-pick",
+   "text": "Pick the look for round 4 (A, B or C)",
+   "options": [
+    {
+     "key": "A",
+     "label": "Night blue"
+    },
+    {
+     "key": "B",
+     "label": "White"
+    },
+    {
+     "key": "C",
+     "label": "Both"
+    }
+   ],
+   "status": "open"
+  }
+ ],
+ "inbox": [],
+ "feedback": [
+  {
+   "id": "fb-12",
+   "task_id": "T-31",
+   "rev": 1,
+   "attribution": {
+    "created_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "created_at": "2026-10-27T09:38:00.000Z",
+    "updated_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "updated_at": "2026-10-27T09:38:00.000Z"
+   },
+   "step_id": "library",
+   "kind": "note",
+   "text": "Read only, edits go through Open on board.",
+   "ask_id": "ask-11",
+   "status": "open"
+  }
+ ],
+ "messages": [
+  {
+   "id": "fb-12",
+   "task_id": "T-31",
+   "scope": {
+    "step_id": "library",
+    "ask_id": "ask-11"
+   },
+   "kind": "note",
+   "author": {
+    "name": "owner",
+    "role": "owner"
+   },
+   "body": "Read only, edits go through Open on board.",
+   "ts": "2026-10-27T09:38:00.000Z",
+   "answers_ask_id": "ask-11",
+   "status": "open",
+   "needs_receipt": true
+  }
+ ],
+ "attachments": [
+  {
+   "id": "att-17",
+   "task_id": "T-31",
+   "rev": 1,
+   "visibility": "internal",
+   "attribution": {
+    "created_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "created_at": "2026-10-27T10:13:00.000Z",
+    "updated_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "updated_at": "2026-10-27T10:13:00.000Z"
+   },
+   "step_id": "library",
+   "name": "brain-concept-a1.png",
+   "mime": "image/png",
+   "size": 70,
+   "sha256": "c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77",
+   "caption": "Concept A-1"
+  },
+  {
+   "id": "att-18",
+   "task_id": "T-31",
+   "rev": 1,
+   "visibility": "internal",
+   "attribution": {
+    "created_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "created_at": "2026-10-27T10:20:00.000Z",
+    "updated_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "updated_at": "2026-10-27T10:20:00.000Z"
+   },
+   "name": "brain-notes.md",
+   "mime": "text/markdown",
+   "size": 26,
+   "sha256": "4f1a9a095763b4d9b5cf663adbd533f0191cff44c6aaff5641ef7ae0fa37991b"
+  },
+  {
+   "id": "att-19",
+   "task_id": "F-04",
+   "rev": 1,
+   "visibility": "internal",
+   "attribution": {
+    "created_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "created_at": "2026-10-27T10:27:00.000Z",
+    "updated_by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    },
+    "updated_at": "2026-10-27T10:27:00.000Z"
+   },
+   "step_id": "r4-pick",
+   "name": "f04-round4-looks.png",
+   "mime": "image/png",
+   "size": 70,
+   "sha256": "c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77"
+  }
+ ],
+ "routing": {},
+ "route_override": {},
+ "roles": {},
+ "times": {
+  "T-31/plan": {
+   "first_seen_at": "2026-10-27T08:28:00.000Z",
+   "waiting_total_ms": 0,
+   "last_state": "done",
+   "transitions": [],
+   "untracked": true
+  },
+  "T-31/library": {
+   "first_seen_at": "2026-10-27T08:28:00.000Z",
+   "waiting_total_ms": 0,
+   "last_state": "done",
+   "transitions": [],
+   "untracked": true
+  },
+  "T-31/diagrams": {
+   "first_seen_at": "2026-10-27T08:28:00.000Z",
+   "waiting_total_ms": 420000,
+   "last_state": "active",
+   "transitions": [
+    {
+     "at": "2026-10-27T09:10:00.000Z",
+     "from": "active",
+     "to": "waiting"
+    },
+    {
+     "at": "2026-10-27T09:17:00.000Z",
+     "from": "waiting",
+     "to": "active"
+    }
+   ],
+   "started_at": "2026-10-27T08:28:00.000Z"
+  },
+  "T-31/memory": {
+   "first_seen_at": "2026-10-27T08:28:00.000Z",
+   "waiting_total_ms": 0,
+   "last_state": "todo",
+   "transitions": []
+  },
+  "T-31/gate": {
+   "first_seen_at": "2026-10-27T08:28:00.000Z",
+   "waiting_total_ms": 0,
+   "last_state": "waiting",
+   "transitions": [],
+   "waiting_since": "2026-10-27T08:28:00.000Z"
+  },
+  "T-31/ship": {
+   "first_seen_at": "2026-10-27T08:28:00.000Z",
+   "waiting_total_ms": 0,
+   "last_state": "todo",
+   "transitions": []
+  },
+  "F-04/r4-render": {
+   "first_seen_at": "2026-10-27T08:35:00.000Z",
+   "waiting_total_ms": 0,
+   "last_state": "done",
+   "transitions": [],
+   "untracked": true
+  },
+  "F-04/r4-pick": {
+   "first_seen_at": "2026-10-27T08:35:00.000Z",
+   "waiting_total_ms": 0,
+   "last_state": "waiting",
+   "transitions": [],
+   "waiting_since": "2026-10-27T08:35:00.000Z"
+  },
+  "C-52/gate": {
+   "first_seen_at": "2026-10-27T08:42:00.000Z",
+   "waiting_total_ms": 0,
+   "last_state": "active",
+   "transitions": [],
+   "started_at": "2026-10-27T08:42:00.000Z"
+  },
+  "H-03/scan": {
+   "first_seen_at": "2026-10-27T08:49:00.000Z",
+   "waiting_total_ms": 0,
+   "last_state": "blocked",
+   "transitions": []
+  },
+  "P-02/page": {
+   "first_seen_at": "2026-10-27T08:56:00.000Z",
+   "waiting_total_ms": 0,
+   "last_state": "todo",
+   "transitions": []
+  },
+  "Z-09/notes": {
+   "first_seen_at": "2026-10-27T09:03:00.000Z",
+   "waiting_total_ms": 0,
+   "last_state": "done",
+   "transitions": [],
+   "untracked": true
+  }
+ },
+ "task_times": {
+  "T-31": {
+   "first_seen_at": "2026-10-27T08:28:00.000Z",
+   "started_at": "2026-10-27T08:28:00.000Z"
+  },
+  "F-04": {
+   "first_seen_at": "2026-10-27T08:35:00.000Z"
+  },
+  "C-52": {
+   "first_seen_at": "2026-10-27T08:42:00.000Z",
+   "started_at": "2026-10-27T08:42:00.000Z"
+  },
+  "H-03": {
+   "first_seen_at": "2026-10-27T08:49:00.000Z"
+  },
+  "P-02": {
+   "first_seen_at": "2026-10-27T08:56:00.000Z"
+  },
+  "Z-09": {
+   "first_seen_at": "2026-10-27T09:03:00.000Z",
+   "done_at": "2026-10-27T09:03:00.000Z"
+  }
+ },
+ "docs": {},
+ "goals": {},
+ "plans": {
+  "T-31": [
+   {
+    "id": "plan-14",
+    "task_id": "T-31",
+    "reviewer": "Fable",
+    "verdict": "on-track",
+    "eta": "after the gate",
+    "body": "VERDICT: on-track\nETA: after the gate\n\nRead-only first: build the panel on the existing state, add the host calls only after the CoS gate.",
+    "posted_at": "2026-10-27T09:52:00.000Z",
+    "goal_version": 0,
+    "by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    }
+   },
+   {
+    "id": "plan-15",
+    "task_id": "T-31",
+    "reviewer": "Sol",
+    "verdict": "on-track",
+    "body": "Keep the three host calls behind one gate; no new route, no write.",
+    "posted_at": "2026-10-27T09:59:00.000Z",
+    "goal_version": 0,
+    "by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    }
+   }
+  ],
+  "F-04": [
+   {
+    "id": "plan-16",
+    "task_id": "F-04",
+    "reviewer": "Fable",
+    "verdict": "on-track",
+    "body": "Show A and B side by side at 1296 wide.",
+    "posted_at": "2026-10-27T10:06:00.000Z",
+    "goal_version": 0,
+    "by": {
+     "token_id": "tok-1",
+     "name": "owner",
+     "role": "owner",
+     "label": "owner"
+    }
+   }
+  ]
+ },
+ "pings": [],
+ "watcher_at": "",
+ "attention": {
+  "waiting": [
+   {
+    "kind": "ask",
+    "id": "ask-10",
+    "task_id": "T-31",
+    "step_id": "gate",
+    "text": "Name the sidebar item \"Brain\" or keep \"Memory\"?",
+    "options": [
+     {
+      "key": "A",
+      "label": "Brain"
+     },
+     {
+      "key": "B",
+      "label": "Memory"
+     }
+    ],
+    "rev": 1,
+    "from": {
+     "name": "owner",
+     "role": "owner"
+    },
+    "since": "2026-10-27T09:24:00.000Z",
+    "age_ms": 4200000
+   },
+   {
+    "kind": "ask",
+    "id": "ask-13",
+    "task_id": "F-04",
+    "step_id": "r4-pick",
+    "text": "Pick the look for round 4 (A, B or C)",
+    "options": [
+     {
+      "key": "A",
+      "label": "Night blue"
+     },
+     {
+      "key": "B",
+      "label": "White"
+     },
+     {
+      "key": "C",
+      "label": "Both"
+     }
+    ],
+    "rev": 1,
+    "from": {
+     "name": "owner",
+     "role": "owner"
+    },
+    "since": "2026-10-27T09:45:00.000Z",
+    "age_ms": 2940000
+   }
+  ],
+  "answered": [
+   {
+    "id": "ask-11",
+    "task_id": "T-31",
+    "text": "Should Brain edit tasks or only read them?",
+    "answer_text": "Read only, edits go through Open on board.",
+    "at": "2026-10-27T09:38:00.000Z",
+    "feedback_id": "fb-12"
+   }
+  ]
+ },
+ "stalled": [],
+ "freshness": {
+  "stale_h": 24,
+  "auto_request": true
+ },
+ "stale_text": [
+  {
+   "task_id": "T-31",
+   "reason": "steps_newer",
+   "text_at": "2026-10-27T08:28:00.000Z",
+   "step_at": "2026-10-27T09:17:00.000Z"
+  }
+ ],
+ "notify": {
+  "coordinator_feedback": true,
+  "delivery": "watch",
+  "webhook_url": ""
+ }
+}

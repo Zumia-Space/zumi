@@ -1,0 +1,39 @@
+{
+  "trigger": "cursor",
+  "labelVi": "Mouse moved",
+  "variants": [
+    {
+      "id": "eyes-lead", "labelVi": "Eyes lead, head follows slowly",
+      "selftest": { "peakMs": 700 },
+      "command": {
+        "id": "cursor-eyes-lead", "priority": 1, "interrupt": false,
+        "follow": { "head": 0.3, "spine": 0, "rate": 3.5, "tilt": 0 },
+        "expressions": [{ "name": "surprised", "weight": 0.2, "inMs": 80, "holdMs": 250, "outMs": 450 }],
+        "bones": [{ "bone": "head", "rot": [-2, 0, 0], "inMs": 80, "holdMs": 250, "outMs": 450 }]
+      }
+    },
+    {
+      "id": "head-turn", "labelVi": "Turns head and torso",
+      "selftest": { "peakMs": 700 },
+      "command": {
+        "id": "cursor-head-turn", "priority": 1, "interrupt": false,
+        "follow": { "head": 0.9, "spine": 0.22, "rate": 7, "tilt": 0 },
+        "expressions": [{ "name": "happy", "weight": 0.15, "inMs": 100, "holdMs": 300, "outMs": 400 }],
+        "bones": [{ "bone": "spine", "rot": [2, 0, 0], "inMs": 100, "holdMs": 300, "outMs": 400 }]
+      }
+    },
+    {
+      "id": "curious-tilt", "labelVi": "Curious head tilt",
+      "selftest": { "peakMs": 700 },
+      "command": {
+        "id": "cursor-curious-tilt", "priority": 1, "interrupt": false,
+        "follow": { "head": 0.6, "spine": 0.05, "rate": 5, "tilt": 10 },
+        "expressions": [
+          { "name": "happy", "weight": 0.3, "inMs": 120, "holdMs": 500, "outMs": 500 },
+          { "name": "oh", "weight": 0.18, "inMs": 80, "holdMs": 150, "outMs": 200 }
+        ],
+        "bones": [{ "bone": "spine", "rot": [3, 0, 0], "inMs": 150, "holdMs": 500, "outMs": 400 }]
+      }
+    }
+  ]
+}

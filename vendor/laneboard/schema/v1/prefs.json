@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "prefs.json",
+  "title": "Display preferences of one token holder. Private to that holder; returned as me.prefs by GET /api/v1/state.",
+  "type": "object", "additionalProperties": false,
+  "required": ["token_id", "updated_at"],
+  "properties": {
+    "token_id": { "$ref": "common.json#/$defs/tokenId" },
+    "lang": { "enum": ["en", "zh", "vi"] },
+    "theme": { "enum": ["system", "dark", "light"] },
+    "accent": { "enum": ["neutral", "blue", "violet", "green", "orange", "rose"] },
+    "font_size": { "enum": ["default", "large", "larger"] },
+    "density": { "enum": ["comfortable", "compact"] },
+    "notify_owner_asks": { "type": "boolean" },
+    "updated_at": { "$ref": "common.json#/$defs/timestamp" }
+  }
+}

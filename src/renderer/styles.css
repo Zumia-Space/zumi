@@ -1,0 +1,491 @@
+/* Zumi app shell. Colours come ONLY from the shared design tokens in tokens.css (the vendored Laneboard sheet,
+   loaded before this file — see index.html), so the shell and the embedded board cannot drift apart. No colour
+   literal belongs here; a translucent shade is color-mix(in srgb, var(--x) N%, transparent). */
+:root {
+  --radius: 10px;
+  font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--background); color: var(--foreground); overflow: hidden; }
+button, input, select { font: inherit; color: inherit; }
+
+#app { display: flex; height: 100vh; }
+
+/* ---------- sidebar ---------- */
+#sidebar {
+  width: 76px; flex: none; background: var(--card); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; align-items: center; padding: 12px 0 10px; gap: 6px;
+}
+.brand { width: 38px; height: 38px; margin-bottom: 10px; }
+.brand img { width: 100%; height: 100%; display: block; }
+.tab {
+  position: relative; width: 64px; padding: 8px 0 6px; border: 0; border-radius: var(--radius); background: transparent;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--muted-foreground); cursor: pointer;
+}
+.tab svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.tab svg .fill { fill: currentColor; stroke: none; }
+.tab span { font-size: 11px; }
+.tab:hover { background: var(--accent); color: var(--foreground); }
+.tab.active { background: var(--muted); color: var(--foreground); }
+.tab[hidden] { display: none; } /* author display:flex would otherwise defeat the hidden attribute */
+.tab.active::before { content: ""; position: absolute; left: -6px; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--primary); }
+.badge { position: absolute; top: 6px; right: 14px; width: 9px; height: 9px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 0 2px var(--card); }
+.spacer { flex: 1; }
+.debug {
+  width: 64px; padding: 7px 2px; border-radius: var(--radius); border: 1px dashed var(--input); background: transparent;
+  color: var(--muted-foreground); font-size: 10.5px; line-height: 1.25; cursor: pointer;
+}
+.debug:hover { color: var(--warn); border-color: var(--warn); }
+.ver { font-size: 10px; color: var(--muted-foreground); margin-top: 6px; }
+
+/* ---------- segmented switch: the Settings header language switch (EN / VI / 中文) and the role popover's effort ---------- */
+.lang-switch { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--muted); width: fit-content; }
+.lang-switch button { min-height: 24px; min-width: 38px; padding: 2px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--muted-foreground); cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.lang-switch button[aria-checked="true"] { background: var(--card); color: var(--foreground); box-shadow: 0 0 0 1px var(--border); }
+
+/* ---------- panels ---------- */
+main { flex: 1; min-width: 0; position: relative; }
+.panel { position: absolute; inset: 0; display: none; flex-direction: column; }
+.panel.active { display: flex; }
+.toolbar {
+  height: 46px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 16px;
+  border-bottom: 1px solid var(--border); background: var(--card);
+}
+.toolbar .title { font-weight: 600; }
+/* T-31 "Về model mặc định": the refusal note shares the fixed 46px toolbar line, so it clips instead of wrapping. */
+.toolbar #model-default-note { max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.muted { color: var(--muted-foreground); }
+.small { font-size: 12px; }
+.picker { display: flex; align-items: center; gap: 8px; color: var(--muted-foreground); font-size: 13px; }
+.picker[hidden] { display: none; } /* author display:flex would otherwise defeat the hidden attribute (empty Room select showed under saved room none) */
+select {
+  background: var(--background); border: 1px solid var(--input); border-radius: 8px; padding: 5px 28px 5px 10px; color: var(--foreground);
+}
+.chip {
+  margin-left: auto; font-size: 12.5px; padding: 5px 12px; border-radius: 999px; background: color-mix(in srgb, var(--focus) 18%, transparent); color: var(--focus);
+  border: 1px solid color-mix(in srgb, var(--focus) 30%, transparent); opacity: 0; transform: translateY(-3px); transition: opacity .25s, transform .25s; white-space: nowrap;
+}
+.chip.show { opacity: 1; transform: none; }
+
+#stage {
+  position: relative; flex: 1; min-height: 0; overflow: hidden;
+  background:
+    radial-gradient(ellipse 60% 70% at 50% 42%, color-mix(in srgb, var(--muted) 60%, var(--background)) 0%, var(--card) 45%, var(--background) 100%);
+}
+#stage-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* Camera-plate background (T-31 camera modes): a v2 room's painted plate, drawn camera-locked and full-screen
+   BEHIND the transparent-cleared WebGL canvas (renderer alpha:true, clearColor alpha 0 -- already set up for
+   exactly this). CameraDirector owns this canvas entirely (src/renderer/room/camera-director.js); no room, or a
+   v1 room, simply never draws to it and #stage's own CSS gradient shows through untouched. */
+#stage-plate { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#cam-register-overlay { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+#cam-register-overlay[hidden] { display: none; }
+.look-tuning-panel {
+  position: absolute; right: 10px; top: 10px; z-index: 5; padding: 10px 12px; border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--card) 88%, transparent); border: 1px solid var(--border); color: var(--foreground);
+  font-size: 12px; max-width: 260px;
+}
+.look-tuning-panel[hidden] { display: none; }
+.look-tuning-panel select, .look-tuning-panel input[type="range"] { width: 90px; }
+.look-tuning-panel button { margin-top: 2px; }
+.loading {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  color: var(--muted-foreground); font-size: 13px; pointer-events: none;
+}
+.loading[hidden] { display: none; }
+.spinner { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--ring); animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.heard {
+  position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); max-width: 70%;
+  padding: 5px 12px; border-radius: 999px; background: color-mix(in srgb, var(--card) 85%, transparent); border: 1px solid var(--border); font-size: 12.5px; color: var(--foreground);
+}
+
+.composer { flex: none; padding: 12px 16px 14px; border-top: 1px solid var(--border); background: var(--card); }
+#msg {
+  width: 100%; height: 42px; border-radius: 12px; border: 1px solid var(--input); background: var(--background); padding: 0 14px; outline: none;
+}
+#msg:focus { border-color: var(--ring); }
+
+/* ---------- board ---------- */
+#board-host { position: relative; flex: 1; min-height: 0; background: var(--background); }
+#board-host webview { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ghost { margin-left: auto; background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 5px 12px; cursor: pointer; }
+.ghost:hover { border-color: var(--ring); }
+.board-mode { font-size: 12.5px; padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--focus) 18%, transparent); color: var(--focus); border: 1px solid color-mix(in srgb, var(--focus) 30%, transparent); white-space: nowrap; }
+/* Always painted above the webview (appended into #board-host after this, in DOM order) while the board is locked. */
+#board-locked { z-index: 5; }
+#board-locked .card button { align-self: flex-start; }
+
+
+/* ---------- empty state (no model yet) ---------- */
+.empty-model { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; }
+.empty-model[hidden] { display: none; }
+.empty-model .card {
+  max-width: 380px; background: color-mix(in srgb, var(--card) 92%, transparent); border: 1px solid var(--border); border-radius: 14px; padding: 22px 22px 20px;
+  display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
+}
+.empty-model h2 { margin: 0; font-size: 18px; }
+.empty-model p { margin: 0 0 6px; line-height: 1.5; }
+.ghost.slim { margin-left: 0; padding: 4px 10px; font-size: 12.5px; color: var(--muted-foreground); }
+.ghost.slim:hover { color: var(--foreground); }
+.primary { background: var(--primary); color: var(--primary-foreground); border: 0; border-radius: 8px; padding: 7px 16px; font-weight: 600; cursor: pointer; }
+select:disabled { opacity: .55; }
+#board-hint.notice { pointer-events: auto; padding: 24px 40px; color: var(--foreground); text-align: center; }
+#board-hint.notice ul { margin: 0; padding: 12px 18px; list-style: none; border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border)); border-radius: 10px; background: color-mix(in srgb, var(--danger) 12%, var(--background)); color: var(--danger); font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; text-align: left; }
+
+/* talk: conversation lines, gesture label, analysis panel (model text is plain text) */
+/* Pinned to the very bottom of the stage (just above the composer) so it sits low on the model, not across it. */
+.talk { position: absolute; left: 16px; right: 16px; bottom: 0; padding-bottom: 6px; display: flex; flex-direction: column; gap: 3px; pointer-events: none; }
+.talk[hidden] { display: none; } /* author display:flex would otherwise defeat the hidden attribute */
+/* The HUD (hud.css) rests at z-index:1, which would paint over these two bottom strips (both position:absolute, no
+   z-index, earlier in the DOM): a long reply / the heard pill would sit under the left panel. Lift both one level so
+   the transcript stays readable. T-31 fix r4 (review 1). */
+.talk, .heard { z-index: 2; }
+.talk-row { display: flex; gap: 8px; align-items: baseline; max-width: 70%; background: color-mix(in srgb, var(--card) 72%, transparent); border: 1px solid var(--border); border-radius: 10px; padding: 4px 9px; }
+.talk-row[hidden] { display: none; } /* empty strips collapse instead of showing an empty label */
+.talk-row .who { flex: none; font-size: 12px; color: var(--muted-foreground); min-width: 58px; }
+.talk-user, .talk-reply { white-space: pre-wrap; overflow-wrap: anywhere; }
+.talk-reply.failed { color: var(--danger); }
+.talk-status { font-size: 13px; color: var(--muted-foreground); min-height: 1em; }
+.talk-status:empty { display: none; } /* no reserved blank line when Zumi is not thinking */
+.talk-gesture { font-size: 13px; opacity: 0; transition: opacity .2s; }
+/* Models by role (T-31 zumi-roles): the chip row under the reply ("Planned" / "Checked" / "Sources: ...") and the
+   Check correction row. Text only; the source links take the pointer back from .talk's pointer-events: none. */
+.talk-roles { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; max-width: 70%; font-size: 12px; color: var(--muted-foreground); }
+.talk-roles[hidden] { display: none; }
+.talk-roles .rchip { padding: 1px 9px; border-radius: 999px; border: 1px solid var(--border); background: color-mix(in srgb, var(--card) 72%, transparent); white-space: nowrap; }
+.talk-roles .rchip.plan { pointer-events: auto; cursor: help; }
+.talk-roles .rchip.ok { color: var(--success); border-color: color-mix(in srgb, var(--success) 40%, transparent); }
+.talk-roles .rchip.fix { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.talk-roles .src { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--border); background: color-mix(in srgb, var(--card) 72%, transparent); }
+.talk-roles .src a { pointer-events: auto; color: var(--focus); text-decoration: none; }
+.talk-roles .src a:hover { text-decoration: underline; }
+.talk-check { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--warn); }
+.talk-gesture:not(.show) { display: none; } /* the caption takes no room until it has something to say */
+.talk-gesture.show { display: block; opacity: 1; }
+/* T-31 voice P1 live-E2E fix 3: the only clickable control inside #talk, so it alone opts back into pointer
+   events (the container is pointer-events:none so the transcript overlay never blocks the 3D stage behind it);
+   align-self keeps it from stretching to the column's full width like a block-level flex child would. */
+#talk-retry-voice { align-self: flex-start; pointer-events: auto; }
+#talk-retry-voice[hidden] { display: none; }
+.analysis { position: absolute; right: 16px; top: 56px; width: min(340px, 40%); background: color-mix(in srgb, var(--card) 82%, transparent); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+.analysis h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.analysis dl { margin: 0; }
+.analysis dt { font-size: 12px; color: var(--muted-foreground); margin-top: 6px; }
+.analysis dd { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* demo with recorded answers: a banner for the whole run; the analysis panel is replaced by one line */
+.demo-banner { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5; padding: 8px 16px; border-radius: 999px; background: var(--warn); color: var(--primary-foreground); font-weight: 600; font-size: 15px; box-shadow: 0 2px 10px color-mix(in srgb, var(--background) 60%, transparent); white-space: nowrap; }
+/* T-31 batch-1: sidecar death / restart status (Tauri only -- sidecar-status.js builds it behind window.__TAURI__). */
+.sidecar-status { position: absolute; top: 56px; left: 50%; transform: translateX(-50%); z-index: 6; max-width: min(90%, 720px); padding: 8px 16px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border)); background: color-mix(in srgb, var(--danger) 12%, var(--background)); color: var(--danger); font-size: 14px; text-align: center; box-shadow: 0 2px 10px color-mix(in srgb, var(--background) 60%, transparent); }
+.analysis-off { position: absolute; right: 16px; top: 56px; width: min(340px, 40%); margin: 0; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 12px; background: color-mix(in srgb, var(--card) 70%, transparent); color: var(--muted-foreground); font-size: 13px; }
+/* While the HUD is visible (#hud not hidden, data-style != off) its right asks group can bottom out at 48% of the stage
+   (hud.css), which reaches down into this box's base top:56px and lets the two cover each other. Push both the analysis
+   box and #an-off below that edge, and cap + scroll their height so they stay on the stage even when the text is long.
+   With the HUD off (hidden or data-style="off") the base top:56px above still applies. T-31 fix r4 (review 3). */
+#stage:has(> #hud:not([hidden]):not([data-style="off"])) .analysis,
+#stage:has(> #hud:not([hidden]):not([data-style="off"])) .analysis-off {
+  top: calc(48% + 8px);
+  max-height: calc(52% - 24px);
+  overflow-y: auto;
+}
+
+/* ---------- Settings, design A2 (owner-approved 09-10) ---------- */
+/* One card system: every card is 520px (it narrows only below that, never at the 900px minimum window), a 46px
+   header (18px icon + 15px title), then rows split by hairlines -- 13px label, 12px description, controls on the
+   right that never wrap. THREE type sizes only: 15 (titles), 13 (body + controls), 12 (descriptions, table heads,
+   pills, notes). T-31 settings P1: the cards are grouped into six settings tabs (.stabbar + .stabpanel); tab order
+   is Account & Privacy, AI & Usage, Workflow, Agent & Soul, Room & HUD, App. */
+#tab-settings { --s-head: 15px; --s-body: 13px; --s-meta: 12px; --s-pad: 18px; }
+/* [hidden] always wins inside Settings: a later display:flex/grid rule must never show a hidden row (the PIN-apply bug). */
+#tab-settings [hidden] { display: none !important; }
+#tab-settings .toolbar .title { font-size: var(--s-head); }
+#tab-settings .toolbar .sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--s-meta); color: var(--muted-foreground); }
+#tab-settings .toolbar .lang-switch { margin-left: auto; flex: none; }
+/* T-31 settings P1: the six Settings tabs — one shared segmented bar above the single .settings scroll box. A tab is
+   a role=tab (roving tabindex, arrow keys handled in settings-tabs.js); the selected one is a raised card. Focus is a
+   ring, not colour-only. */
+.stabbar { flex: none; display: flex; flex-wrap: wrap; gap: 2px; padding: 2px; margin: 14px 24px 0; background: var(--muted); border-radius: 10px; width: fit-content; max-width: calc(100% - 48px); }
+.stabbar .stab { min-height: 32px; padding: 0 16px; border: 0; border-radius: 8px; background: transparent; color: var(--muted-foreground); font-size: var(--s-body); font-weight: 600; white-space: nowrap; cursor: pointer; }
+.stabbar .stab:hover { color: var(--foreground); }
+.stabbar .stab.active { background: var(--card); color: var(--foreground); box-shadow: 0 0 0 1px var(--border); }
+.stabbar .stab:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+.settings { flex: 1; min-height: 0; overflow: auto; padding: 22px 24px 40px; display: flex; flex-direction: column; gap: 14px; font-size: var(--s-body); scrollbar-width: thin; }
+.settings .stabpanel { display: flex; flex-direction: column; gap: 14px; }
+.settings .card { flex: none; position: relative; width: 100%; max-width: 520px; margin: 0 auto; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
+.settings .ghead { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 var(--s-pad); }
+.settings .ghead > svg { width: 18px; height: 18px; flex: none; fill: none; stroke: var(--muted-foreground); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.settings h2 { margin: 0; font-size: var(--s-head); font-weight: 600; }
+.settings .ghead .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.settings .gbody { display: flex; flex-direction: column; gap: 12px; padding: 12px var(--s-pad) 16px; border-top: 1px solid var(--border); }
+/* row: label column (flex 1) + control column (never shrinks, never wraps) */
+.settings .srow { display: flex; align-items: center; gap: 14px; min-height: 48px; padding: 9px var(--s-pad); border-top: 1px solid var(--border); }
+.settings label.srow { cursor: pointer; }
+.settings .srow .lbl { display: block; flex: 1; min-width: 0; }
+.settings .srow .k { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: var(--s-body); }
+.settings .srow .d { display: block; margin-top: 2px; font-size: var(--s-meta); line-height: 1.4; color: var(--muted-foreground); text-wrap: pretty; }
+.settings .srow .d:empty { display: none; }
+.settings .srow .ctl { flex: none; display: flex; align-items: center; gap: 8px; }
+/* stacked row: label line on top, a full-width control line below (a key field + its buttons always share ONE line) */
+.settings .srow.stack { flex-direction: column; align-items: stretch; gap: 8px; }
+.settings .srow.stack .top { display: flex; align-items: center; gap: 12px; }
+.settings .line { display: flex; align-items: center; gap: 8px; }
+.settings .line.end { justify-content: flex-end; }
+.settings .line.grow { flex: 1; min-width: 0; }
+.settings .line input { flex: 1; min-width: 0; }
+/* controls */
+.settings input[type="text"], .settings input[type="password"], .settings input[type="search"], .settings select {
+  height: 30px; border-radius: 8px; border: 1px solid var(--input); background: var(--background); color: var(--foreground); font-size: var(--s-body); outline: none;
+}
+.settings input[type="text"], .settings input[type="password"], .settings input[type="search"] { padding: 0 10px; }
+/* The A2 picker: no native arrow; a small chevron drawn from two token-coloured gradients (no colour literal). */
+.settings select {
+  appearance: none; min-width: 180px; max-width: 240px; padding: 0 32px 0 10px; text-overflow: ellipsis; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%), linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 13px, calc(100% - 11px) 13px; background-size: 5px 5px; background-repeat: no-repeat;
+}
+.settings select:disabled { cursor: default; }
+.settings input:focus-visible, .settings select:focus-visible { border-color: var(--focus); box-shadow: 0 0 0 3px var(--ring); }
+.settings button.ghost, .settings button.primary {
+  flex: none; height: 30px; margin-left: 0; padding: 0 12px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--s-body); line-height: 1; white-space: nowrap; cursor: pointer;
+}
+.settings button.ghost { border: 1px solid var(--input); background: transparent; color: var(--foreground); }
+.settings button.ghost:hover { border-color: var(--ring); }
+.settings button.primary { border: 1px solid transparent; background: var(--foreground); color: var(--background); font-weight: 600; }
+.settings button:disabled { opacity: .45; cursor: default; }
+.settings button > svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+/* switch: one persisted boolean, a token-only toggle with no native checkbox chrome */
+.settings input.sw { appearance: none; flex: none; width: 36px; height: 20px; margin: 0; border-radius: 999px; border: 1px solid var(--input); background: var(--muted); position: relative; cursor: pointer; transition: background .15s, border-color .15s; }
+.settings input.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--muted-foreground); transition: transform .15s; }
+.settings input.sw:checked { background: var(--focus); border-color: var(--focus); }
+.settings input.sw:checked::after { transform: translateX(16px); background: var(--foreground); }
+.settings input.sw:focus-visible { box-shadow: 0 0 0 3px var(--ring); }
+/* a saved key, shown as an input-shaped read-only line: dots + the last 4 characters (never the key itself) */
+.settings .inp { flex: 1; min-width: 0; height: 30px; display: flex; align-items: center; padding: 0 10px; border-radius: 8px; border: 1px solid var(--input); background: var(--background); font-size: var(--s-body); color: var(--foreground); white-space: nowrap; overflow: hidden; }
+.settings .inp.mask { letter-spacing: 1px; font-variant-numeric: tabular-nums; }
+/* slider (Voice > Speed / Volume): 4px track filled to --fill (set by settings.js), 16px thumb */
+.settings input.range { --fill: 50%; appearance: none; flex: none; width: 160px; height: 16px; margin: 0; background: transparent; cursor: pointer; }
+.settings input.range::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--focus) var(--fill), var(--muted) var(--fill)); }
+.settings input.range::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%; background: var(--foreground); box-shadow: 0 0 0 1px var(--border); }
+.settings input.range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--ring); }
+.settings .pill { flex: none; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--border); font-size: var(--s-meta); line-height: 18px; color: var(--muted-foreground); white-space: nowrap; }
+.settings .pill.ok { color: var(--success); border-color: color-mix(in srgb, var(--success) 35%, transparent); background: color-mix(in srgb, var(--success) 10%, transparent); }
+.settings .pill.bad { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, transparent); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.settings .bar { width: 160px; height: 6px; border-radius: 3px; background: var(--muted); overflow: hidden; }
+.settings .bar i { display: block; width: 0; height: 100%; border-radius: 3px; background: var(--focus); }
+.settings .val { min-width: 40px; text-align: right; font-size: var(--s-meta); color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.settings .val:empty { display: none; }
+.settings .modes { gap: 14px; }
+.settings .modes label { display: flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+/* text lines: the card footer, and a note under the row it belongs to (an empty note takes no room) */
+.settings .foot { margin: 0; padding: 10px var(--s-pad) 12px; border-top: 1px solid var(--border); font-size: var(--s-meta); line-height: 1.45; color: var(--muted-foreground); text-wrap: pretty; }
+.settings .status, .settings .note { margin: 0; font-size: var(--s-meta); line-height: 1.4; color: var(--muted-foreground); text-wrap: pretty; }
+.settings .card > .note { padding: 0 var(--s-pad) 10px; }
+.settings .note:empty { display: none; }
+.settings .note.bad { color: var(--danger); }
+.settings .note.ok { color: var(--success); }
+/* T-31 free LLM presets (BRIEF-free-llm FL-2): the notice + 18+ block is built by brain-key-card.js only under the
+   Tauri host, never in the static markup, so the Electron render keeps the same DOM. The explicit [hidden] rules
+   follow the file's convention for author display values that would otherwise defeat the hidden attribute. */
+.settings #brain-free-llm { display: grid; gap: 6px; padding: 0 var(--s-pad) 10px; }
+.settings #brain-free-llm[hidden] { display: none; }
+.settings #brain-free-llm .line { padding: 0; }
+.settings #brain-free-age-row[hidden] { display: none; }
+.settings #brain-free-age18-hint[hidden] { display: none; }
+.settings #brain-free-llm label { font-size: var(--s-meta); color: var(--muted-foreground); }
+/* T-31 BYOK: the "get your key" numbered steps (Settings > AI & Usage) */
+.settings .guide { margin: 0; padding-left: 1.35em; font-size: var(--s-meta); line-height: 1.5; color: var(--muted-foreground); }
+.settings .guide li { margin: 2px 0; text-wrap: pretty; }
+/* T-31 OpenCode BYOK: the two-choice header -- two ghost buttons; the active one is filled (aria-pressed). */
+.settings .seg { display: flex; gap: 6px; }
+.settings .seg .segbtn[aria-pressed="true"] { color: var(--foreground); border-color: var(--foreground); background: color-mix(in srgb, var(--foreground) 10%, transparent); }
+/* the board sign-in form (Account card): label column + input column */
+.settings .fields { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 8px 12px; align-items: center; }
+.settings .fields label { font-size: var(--s-meta); color: var(--muted-foreground); }
+.settings .fields input { width: 100%; }
+/* Credential hint + the "Advanced" token disclosure (T-31 laneboard-live, token-optional): both sit inside the same
+   2-col .fields grid, so each spans both columns instead of shifting every label/input pair after it. */
+.settings .fields p.muted { grid-column: 1 / -1; margin: -2px 0 2px; font-size: var(--s-meta); }
+.settings .fields details.advanced { grid-column: 1 / -1; font-size: var(--s-meta); color: var(--muted-foreground); }
+.settings .fields details.advanced summary { cursor: pointer; }
+.settings .fields details.advanced label { display: block; margin: 8px 0 4px; }
+/* Usage: a compact summary table + a Details expander (day x model) inside the SAME 520px card */
+.settings .utable { width: 100%; border-collapse: collapse; font-size: var(--s-body); }
+.settings .utable th, .settings .utable td { padding: 8px 10px; text-align: left; border-top: 1px solid var(--border); white-space: nowrap; }
+.settings .utable th:first-child, .settings .utable td:first-child { padding-left: var(--s-pad); }
+.settings .utable th:last-child, .settings .utable td:last-child { padding-right: var(--s-pad); }
+.settings .utable th { font-size: var(--s-meta); font-weight: 600; color: var(--muted-foreground); }
+.settings .utable .num { text-align: right; font-variant-numeric: tabular-nums; }
+.settings .utable td.dim { color: var(--muted-foreground); }
+.settings .utable td.model-cell { max-width: 170px; overflow: hidden; text-overflow: ellipsis; cursor: default; }
+.settings .utable.detail th, .settings .utable.detail td { padding-top: 7px; padding-bottom: 7px; font-size: var(--s-meta); }
+.settings .detailwrap { background: color-mix(in srgb, var(--background) 55%, var(--card)); }
+.settings .detailwrap .note { padding: 8px var(--s-pad); border-top: 1px solid var(--border); }
+.settings .disc { display: flex; align-items: center; gap: 6px; width: 100%; padding: 10px var(--s-pad); border: 0; border-top: 1px solid var(--border); background: transparent; color: var(--focus); font-size: var(--s-body); text-align: left; cursor: pointer; }
+.settings .disc svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
+.settings .disc[aria-expanded="true"] svg { transform: rotate(90deg); }
+
+/* ---------- Board tab: owner-build sign-in card (shares #board-locked's .empty-model/.card shell) ---------- */
+#board-signin .card { max-width: 420px; width: 100%; gap: 14px; }
+#board-signin .fields { display: grid; grid-template-columns: 140px 1fr; gap: 10px 14px; align-items: center; width: 100%; }
+#board-signin .fields label { color: var(--muted-foreground); font-size: 13px; }
+#board-signin .fields input { width: 100%; height: 36px; border-radius: 8px; border: 1px solid var(--input); background: var(--background); padding: 0 12px; outline: none; }
+#board-signin .fields input:focus { border-color: var(--ring); }
+#board-signin .fields p.muted { grid-column: 1 / -1; margin: -4px 0 2px; font-size: 12.5px; }
+#board-signin .fields details.advanced { grid-column: 1 / -1; font-size: 13px; color: var(--muted-foreground); }
+#board-signin .row { display: flex; gap: 10px; align-items: center; width: 100%; }
+#board-signin .note { margin: 0; min-height: 1.1em; font-size: 13px; color: var(--muted-foreground); }
+#board-signin .note.bad { color: var(--danger); }
+#board-signin #signin-retry:empty, #board-signin #signin-note:empty { display: none; }
+
+/* Models by role (T-31 board-roles): the same 520px card, padding and heading as every other Settings card. Four
+   "Model · Effort" chips do not fit one row at 520px, so the roles sit in a 2x2 grid (role name + chip per cell).
+   Type: 13px body, 12px descriptions/chips/badges (the A2 scale). minmax(0,1fr) cells ellipsize a long model name
+   instead of widening the card -- no sideways scroll down to the 900px minimum window. */
+.roles-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 14px; }
+.roles-grid[hidden] { display: none; }
+.role-cell { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.role-cell .rh { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-width: 0; min-height: 20px; font-size: 13px; }
+.role-cell .rh b { flex: none; font-weight: 600; line-height: 20px; } /* = the switch height: every cell head lines up */
+.role-cell .rh .desc { flex-basis: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted-foreground); }
+.role-cell .rh .role-sw { margin-left: auto; } /* Plan / Check / Look up on-off, right of the role name */
+/* Switched off: the role keeps its model (still changeable), shown dimmed; dashed so it reads as "not running". */
+.role-cell.paused .rh b { color: var(--muted-foreground); }
+.role-cell.paused .role-chip { border-style: dashed; background: transparent; color: var(--muted-foreground); }
+.role-cell .role-default { margin: 0; font-size: 12px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.role-chip {
+  display: flex; align-items: center; gap: 5px; min-width: 0; height: 30px; padding: 0 10px; border-radius: 999px;
+  border: 1px solid var(--input); background: var(--background); color: var(--foreground); font-size: 12px; text-align: left; cursor: pointer;
+}
+.role-chip:hover, .role-chip[aria-expanded="true"] { border-color: var(--ring); }
+/* Dimmed by colour, not opacity, so an amber "!" on a dimmed chip stays at full strength. */
+.role-chip.same { color: var(--muted-foreground); }
+.role-chip .m { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.role-chip .sep, .role-chip .e { flex: none; color: var(--muted-foreground); }
+.role-chip .dot, .roles-legend .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
+.role-chip .warn, .roles-legend .warn {
+  flex: none; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%;
+  background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); font-size: 12px; font-weight: 700;
+}
+.role-chip .warn { margin-left: auto; }
+.settings .roles-legend { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted-foreground); }
+.settings .roles-legend[hidden] { display: none; }
+.roles-legend .li { display: inline-flex; align-items: center; gap: 6px; }
+.roles-legend .li.full { flex-basis: 100%; }
+/* Owner build only (app.js, info.ownerAdmin): one line pointing to the Board tab, where the lane models per task live. */
+.settings .roles-board-link { margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--muted-foreground); border-top: 1px solid var(--border); padding-top: 10px; }
+.settings .roles-board-link[hidden] { display: none; }
+.settings #roles-note:empty { display: none; }
+/* In the top layer (role-models.js openPop). The inset and margin reset the browser's popover centring; place() sets left and top. */
+.role-pop {
+  position: fixed; inset: auto; margin: 0; width: 300px; max-height: calc(100vh - 16px); overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px;
+  color: var(--foreground); background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 28px color-mix(in srgb, var(--background) 75%, transparent);
+}
+.role-pop > * { flex: none; }
+.role-pop .pop-head { display: flex; align-items: baseline; gap: 8px; }
+.role-pop .pop-head b { font-size: 13px; }
+.role-pop .pop-head .muted { font-size: 12px; }
+.role-pop .pop-label { font-size: 12px; color: var(--muted-foreground); margin-top: 2px; }
+.role-pop .pop-hint, .role-pop .pop-empty { margin: 0; font-size: 12px; color: var(--muted-foreground); }
+.role-pop .pop-hint[hidden] { display: none; }
+.role-pop .pop-empty { padding: 4px 8px; }
+.role-pop input[type="search"] { width: 100%; height: 30px; border-radius: 8px; border: 1px solid var(--input); background: var(--background); padding: 0 10px; outline: none; }
+.role-pop input[type="search"]:focus { border-color: var(--ring); }
+.role-pop .pop-list { max-height: 176px; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; padding: 4px; border: 1px solid var(--border); border-radius: 8px; }
+.role-pop .pop-list button { display: flex; align-items: baseline; gap: 6px; min-width: 0; padding: 5px 8px; border: 0; border-radius: 6px; background: transparent; font-size: 13px; text-align: left; cursor: pointer; }
+.role-pop .pop-list button:hover { background: var(--accent); }
+.role-pop .pop-list button[aria-selected="true"] { background: var(--muted); }
+.role-pop .pop-list .n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.role-pop .pop-list .v { flex: none; font-size: 12px; color: var(--muted-foreground); }
+.role-pop .pop-list .tag { flex: none; margin-left: auto; font-size: 12px; color: var(--muted-foreground); }
+.role-pop .lang-switch button { padding: 2px 10px; font-size: 12px; }
+.role-pop .pop-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 2px; }
+.role-pop .pop-foot .ghost:disabled { opacity: .45; cursor: default; }
+
+/* Auto-update (update-ui.js): a quiet line bottom-right while downloading; one dialog when the update is ready. */
+.update-pill { position: fixed; right: 16px; bottom: 16px; z-index: 50; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); color: var(--muted-foreground); font-size: 12.5px; box-shadow: var(--shadow); }
+.update-pill.bad { color: var(--danger); }
+.update-dialog { width: min(460px, calc(100vw - 32px)); border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); color: var(--foreground); padding: 20px; box-shadow: var(--shadow); }
+.update-dialog::backdrop { background: color-mix(in srgb, var(--background) 60%, transparent); }
+.update-dialog h2 { margin: 0 0 8px; font-size: 17px; }
+.update-dialog .update-body { margin: 0 0 12px; color: var(--muted-foreground); line-height: 1.45; }
+.update-dialog .update-notes-h { margin: 0 0 6px; font-size: 13px; color: var(--muted-foreground); }
+.update-dialog .update-notes { margin: 0 0 16px; max-height: 40vh; overflow: auto; white-space: pre-wrap; font: inherit; font-size: 13.5px; line-height: 1.5; }
+.update-dialog .update-notes:empty { display: none; }
+.update-dialog .update-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.update-dialog .update-actions .ghost { margin-left: 0; }
+.import-dialog p { margin: 0 0 8px; }
+.import-dialog .import-pick { display: flex; gap: 8px; align-items: center; margin: 4px 0; font-size: 13.5px; }
+.import-dialog .import-check { margin: 0 0 16px; padding-left: 18px; display: grid; gap: 8px; max-height: 40vh; overflow: auto; }
+.import-dialog .import-check .d { color: var(--muted-foreground); font-size: 13px; line-height: 1.4; }
+
+/* T-31 talk-mode (PLAN 5.2): the stage mute button, its menu and the subtitle of Zumi's own lines. */
+.mute-wrap { position: relative; display: inline-flex; }
+.ghost.slim.icon { padding: 4px 7px; display: inline-flex; align-items: center; }
+.ghost.slim.icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#talk-mute .slash { display: none; }
+#talk-mute.muted { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); }
+#talk-mute.muted .slash { display: inline; }
+#talk-mute.muted .wave { display: none; }
+#talk-mute.off { opacity: .5; }
+.mute-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 190px; display: flex; flex-direction: column; padding: 6px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px color-mix(in srgb, var(--background) 70%, transparent); }
+.mute-menu[hidden] { display: none; }
+.mute-menu button { text-align: left; background: transparent; border: 0; border-radius: 6px; padding: 6px 10px; color: var(--foreground); cursor: pointer; font-size: 13px; }
+.mute-menu button:hover, .mute-menu button:focus-visible { background: color-mix(in srgb, var(--focus) 16%, transparent); outline: none; }
+.mute-menu button[aria-checked="true"]::before { content: "\2022  "; color: var(--focus); }
+.mute-sep { height: 1px; background: var(--border); margin: 5px 0; }
+.mute-cap { font-size: 11.5px; color: var(--muted-foreground); padding: 2px 10px 4px; }
+.say-line { position: absolute; left: 50%; transform: translateX(-50%); bottom: 72px; z-index: 2; max-width: 70%; text-align: center; padding: 6px 14px; border-radius: 12px; background: color-mix(in srgb, var(--card) 82%, transparent); border: 1px solid var(--border); font-size: 14px; pointer-events: none; overflow-wrap: anywhere; }
+.say-line[hidden] { display: none; }
+.toolbar #model-default-note { max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* T-31 alpha.12: Settings > Agent & Soul > Rhythm (rhythm-card.js): the 7x24 heat strip and the plain-words lines. */
+.settings .rhythm-heat { display: grid; gap: 2px; margin: 8px 0; }
+.settings .rhythm-row { display: grid; grid-template-columns: 26px repeat(24, 1fr); gap: 2px; align-items: center; }
+.settings .rhythm-dow { font-size: 10px; color: var(--muted-foreground); }
+.settings .rhythm-cell { display: block; height: 9px; border-radius: 2px; background: var(--primary); opacity: calc(0.08 + 0.92 * var(--p, 0)); }
+.settings .rhythm-lines { margin: 6px 0 8px; padding-left: 16px; font-size: var(--s-small, 12px); color: var(--foreground); }
+.settings .rhythm-lines li { margin: 2px 0; }
+.settings .rhythm-body .lbl { width: 100%; }
+/* T-31-MOBILE M3: the phone pairing QR (Settings > App > Phone). The SVG carries its own white quiet zone (qrcode crate), so it reads on any theme. */
+.settings .phone-qr { display: flex; justify-content: center; }
+.settings .phone-qr img { width: 320px; height: 320px; max-width: 100%; border-radius: 8px; image-rendering: pixelated; }
+
+/* T-31 Marketplace: the settings-card look on its own panel (owner 01-11: left rail, between Board and Settings). */
+#tab-market { display: none; flex-direction: column; }
+#tab-market.active { display: flex; }
+.market-sub { font-size: var(--s-meta); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
+.market-search { margin-left: auto; flex: none; height: 30px; width: 220px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--input); background: var(--background); color: var(--foreground); font-size: var(--s-body); }
+.market-search:focus { outline: none; border-color: var(--ring); box-shadow: 0 0 0 3px var(--ring); }
+.market-body { flex: 1; min-height: 0; display: flex; gap: 18px; padding: 16px 24px 12px; overflow: hidden; }
+.market-list { flex: 1; min-width: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; scrollbar-width: thin; }
+#market-cats .n { margin-left: 6px; font-size: 11px; font-weight: 500; color: var(--muted-foreground); }
+.market-sect { font-size: var(--s-meta); color: var(--muted-foreground); text-transform: uppercase; letter-spacing: .06em; margin-top: 6px; }
+.market-card { flex: none; display: flex; gap: 14px; align-items: flex-start; padding: 14px 18px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; cursor: pointer; }
+.market-card:hover { border-color: var(--input); }
+.market-card.sel { border-color: var(--ring); box-shadow: 0 0 0 1px var(--ring); }
+.market-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+.market-card.market-soon { cursor: default; }
+.market-lbl { flex: 1; min-width: 0; }
+.market-lbl .k { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-weight: 600; font-size: var(--s-body); }
+.market-lbl .d, .market-detail .d { margin-top: 3px; font-size: var(--s-meta); line-height: 1.4; color: var(--muted-foreground); }
+.market-meta { margin-top: 6px; font-size: var(--s-meta); color: var(--muted-foreground); white-space: pre-wrap; }
+.market-pill { font-size: 11px; font-weight: 500; padding: 2px 8px; }
+.market-pill.rec { color: var(--success); border-color: color-mix(in srgb, var(--success) 35%, transparent); background: color-mix(in srgb, var(--success) 16%, transparent); }
+.market-pill.ok { color: var(--foreground); border-color: var(--ring); background: color-mix(in srgb, var(--ring) 22%, transparent); }
+.market-pill.soon { color: var(--muted-foreground); border-style: dashed; }
+.market-ctl { flex: none; width: 150px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; text-align: right; }
+.market-ctl .bar { width: 130px; }
+.market-go { min-height: 30px; padding: 0 16px; border: 0; border-radius: 8px; background: var(--primary); color: var(--primary-foreground); font-weight: 600; font-size: var(--s-body); cursor: pointer; }
+.market-why { font-size: var(--s-meta); color: var(--muted-foreground); line-height: 1.35; }
+.market-err { font-size: var(--s-meta); color: var(--destructive); line-height: 1.35; }
+.market-detail { flex: none; width: 320px; overflow: auto; padding: 16px 18px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; scrollbar-width: thin; }
+.market-detail h3 { margin: 0; font-size: var(--s-head); font-weight: 600; }
+.market-note { margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--muted); font-size: var(--s-meta); line-height: 1.4; }
+.market-facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 14px 0 0; font-size: var(--s-meta); }
+.market-facts dt { color: var(--muted-foreground); }
+.market-facts dd { margin: 0; overflow-wrap: anywhere; }
+.market-foot { flex: none; margin: 0; padding: 0 24px 12px; font-size: var(--s-meta); color: var(--muted-foreground); }
+@media (max-width: 1000px) { .market-detail { display: none; } }

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ping.json",
+  "title": "Ping: one \"act on this now\" signal for the coordinator's watcher (projection, last 200 kept)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "at",
+    "kind",
+    "open"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^ping-[0-9]+(-[0-9]+)?$"
+    },
+    "legacy_id": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "at": {
+      "$ref": "common.json#/$defs/timestamp"
+    },
+    "kind": {
+      "type": "string",
+      "maxLength": 32,
+      "description": "send | ask | routing | status | goal-lock | rebrief, or a predecessor kind"
+    },
+    "task_id": {
+      "type": "string",
+      "maxLength": 40
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "detail": {
+      "type": "object"
+    },
+    "open": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Open owner feedback at the time of the ping."
+    },
+    "by": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "seen_at": {
+      "$ref": "common.json#/$defs/timestamp"
+    }
+  }
+}

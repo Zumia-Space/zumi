@@ -1,0 +1,265 @@
+{
+ "intent": "greet",
+ "labelVi": "Chào hỏi — vẫy tay",
+ "variants": [
+  {
+   "id": "wave-hello-s1",
+   "provenance": {
+    "source": "T-31 approach C round 3 (owner verdict 01-10: right side wins)",
+    "model": "gemini-3.8-flash",
+    "prompt": "wave hello",
+    "sample": 1,
+    "latencyMs": 4593,
+    "file": "unimate/compare/C-llm-dsl/llm/wave-hello-s1.json"
+   },
+   "command": {
+    "id": "wave-hello",
+    "label": "Wave hello",
+    "priority": 6,
+    "interrupt": true,
+    "mirror": "none",
+    "jitter": 0.05,
+    "reach": [
+     {
+      "hand": "right",
+      "target": "beside-head",
+      "inMs": 300,
+      "holdMs": 1400,
+      "outMs": 400,
+      "osc": {
+       "hz": 2.5,
+       "amp": [
+        0.12,
+        0,
+        0
+       ]
+      }
+     }
+    ],
+    "bones": [
+     {
+      "bone": "rightHand",
+      "rot": [
+       0,
+       0,
+       0
+      ],
+      "delayMs": 200,
+      "inMs": 200,
+      "holdMs": 1400,
+      "outMs": 350,
+      "osc": {
+       "hz": 2.5,
+       "amp": [
+        0,
+        18,
+        0
+       ]
+      }
+     },
+     {
+      "bone": "head",
+      "rot": [
+       -2,
+       -4,
+       7
+      ],
+      "delayMs": 100,
+      "inMs": 300,
+      "holdMs": 1350,
+      "outMs": 400
+     },
+     {
+      "bone": "neck",
+      "rot": [
+       0,
+       -2,
+       3
+      ],
+      "delayMs": 100,
+      "inMs": 300,
+      "holdMs": 1350,
+      "outMs": 400
+     },
+     {
+      "bone": "spine",
+      "rot": [
+       -1,
+       0,
+       -4
+      ],
+      "inMs": 300,
+      "holdMs": 1450,
+      "outMs": 450
+     }
+    ],
+    "hands": [
+     {
+      "hand": "right",
+      "shape": "open-flat",
+      "inMs": 250,
+      "holdMs": 1500,
+      "outMs": 350
+     },
+     {
+      "hand": "left",
+      "shape": "loose",
+      "inMs": 300,
+      "holdMs": 1500,
+      "outMs": 350
+     }
+    ],
+    "expressions": [
+     {
+      "name": "happy",
+      "weight": 0.85,
+      "inMs": 200,
+      "holdMs": 1600,
+      "outMs": 400
+     },
+     {
+      "name": "aa",
+      "weight": 0.3,
+      "delayMs": 200,
+      "inMs": 150,
+      "holdMs": 400,
+      "outMs": 250
+     }
+    ],
+    "lookAt": [
+     {
+      "target": "camera",
+      "weight": 1,
+      "inMs": 150,
+      "holdMs": 1800,
+      "outMs": 350
+     }
+    ]
+   }
+  },
+  {
+   "id": "wave-hello-s2",
+   "provenance": {
+    "source": "T-31 approach C round 3 (owner verdict 01-10: right side wins)",
+    "model": "gemini-3.8-flash",
+    "prompt": "wave hello",
+    "sample": 2,
+    "latencyMs": 3352,
+    "file": "unimate/compare/C-llm-dsl/llm/wave-hello-s2.json"
+   },
+   "command": {
+    "id": "wave-hello",
+    "label": "Wave hello",
+    "priority": 6,
+    "interrupt": true,
+    "mirror": "none",
+    "jitter": 0.05,
+    "reach": [
+     {
+      "hand": "right",
+      "target": "beside-head",
+      "inMs": 320,
+      "holdMs": 1400,
+      "outMs": 400,
+      "osc": {
+       "hz": 2.5,
+       "amp": [
+        0.12,
+        0,
+        0
+       ]
+      }
+     }
+    ],
+    "bones": [
+     {
+      "bone": "rightHand",
+      "rot": [
+       0,
+       0,
+       0
+      ],
+      "delayMs": 200,
+      "inMs": 200,
+      "holdMs": 1300,
+      "outMs": 350,
+      "osc": {
+       "hz": 2.5,
+       "amp": [
+        0,
+        18,
+        0
+       ]
+      }
+     },
+     {
+      "bone": "head",
+      "rot": [
+       -3,
+       -4,
+       6
+      ],
+      "delayMs": 100,
+      "inMs": 280,
+      "holdMs": 1400,
+      "outMs": 400
+     },
+     {
+      "bone": "chest",
+      "rot": [
+       0,
+       0,
+       -3
+      ],
+      "delayMs": 50,
+      "inMs": 300,
+      "holdMs": 1400,
+      "outMs": 400
+     }
+    ],
+    "hands": [
+     {
+      "hand": "right",
+      "shape": "open-flat",
+      "inMs": 200,
+      "holdMs": 1600,
+      "outMs": 350
+     },
+     {
+      "hand": "left",
+      "shape": "loose",
+      "inMs": 200,
+      "holdMs": 1500,
+      "outMs": 350
+     }
+    ],
+    "expressions": [
+     {
+      "name": "happy",
+      "weight": 0.85,
+      "inMs": 200,
+      "holdMs": 1600,
+      "outMs": 350
+     },
+     {
+      "name": "aa",
+      "weight": 0.3,
+      "delayMs": 200,
+      "inMs": 120,
+      "holdMs": 300,
+      "outMs": 250
+     }
+    ],
+    "lookAt": [
+     {
+      "target": "camera",
+      "weight": 1,
+      "inMs": 150,
+      "holdMs": 1800,
+      "outMs": 300
+     }
+    ]
+   }
+  }
+ ]
+}

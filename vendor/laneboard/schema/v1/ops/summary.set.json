@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/summary.set.json",
+  "title": "data for summary.set",
+  "description": "Replace the board summary: short lines shown at the top of the overview. Board-level document, edited by the owner or the coordinator; expected_revision is the summary's rev (0 before the first write).",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-target": "board",
+  "x-revision": "required",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "items"
+  ],
+  "properties": {
+    "items": {
+      "type": "array",
+      "maxItems": 50,
+      "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+    }
+  }
+}

@@ -1,0 +1,517 @@
+{
+ "version": 1,
+ "_comment": "T-31 real 3D chair, concept round (13-10). Optional: settings.json chair3d = 'painted' (default, the approved painted chair) or one of these ids. A chosen chair replaces the talk view's painted chair: the talk plate is swapped for noChairPlate (the same plate with the chair inpainted out), the painted chair's depth occluders (hideOccluders) are switched off, and the GLB is drawn in the talk view's own frame, slid along +Z so its backrest meets Zumi's pelvis. GLB frame (chair_prep.py on the render box): metres, Y up, floor y=0, facing +Z, x=0 on the seat centre line, z=0 at the backrest front measured 0.12 m above the seat. seat.profile = [z, top-surface y] along the centre line (seat crease to front edge); seat.backProfile = [height above the seat, backrest-front z]. Video rooms keep the painted chair cut-out. reclineDeg = how far she leans back onto a raked backrest (seat.backAngleDeg measured, capped so her face stays in the approved talk framing).",
+ "view": "talk",
+ "noChairPlate": {
+  "file": "talk-plate-nochair.png",
+  "sha256": "70a721833ca0aa8da8a5dcded8abee8a43c284f55a93b4952a339cc4fe22c071",
+  "method": "inpainted; mask = the painted chair cut-out (assets/rooms-video/chair-talk.png) dilated 12 px, desk rows kept"
+ },
+ "hideOccluders": [
+  "armrest_L_pad",
+  "armrest_L_post",
+  "armrest_R_pad",
+  "armrest_R_post",
+  "seat_top"
+ ],
+ "chairs": [
+  {
+   "id": "armchair-01",
+   "label": "Armchair (grey fabric)",
+   "file": "armchair-01.glb",
+   "bytes": 768228,
+   "sha256": "c3ac27fce8b1f0597a1bf4a6c06dc7a444f1df95e4ae5ee201ff1022ee337c5e",
+   "source": {
+    "name": "Arm Chair 01",
+    "url": "https://polyhaven.com/a/ArmChair_01",
+    "author": "Kirill Sannikov",
+    "license": "CC0-1.0",
+    "site": "Poly Haven"
+   },
+   "scale": 0.95,
+   "tris": 5626,
+   "seat": {
+    "profile": [
+     [
+      0.028,
+      0.44
+     ],
+     [
+      0.058,
+      0.447
+     ],
+     [
+      0.088,
+      0.451
+     ],
+     [
+      0.118,
+      0.456
+     ],
+     [
+      0.148,
+      0.459
+     ],
+     [
+      0.178,
+      0.462
+     ],
+     [
+      0.208,
+      0.465
+     ],
+     [
+      0.238,
+      0.466
+     ],
+     [
+      0.268,
+      0.468
+     ],
+     [
+      0.298,
+      0.47
+     ],
+     [
+      0.328,
+      0.472
+     ],
+     [
+      0.358,
+      0.473
+     ],
+     [
+      0.388,
+      0.475
+     ],
+     [
+      0.418,
+      0.475
+     ],
+     [
+      0.448,
+      0.474
+     ],
+     [
+      0.478,
+      0.473
+     ],
+     [
+      0.508,
+      0.472
+     ],
+     [
+      0.538,
+      0.465
+     ],
+     [
+      0.568,
+      0.454
+     ],
+     [
+      0.598,
+      0.434
+     ]
+    ],
+    "frontFwd": 0.6179,
+    "backTopY": 1.0118,
+    "backProfile": [
+     [
+      0.05,
+      -0.0001
+     ],
+     [
+      0.12,
+      -0.0
+     ],
+     [
+      0.2,
+      0.0001
+     ],
+     [
+      0.3,
+      -0.0042
+     ],
+     [
+      0.4,
+      -0.0205
+     ],
+     [
+      0.5,
+      -0.0368
+     ]
+    ],
+    "arm": {
+     "innerX": 0.29,
+     "topY": 0.7513
+    },
+    "backAngleDeg": 4.2,
+    "topY": 0.4532
+   },
+   "look": {
+    "envIntensity": 1.0,
+    "tint": "#c4b9df"
+   },
+   "reclineDeg": 4
+  },
+  {
+   "id": "mesh-highback",
+   "label": "High-back mesh office chair",
+   "file": "mesh-highback.glb",
+   "bytes": 2213248,
+   "sha256": "9e50f0212ce80ceac66721e7d43a1920f7893f80a68d8a19cbf2370d03a0d030",
+   "source": {
+    "name": "Office Chair",
+    "url": "https://sketchfab.com/3d-models/b8d24c146a6844788c0ba6f7b135e99e",
+    "author": "thethieme",
+    "username": "thethieme",
+    "license": "CC-BY-4.0",
+    "site": "Sketchfab (via the Objaverse 1.0 mirror on Hugging Face, uid b8d24c146a6844788c0ba6f7b135e99e)"
+   },
+   "scale": 1.0749,
+   "tris": 39999,
+   "srcTris": 167212,
+   "seat": {
+    "profile": [
+     [
+      0.046,
+      0.467
+     ],
+     [
+      0.076,
+      0.47
+     ],
+     [
+      0.106,
+      0.472
+     ],
+     [
+      0.136,
+      0.474
+     ],
+     [
+      0.166,
+      0.476
+     ],
+     [
+      0.196,
+      0.477
+     ],
+     [
+      0.226,
+      0.478
+     ],
+     [
+      0.256,
+      0.48
+     ],
+     [
+      0.286,
+      0.481
+     ],
+     [
+      0.316,
+      0.481
+     ],
+     [
+      0.346,
+      0.479
+     ],
+     [
+      0.376,
+      0.475
+     ],
+     [
+      0.406,
+      0.441
+     ]
+    ],
+    "frontFwd": 0.4055,
+    "backTopY": 1.25,
+    "backProfile": [
+     [
+      0.05,
+      -0.0165
+     ],
+     [
+      0.12,
+      -0.0
+     ],
+     [
+      0.2,
+      -0.0035
+     ],
+     [
+      0.3,
+      -0.0361
+     ],
+     [
+      0.4,
+      -0.0635
+     ],
+     [
+      0.5,
+      -0.0818
+     ],
+     [
+      0.6,
+      -0.0949
+     ],
+     [
+      0.7,
+      -0.0508
+     ]
+    ],
+    "arm": {
+     "innerX": null,
+     "topY": null
+    },
+    "backAngleDeg": null,
+    "topY": 0.4716
+   },
+   "reclineDeg": 0,
+   "look": {
+    "envIntensity": 1.0,
+    "tint": "#e2d5ff"
+   }
+  },
+  {
+   "id": "gaming-chair",
+   "label": "Gaming chair (black/grey)",
+   "file": "gaming-chair.glb",
+   "bytes": 862476,
+   "sha256": "98176fcb714adae0dcafd49ca8ca3fec3e7a10c906d635b0bd30f54cbcb6d36c",
+   "source": {
+    "name": "Gaming Chair",
+    "url": "https://sketchfab.com/3d-models/ccb3ada5917a4b90b689e1d1bf852dc2",
+    "author": "Kiiba",
+    "username": "Kiiba",
+    "license": "CC-BY-4.0",
+    "site": "Sketchfab (via the Objaverse 1.0 mirror on Hugging Face, uid ccb3ada5917a4b90b689e1d1bf852dc2)"
+   },
+   "scale": 0.6591,
+   "tris": 13529,
+   "srcTris": 13529,
+   "seat": {
+    "profile": [
+     [
+      0.042,
+      0.453
+     ],
+     [
+      0.072,
+      0.461
+     ],
+     [
+      0.102,
+      0.468
+     ],
+     [
+      0.132,
+      0.473
+     ],
+     [
+      0.162,
+      0.477
+     ],
+     [
+      0.192,
+      0.482
+     ],
+     [
+      0.222,
+      0.486
+     ],
+     [
+      0.252,
+      0.489
+     ],
+     [
+      0.282,
+      0.492
+     ],
+     [
+      0.312,
+      0.494
+     ],
+     [
+      0.342,
+      0.493
+     ],
+     [
+      0.372,
+      0.485
+     ],
+     [
+      0.402,
+      0.469
+     ],
+     [
+      0.432,
+      0.426
+     ]
+    ],
+    "frontFwd": 0.4317,
+    "backTopY": 1.32,
+    "backProfile": [
+     [
+      0.05,
+      -0.0072
+     ],
+     [
+      0.12,
+      -0.0
+     ],
+     [
+      0.2,
+      -0.0102
+     ],
+     [
+      0.3,
+      -0.0568
+     ],
+     [
+      0.4,
+      -0.0637
+     ],
+     [
+      0.5,
+      -0.0552
+     ],
+     [
+      0.6,
+      -0.0257
+     ],
+     [
+      0.7,
+      -0.0111
+     ],
+     [
+      0.8,
+      -0.0196
+     ]
+    ],
+    "arm": {
+     "innerX": 0.24,
+     "topY": 0.648
+    },
+    "backAngleDeg": null,
+    "topY": 0.4675
+   },
+   "reclineDeg": 0,
+   "look": {
+    "envIntensity": 1.0,
+    "tint": "#e5daff"
+   }
+  },
+  {
+   "id": "mesh-office",
+   "label": "Ergonomic mesh office chair",
+   "file": "mesh-office.glb",
+   "bytes": 1312528,
+   "sha256": "22f4721703142a796d25651c6999be7a9c3c86e95beb03b83df9fc0fa3b3618c",
+   "source": {
+    "name": "Ergonomic mesh office chair",
+    "url": "https://sketchfab.com/3d-models/cd5ef0305d8545dd8cd934ebb99cf7d5",
+    "author": "guillaumecrz",
+    "username": "guillaumecrz",
+    "license": "CC-BY-4.0",
+    "site": "Sketchfab (via the Objaverse 1.0 mirror on Hugging Face, uid cd5ef0305d8545dd8cd934ebb99cf7d5)"
+   },
+   "scale": 0.7038,
+   "tris": 40000,
+   "srcTris": 181494,
+   "seat": {
+    "profile": [
+     [
+      0.029,
+      0.458
+     ],
+     [
+      0.059,
+      0.465
+     ],
+     [
+      0.089,
+      0.47
+     ],
+     [
+      0.119,
+      0.475
+     ],
+     [
+      0.149,
+      0.478
+     ],
+     [
+      0.179,
+      0.481
+     ],
+     [
+      0.209,
+      0.482
+     ],
+     [
+      0.239,
+      0.482
+     ],
+     [
+      0.269,
+      0.48
+     ],
+     [
+      0.299,
+      0.476
+     ],
+     [
+      0.329,
+      0.472
+     ],
+     [
+      0.359,
+      0.468
+     ],
+     [
+      0.389,
+      0.46
+     ]
+    ],
+    "frontFwd": 0.3885,
+    "backTopY": 0.955,
+    "backProfile": [
+     [
+      0.05,
+      0.0023
+     ],
+     [
+      0.12,
+      -0.0
+     ],
+     [
+      0.2,
+      -0.0233
+     ],
+     [
+      0.3,
+      -0.0697
+     ],
+     [
+      0.4,
+      -0.0939
+     ]
+    ],
+    "arm": {
+     "innerX": 0.24,
+     "topY": 0.6842
+    },
+    "backAngleDeg": null,
+    "topY": 0.4722
+   },
+   "reclineDeg": 10,
+   "look": {
+    "envIntensity": 1.0,
+    "tint": "#ddd1ff"
+   }
+  }
+ ]
+}

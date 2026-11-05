@@ -1,0 +1,4 @@
+{
+  "note": "Built-in reflex variants. Each variant.command is a GestureCommand (see ../schema.js); selftest.peakMs is test metadata only.",
+  "triggers": ["cursor", "poke", "pat", "typing", "typing-stop", "send", "focus", "blur", "bored", "sleepy", "wake", "board", "entrance"]
+}

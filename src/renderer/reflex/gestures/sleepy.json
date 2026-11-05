@@ -1,0 +1,52 @@
+{
+  "trigger": "sleepy",
+  "labelVi": "Idle > 3 minutes (sleepy)",
+  "state": true,
+  "variants": [
+    {
+      "id": "droop", "labelVi": "Eyes drooping, head nodding",
+      "selftest": { "peakMs": 1800 },
+      "command": {
+        "id": "sleepy-droop", "priority": 2, "interrupt": false, "sustain": true, "mirror": "random",
+        "expressions": [
+          { "name": "blink", "weight": 0.6, "inMs": 1200, "outMs": 250 },
+          { "name": "relaxed", "weight": 0.35, "inMs": 1200, "outMs": 300 }
+        ],
+        "bones": [
+          { "bone": "head", "rot": [17, 0, 3], "inMs": 1500, "outMs": 300 },
+          { "bone": "neck", "rot": [5, 0, 0], "inMs": 1500, "outMs": 300 },
+          { "bone": "spine", "rot": [4, 0, 0], "inMs": 1500, "outMs": 300 },
+          { "bone": "chest", "rot": [0, 0, 0], "inMs": 800, "outMs": 300, "osc": { "hz": 0.17, "amp": [1.5, 0, 0] } }
+        ]
+      }
+    },
+    {
+      "id": "nod-off", "labelVi": "Nodding off",
+      "selftest": { "peakMs": 1800 },
+      "command": {
+        "id": "sleepy-nod-off", "priority": 2, "interrupt": false, "sustain": true,
+        "expressions": [
+          { "name": "blink", "weight": 0.55, "inMs": 800, "outMs": 250, "osc": { "hz": 0.2, "amp": 0.35, "wave": "saw" } },
+          { "name": "relaxed", "weight": 0.3, "inMs": 800, "outMs": 300 }
+        ],
+        "bones": [{ "bone": "head", "rot": [6, 0, 0], "inMs": 800, "outMs": 250, "osc": { "hz": 0.2, "amp": [18, 0, 0], "wave": "saw" } }]
+      }
+    },
+    {
+      "id": "sway-doze", "labelVi": "Swaying, half asleep",
+      "selftest": { "peakMs": 1800 },
+      "command": {
+        "id": "sleepy-sway-doze", "priority": 2, "interrupt": false, "sustain": true, "mirror": "random",
+        "expressions": [
+          { "name": "blink", "weight": 0.7, "inMs": 1000, "outMs": 250 },
+          { "name": "relaxed", "weight": 0.5, "inMs": 1000, "outMs": 300 },
+          { "name": "oh", "weight": 0.12, "inMs": 1000, "outMs": 300 }
+        ],
+        "bones": [
+          { "bone": "head", "rot": [11, 0, 0], "inMs": 1000, "outMs": 300, "osc": { "hz": 0.18, "amp": [0, 0, 10] } },
+          { "bone": "spine", "rot": [2, 0, 0], "inMs": 1000, "outMs": 300, "osc": { "hz": 0.18, "amp": [0, 0, 3], "phase": 0.1 } }
+        ]
+      }
+    }
+  ]
+}

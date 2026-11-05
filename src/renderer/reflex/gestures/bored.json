@@ -1,0 +1,142 @@
+{
+  "trigger": "bored",
+  "labelVi": "Idle > 60 seconds",
+  "variants": [
+    {
+      "id": "look-around", "labelVi": "Looks around",
+      "selftest": { "peakMs": 700 },
+      "command": {
+        "id": "bored-look-around", "priority": 3, "interrupt": true, "mirror": "random",
+        "lookAt": [
+          { "target": { "x": -1.3, "y": 0.15 }, "weight": 1, "inMs": 250, "holdMs": 700, "outMs": 200 },
+          { "target": { "x": 1.3, "y": 0.1 }, "weight": 1, "delayMs": 1200, "inMs": 300, "holdMs": 700, "outMs": 250 }
+        ],
+        "bones": [
+          { "bone": "head", "rot": [0, -18, 2], "delayMs": 60, "inMs": 350, "holdMs": 600, "outMs": 300 },
+          { "bone": "neck", "rot": [0, -6, 0], "delayMs": 60, "inMs": 350, "holdMs": 600, "outMs": 300 },
+          { "bone": "head", "rot": [0, 18, -2], "delayMs": 1250, "inMs": 400, "holdMs": 600, "outMs": 350 },
+          { "bone": "neck", "rot": [0, 6, 0], "delayMs": 1250, "inMs": 400, "holdMs": 600, "outMs": 350 }
+        ],
+        "expressions": [{ "name": "relaxed", "weight": 0.2, "inMs": 300, "holdMs": 2200, "outMs": 400 }]
+      }
+    },
+    {
+      "id": "stretch", "labelVi": "Stretches",
+      "selftest": { "peakMs": 1200 },
+      "command": {
+        "id": "bored-stretch", "priority": 3, "interrupt": true,
+        "reach": [
+          { "hand": "right", "target": "overhead", "inMs": 600, "holdMs": 900, "outMs": 700 },
+          { "hand": "left", "target": "overhead", "inMs": 600, "holdMs": 900, "outMs": 700 }
+        ],
+        "hands": [
+          { "hand": "right", "shape": "loose", "weight": 1, "inMs": 600, "holdMs": 900, "outMs": 700 },
+          { "hand": "left", "shape": "loose", "weight": 1, "inMs": 600, "holdMs": 900, "outMs": 700 }
+        ],
+        "bones": [
+          { "bone": "spine", "rot": [-7, 0, 0], "inMs": 600, "holdMs": 900, "outMs": 700 },
+          { "bone": "chest", "rot": [-5, 0, 0], "inMs": 600, "holdMs": 900, "outMs": 700 },
+          { "bone": "head", "rot": [-10, 0, 0], "inMs": 600, "holdMs": 900, "outMs": 700 }
+        ],
+        "expressions": [
+          { "name": "blink", "weight": 1, "inMs": 300, "holdMs": 1100, "outMs": 300 },
+          { "name": "oh", "weight": 0.3, "inMs": 400, "holdMs": 800, "outMs": 400 },
+          { "name": "relaxed", "weight": 0.35, "delayMs": 1500, "inMs": 300, "holdMs": 300, "outMs": 400 }
+        ]
+      }
+    },
+    {
+      "id": "yawn", "labelVi": "Yawns, covers mouth",
+      "selftest": { "peakMs": 1100 },
+      "command": {
+        "id": "bored-yawn", "priority": 3, "interrupt": true, "mirror": "random",
+        "expressions": [
+          { "name": "aa", "weight": 1, "delayMs": 150, "inMs": 450, "holdMs": 700, "outMs": 500 },
+          { "name": "blink", "weight": 0.85, "inMs": 300, "holdMs": 1200, "outMs": 400 },
+          { "name": "relaxed", "weight": 0.35, "delayMs": 1400, "inMs": 300, "holdMs": 300, "outMs": 400 }
+        ],
+        "bones": [
+          { "bone": "head", "rot": [-11, 0, 0], "inMs": 400, "holdMs": 900, "outMs": 500 },
+          { "bone": "spine", "rot": [-3, 0, 0], "inMs": 400, "holdMs": 900, "outMs": 500 }
+        ],
+        "reach": [{ "hand": "right", "target": "mouth", "delayMs": 200, "inMs": 400, "holdMs": 800, "outMs": 500 }]
+      }
+    },
+    {
+      "id": "hand-clasp", "labelVi": "Folds her hands, small shrug",
+      "selftest": { "peakMs": 700 },
+      "command": {
+        "id": "bored-hand-clasp", "priority": 3, "interrupt": true,
+        "reach": [
+          { "hand": "right", "target": "clasp", "inMs": 350, "holdMs": 900, "outMs": 500 },
+          { "hand": "left", "target": "clasp", "inMs": 350, "holdMs": 900, "outMs": 500 }
+        ],
+        "hands": [
+          { "hand": "right", "shape": "loose", "weight": 1, "inMs": 350, "holdMs": 900, "outMs": 500 },
+          { "hand": "left", "shape": "loose", "weight": 1, "inMs": 350, "holdMs": 900, "outMs": 500 }
+        ],
+        "bones": [
+          { "bone": "spine", "rot": [-2, 0, 0], "inMs": 350, "holdMs": 900, "outMs": 500 },
+          { "bone": "head", "rot": [0, 0, 4], "inMs": 400, "holdMs": 800, "outMs": 500 }
+        ],
+        "expressions": [{ "name": "relaxed", "weight": 0.25, "inMs": 300, "holdMs": 1100, "outMs": 400 }]
+      }
+    },
+    {
+      "id": "hand-on-chest", "labelVi": "Rests a hand on her chest",
+      "selftest": { "peakMs": 750 },
+      "command": {
+        "id": "bored-hand-on-chest", "priority": 3, "interrupt": true,
+        "reach": [{ "hand": "left", "target": "chest", "inMs": 400, "holdMs": 1000, "outMs": 500 }],
+        "hands": [{ "hand": "left", "shape": "loose", "weight": 1, "inMs": 400, "holdMs": 1000, "outMs": 500 }],
+        "bones": [
+          { "bone": "chest", "rot": [0, -3, 0], "inMs": 400, "holdMs": 1000, "outMs": 500 },
+          { "bone": "head", "rot": [4, 3, 0], "inMs": 450, "holdMs": 900, "outMs": 500 }
+        ],
+        "expressions": [{ "name": "relaxed", "weight": 0.3, "inMs": 350, "holdMs": 1100, "outMs": 450 }]
+      }
+    },
+    {
+      "id": "chin-rest", "labelVi": "Rests her chin on her hand",
+      "selftest": { "peakMs": 800 },
+      "command": {
+        "id": "bored-chin-rest", "priority": 3, "interrupt": true,
+        "reach": [{ "hand": "left", "target": "chin", "inMs": 420, "holdMs": 1100, "outMs": 550 }],
+        "hands": [{ "hand": "left", "shape": "loose", "weight": 1, "inMs": 420, "holdMs": 1100, "outMs": 550 }],
+        "bones": [
+          { "bone": "head", "rot": [2, 0, 6], "inMs": 420, "holdMs": 1000, "outMs": 500 },
+          { "bone": "neck", "rot": [1, 0, 2], "inMs": 420, "holdMs": 1000, "outMs": 500 }
+        ],
+        "expressions": [{ "name": "relaxed", "weight": 0.3, "inMs": 350, "holdMs": 1200, "outMs": 450 }]
+      }
+    },
+    {
+      "id": "hand-on-hip", "labelVi": "Hand on her hip, weight shift",
+      "selftest": { "peakMs": 700 },
+      "command": {
+        "id": "bored-hand-on-hip", "priority": 3, "interrupt": true,
+        "reach": [{ "hand": "left", "target": "hip", "inMs": 350, "holdMs": 1000, "outMs": 500 }],
+        "hands": [{ "hand": "left", "shape": "loose", "weight": 1, "inMs": 350, "holdMs": 1000, "outMs": 500 }],
+        "bones": [
+          { "bone": "spine", "rot": [0, 0, -2], "inMs": 350, "holdMs": 1000, "outMs": 500 },
+          { "bone": "head", "rot": [0, -8, 3], "inMs": 400, "holdMs": 900, "outMs": 500 }
+        ],
+        "expressions": [{ "name": "relaxed", "weight": 0.2, "inMs": 300, "holdMs": 1100, "outMs": 400 }]
+      }
+    },
+    {
+      "id": "tuck-hair", "labelVi": "Tucks her hair behind her ear",
+      "selftest": { "peakMs": 900 },
+      "command": {
+        "id": "bored-tuck-hair", "priority": 3, "interrupt": true,
+        "reach": [{ "hand": "left", "target": "beside-head", "inMs": 450, "holdMs": 900, "outMs": 550, "osc": { "hz": 0.8, "amp": [0.03, 0, 0] } }],
+        "hands": [{ "hand": "left", "shape": "loose", "weight": 1, "inMs": 450, "holdMs": 900, "outMs": 550 }],
+        "bones": [
+          { "bone": "head", "rot": [0, 4, 6], "inMs": 450, "holdMs": 900, "outMs": 500 },
+          { "bone": "neck", "rot": [0, 2, 2], "inMs": 450, "holdMs": 900, "outMs": 500 }
+        ],
+        "expressions": [{ "name": "relaxed", "weight": 0.25, "inMs": 350, "holdMs": 1200, "outMs": 450 }]
+      }
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "board-doc.json",
+  "title": "Board-level document (docs.summary or docs.registry). Replaced whole by summary.set / registry.set.",
+  "type": "object", "additionalProperties": false,
+  "required": ["rev", "attribution"],
+  "properties": {
+    "rev": { "$ref": "common.json#/$defs/revision" },
+    "attribution": { "$ref": "common.json#/$defs/attribution" },
+    "items": { "type": "array", "maxItems": 50, "items": { "type": "string", "minLength": 1, "maxLength": 2000 } },
+    "entries": { "type": "array", "maxItems": 500, "items": { "$ref": "#/$defs/registryEntry" } }
+  },
+  "$defs": {
+    "registryEntry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "title", "status"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$" },
+        "code": { "type": "string", "maxLength": 40 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "file": { "type": "string", "maxLength": 300, "description": "Where the task's own notes live (a name, not a link)." },
+        "owner": { "type": "string", "maxLength": 120 },
+        "note": { "type": "string", "maxLength": 2000 },
+        "updated": { "type": "string", "maxLength": 40, "description": "As written by the editor, e.g. a date. Not a server timestamp." },
+        "on_board": { "type": "boolean", "description": "The task also has a card on this board (matched by code)." },
+        "status": { "$ref": "common.json#/$defs/taskStatus" },
+        "status_by": { "type": "string", "maxLength": 200 },
+        "status_at": { "type": "string", "maxLength": 40, "description": "As written by the editor. Not a server timestamp." }
+      }
+    }
+  }
+}

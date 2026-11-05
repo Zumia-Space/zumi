@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "routing.json",
+  "title": "Owner routing override for one task. Always wins over the coordinator's default worker.",
+  "type": "object", "additionalProperties": false,
+  "required": ["task_id", "model", "effort", "set_by", "set_at"],
+  "properties": {
+    "task_id": { "$ref": "common.json#/$defs/taskId" },
+    "model": { "$ref": "common.json#/$defs/model" },
+    "effort": { "$ref": "common.json#/$defs/effort" },
+    "set_by": { "$ref": "common.json#/$defs/actor" },
+    "set_at": { "$ref": "common.json#/$defs/timestamp" }
+  }
+}

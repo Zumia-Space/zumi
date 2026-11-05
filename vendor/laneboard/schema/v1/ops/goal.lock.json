@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/goal.lock.json",
+  "title": "data for goal.lock",
+  "description": "Owner locks (or re-locks) a task's goal, desired output and desired outcome. Each re-lock keeps the earlier versions in history. Also records an open owner feedback of kind goal-lock and a ping, so the coordinator acts on it.",
+  "x-roles": [
+    "owner"
+  ],
+  "x-target": "taskId",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "goal",
+    "output",
+    "outcome"
+  ],
+  "properties": {
+    "goal": {
+      "$ref": "../common.json#/$defs/goalText"
+    },
+    "output": {
+      "$ref": "../common.json#/$defs/goalText"
+    },
+    "outcome": {
+      "$ref": "../common.json#/$defs/goalText"
+    }
+  }
+}

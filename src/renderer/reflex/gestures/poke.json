@@ -1,0 +1,74 @@
+{
+  "trigger": "poke",
+  "labelVi": "Poked",
+  "variants": [
+    {
+      "id": "startle", "labelVi": "Startled",
+      "selftest": { "peakMs": 200 },
+      "command": {
+        "id": "poke-startle", "priority": 7, "interrupt": true, "mirror": "random", "jitter": 0.12,
+        "expressions": [
+          { "name": "surprised", "weight": 1, "inMs": 50, "holdMs": 250, "outMs": 450 },
+          { "name": "oh", "weight": 0.5, "inMs": 50, "holdMs": 150, "outMs": 300 }
+        ],
+        "bones": [
+          { "bone": "spine", "rot": [-9, 0, 0], "inMs": 60, "holdMs": 150, "outMs": 450 },
+          { "bone": "chest", "rot": [-5, 0, 0], "inMs": 60, "holdMs": 150, "outMs": 450 },
+          { "bone": "head", "rot": [-9, -13, 5], "inMs": 60, "holdMs": 250, "outMs": 500 },
+          { "bone": "rightShoulder", "rot": [0, 0, -18], "inMs": 60, "holdMs": 150, "outMs": 400 },
+          { "bone": "leftShoulder", "rot": [0, 0, 18], "inMs": 60, "holdMs": 150, "outMs": 400 }
+        ],
+        "reach": [
+          { "hand": "right", "target": { "frame": "shoulder", "pos": [0.08, -0.68, 0.12] }, "weight": 1, "inMs": 110, "holdMs": 200, "outMs": 400 },
+          { "hand": "left", "target": { "frame": "shoulder", "pos": [0.08, -0.68, 0.12] }, "weight": 1, "inMs": 110, "holdMs": 200, "outMs": 400 }
+        ],
+        "hands": [
+          { "hand": "right", "shape": "loose", "weight": 1, "inMs": 90, "holdMs": 200, "outMs": 400 },
+          { "hand": "left", "shape": "loose", "weight": 1, "inMs": 90, "holdMs": 200, "outMs": 400 }
+        ]
+      }
+    },
+    {
+      "id": "giggle", "labelVi": "Giggles",
+      "selftest": { "peakMs": 700 },
+      "command": {
+        "id": "poke-giggle", "priority": 7, "interrupt": true, "mirror": "random", "jitter": 0.12,
+        "expressions": [
+          { "name": "happy", "weight": 0.95, "inMs": 120, "holdMs": 1000, "outMs": 400 },
+          { "name": "ih", "weight": 0.3, "inMs": 100, "holdMs": 1000, "outMs": 300, "osc": { "hz": 6.5, "amp": 0.25, "wave": "pulse" } }
+        ],
+        "bones": [
+          { "bone": "head", "rot": [4, -8, 10], "inMs": 150, "holdMs": 1000, "outMs": 400, "osc": { "hz": 6.5, "amp": [0, 0, 3] } },
+          { "bone": "spine", "rot": [3, 0, 0], "inMs": 150, "holdMs": 1000, "outMs": 400, "osc": { "hz": 6.5, "amp": [0, 0, 1.5] } },
+          { "bone": "rightShoulder", "rot": [0, 0, -4], "inMs": 100, "holdMs": 1000, "outMs": 300, "osc": { "hz": 6.5, "amp": [0, 0, -3], "wave": "pulse" } },
+          { "bone": "leftShoulder", "rot": [0, 0, 4], "inMs": 100, "holdMs": 1000, "outMs": 300, "osc": { "hz": 6.5, "amp": [0, 0, 3], "wave": "pulse" } }
+        ],
+        "reach": [{ "hand": "right", "target": "mouth", "weight": 0.9, "inMs": 250, "holdMs": 900, "outMs": 450 }]
+      }
+    },
+    {
+      "id": "pout", "labelVi": "Pouts and turns away",
+      "selftest": { "peakMs": 800 },
+      "command": {
+        "id": "poke-pout", "priority": 7, "interrupt": true, "mirror": "random", "jitter": 0.12,
+        "expressions": [
+          { "name": "angry", "weight": 0.5, "inMs": 150, "holdMs": 1200, "outMs": 450 },
+          { "name": "sad", "weight": 0.15, "inMs": 150, "holdMs": 1200, "outMs": 450 },
+          { "name": "ou", "weight": 0.75, "inMs": 150, "holdMs": 1200, "outMs": 400 }
+        ],
+        "bones": [
+          { "bone": "head", "rot": [-5, -24, 8], "inMs": 180, "holdMs": 1100, "outMs": 500 },
+          { "bone": "neck", "rot": [0, -8, 0], "inMs": 180, "holdMs": 1100, "outMs": 500 },
+          { "bone": "spine", "rot": [0, -6, 0], "inMs": 200, "holdMs": 1100, "outMs": 500 },
+          { "bone": "rightShoulder", "rot": [0, 0, -6], "inMs": 100, "holdMs": 300, "outMs": 300 },
+          { "bone": "leftShoulder", "rot": [0, 0, 6], "inMs": 100, "holdMs": 300, "outMs": 300 }
+        ],
+        "lookAt": [{ "target": { "x": -1.3, "y": 0.2 }, "weight": 0.85, "inMs": 150, "holdMs": 1100, "outMs": 500 }],
+        "reach": [
+          { "hand": "right", "target": "hip", "inMs": 250, "holdMs": 1000, "outMs": 500 },
+          { "hand": "left", "target": "hip", "inMs": 250, "holdMs": 1000, "outMs": 500 }
+        ]
+      }
+    }
+  ]
+}

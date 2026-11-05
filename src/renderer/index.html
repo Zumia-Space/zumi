@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' blob: data:; worker-src 'self' blob:; media-src 'self' blob:">
+  <title>Zumi</title>
+  <!-- The single palette: the vendored Laneboard tokens (vendor/laneboard/public/tokens.css, served at app://zumi/tokens.css)
+       load first; styles.css only reads them (--background/--card/--border/--foreground/…) and hardcodes no colour. -->
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="styles.css">
+  <!-- next-ui:head -->
+  <link rel="stylesheet" href="hud.css">
+</head>
+<body>
+  <div id="app">
+    <nav id="sidebar" aria-label="Navigation" data-i18n-aria="nav.aria">
+      <div class="brand" title="Zumi"><img src="brand/zumia-mark.svg" alt="Zumia" width="38" height="38"></div>
+      <button class="tab active" data-tab="zumi" title="Zumi">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="10" r="6"/><path d="M5 21c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/><circle cx="10" cy="9.5" r=".9" class="fill"/><circle cx="14" cy="9.5" r=".9" class="fill"/></svg>
+        <span data-i18n="nav.zumi">Zumi</span>
+      </button>
+      <button class="tab" data-tab="board" title="Board" data-i18n-title="board.title">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/><path d="M5 8h2M11 8h2M17 8h2M5 11h2M11 11h2"/></svg>
+        <span data-i18n="board.title">Board</span>
+        <i class="badge" id="board-badge" hidden></i>
+      </button>
+      <button class="tab" data-tab="market" title="Marketplace" data-i18n-title="market.title">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9l1.5-5h13L20 9"/><path d="M4 9a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0A2.7 2.7 0 0 0 20 9"/><path d="M5.5 12.5V20h13v-7.5"/><path d="M10 20v-4h4v4"/></svg>
+        <span data-i18n="market.title">Marketplace</span>
+      </button>
+      <button class="tab" data-tab="settings" title="Settings" data-i18n-title="settings.title">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>
+        <span data-i18n="settings.title">Settings</span>
+      </button>
+      <div class="spacer"></div>
+      <button id="sim-board" class="debug" hidden title="Simulate a new board message (to test the reflex)" data-i18n-title="sim.title"><span data-i18n="sim.one">Simulate</span><br><span data-i18n="sim.two">new message</span></button>
+      <button id="cam-register" class="debug" hidden title="Camera registration overlay (nudge pos/target/fov, save to room.json)" data-i18n-title="camReg.title"><span data-i18n="camReg.one">Camera</span><br><span data-i18n="camReg.two">registration</span></button>
+      <button id="look-tuning-toggle" class="debug" hidden title="Look-tuning panel (camera framing + grading)" data-i18n-title="lookTuning.panelTitle"><span data-i18n="lookTuning.one">Look</span><br><span data-i18n="lookTuning.two">tuning</span></button>
+      <div class="ver" id="app-version" hidden>v0.2.0</div>
+    </nav>
+
+    <main>
+      <section id="tab-zumi" class="panel active">
+        <header class="toolbar">
+          <label class="picker"><span data-i18n="zumi.modelLabel">Model</span>
+            <select id="model-picker" aria-label="Choose model" data-i18n-aria="zumi.modelPickerAria"></select>
+          </label>
+          <button id="open-vrm" class="ghost slim" title="Pick a .vrm file on this machine" data-i18n-title="zumi.openVrmTitle" data-i18n="zumi.openVrm">Open VRM file…</button>
+          <button id="model-default" class="ghost slim" title="Restore the locked default model (no file dialog)" data-i18n-title="zumi.defaultModelTitle" data-i18n="zumi.defaultModel">Back to default model</button>
+          <span id="model-default-note" class="muted" aria-live="polite"></span>
+          <span id="reflex-chip" class="chip" aria-live="polite"></span>
+          <!-- T-31 talk-mode (PLAN 5.2): one-click stage mute for Zumi's own lines. Click toggles; right-click or a long
+               press opens the menu (mute for an hour / until tomorrow / the four levels); Ctrl+Shift+M does the same as a click. -->
+          <span class="mute-wrap">
+            <button id="talk-mute" class="ghost slim icon" type="button" aria-pressed="false" aria-haspopup="menu" title="Mute Zumi's own lines" data-i18n-title="stage.mute.title">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="wave" d="M16.5 9a4.5 4.5 0 0 1 0 6"/><path class="slash" d="M4 4l16 16"/></svg>
+            </button>
+            <div id="talk-mute-menu" class="mute-menu" role="menu" hidden>
+              <button type="button" role="menuitem" data-action="hour" data-i18n="stage.mute.hour">Mute for 1 hour</button>
+              <button type="button" role="menuitem" data-action="tomorrow" data-i18n="stage.mute.tomorrow">Mute until tomorrow</button>
+              <div class="mute-sep" role="separator"></div>
+              <div class="mute-cap" data-i18n="stage.mute.level">How much she talks</div>
+              <button type="button" role="menuitemradio" aria-checked="false" data-level="off" data-i18n="talk.level.off">Off</button>
+              <button type="button" role="menuitemradio" aria-checked="false" data-level="quiet" data-i18n="talk.level.quiet">Quiet</button>
+              <button type="button" role="menuitemradio" aria-checked="false" data-level="normal" data-i18n="talk.level.normal">Normal</button>
+              <button type="button" role="menuitemradio" aria-checked="false" data-level="chatty" data-i18n="talk.level.chatty">Chatty</button>
+            </div>
+          </span>
+          <label id="room-view-picker" class="picker" hidden><span data-i18n="roomView.label">View</span>
+            <select id="room-view-select" aria-label="Camera view" data-i18n-aria="roomView.label">
+              <option value="" data-i18n="roomView.auto">Auto</option>
+              <option value="talk" data-i18n="roomView.talk">Talk</option>
+              <option value="work" data-i18n="roomView.work">Work</option>
+              <option value="room" data-i18n="roomView.room">Room</option>
+            </select>
+          </label>
+          <!-- Video rooms (T-31 room picker): "Current room (default)" + the looping room videos this build has; shown
+               only while the painted default room is loaded and at least one video room is on disk (app.js). -->
+          <label id="scene-picker" class="picker" hidden><span data-i18n="scene.label">Room</span>
+            <select id="scene-select" aria-label="Room" data-i18n-aria="scene.label"></select>
+          </label>
+        </header>
+        <div id="stage">
+          <canvas id="stage-plate"></canvas>
+          <canvas id="stage-canvas"></canvas>
+          <!-- Look-tuning grade tint (T-31 camera modes, coordinator round 3, 2026-10-05): a per-channel
+               RGB scale (feColorMatrix), referenced from #stage-canvas's own CSS filter (see look-tuning.js's
+               applyGrading). Replaces an earlier #stage-tint DOM overlay (mix-blend-mode:multiply) that blended
+               against the WHOLE stacking context -- both #stage-canvas AND #stage-plate behind it -- so the
+               plate darkened/tinted along with the avatar (coordinator QC: measured ~11% dimmer on a
+               no-avatar plate region). A CSS filter instead operates on #stage-canvas's OWN rendered pixels
+               only, alpha included, so it cannot touch #stage-plate (a separate element) at all -- the
+               feColorMatrix's alpha row is untouched identity, so fully transparent (non-avatar) pixels stay
+               fully transparent, no haze. -->
+          <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+            <filter id="stage-grade-tint" color-interpolation-filters="sRGB">
+              <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" />
+            </filter>
+          </svg>
+          <canvas id="cam-register-overlay" hidden></canvas>
+          <!-- Talk-camera HUD (T-31 hud-react, src/renderer/hud/hud.js + hud.css): off by default (Settings > HUD).
+               Sits before the talk rows / analysis box in the DOM, so it lifts itself with z-index to paint above the
+               analysis box (resting or open, hud.css). The consent prompt sits first in the left group, above the
+               updates; layout and the arm-clearance reasoning: hud.css.
+               T-31 hud-panels: #hud-panel is the new T1/T2/T3 panel. It is the last child of .hud-left when the setting
+               is "in place" (compact strip at rest, expanded while Zumi works on that task); hud.js MOVES the same node
+               into .hud-below for the two "below" places, where it is always expanded. .hud-below is a .hud-group, so
+               the existing yieldLoop fades it for a passing arm exactly like the other two groups. -->
+          <div id="hud" class="hud" hidden data-style="off">
+            <div class="hud-group hud-left">
+              <section id="hud-consent" class="hud-panel hud-consent" hidden role="dialog" aria-labelledby="hud-consent-q">
+                <p id="hud-consent-q" class="q" data-i18n="hud.consent.ask">Open this acceptance file?</p>
+                <p class="target"><span id="hud-consent-task" class="code"></span><span id="hud-consent-target"></span></p>
+                <div class="btns"><button id="hud-consent-ok" type="button" class="primary" data-i18n="hud.consent.ok">OK</button><button id="hud-consent-no" type="button" class="ghost" data-i18n="hud.consent.no">No</button></div>
+                <p id="hud-consent-status" class="hud-note" aria-live="polite"></p>
+              </section>
+              <section class="hud-panel hud-updates"><header class="hud-head"><i class="dot"></i><span data-i18n="hud.updates">Task updates</span></header>
+                <p id="hud-unavailable" class="hud-note" hidden data-i18n="hud.unavailable">Can't see the board right now</p>
+                <button id="hud-signin" type="button" class="ghost slim hud-signin" hidden data-i18n="board.rejected.action">Change sign-in</button>
+                <ol id="hud-updates" class="hud-list"></ol></section>
+              <section id="hud-panel" class="hud-panel hud-task-panel" data-design="t1" data-size="compact" hidden></section>
+            </div>
+            <div class="hud-group hud-right">
+              <section class="hud-panel hud-asks"><header class="hud-head"><i class="dot"></i><span id="hud-asks-title"></span></header>
+                <ol id="hud-asks" class="hud-list"></ol></section>
+              <!-- T-31 alpha.12: the read-only watcher's open findings (hud:feed watch; hidden when there are none). -->
+              <section id="hud-watch" class="hud-panel hud-watch" hidden><header class="hud-head"><i class="dot"></i><span id="hud-watch-title"></span></header>
+                <ol id="hud-watch-list" class="hud-list"></ol></section>
+            </div>
+            <div id="hud-below" class="hud-group hud-below" data-place="below-left" hidden></div>
+          </div>
+          <div id="look-tuning-panel" class="look-tuning-panel" hidden></div>
+          <div id="loading" class="loading" hidden><div class="spinner"></div><span id="loading-text" data-i18n="zumi.loading">Loading model…</span></div>
+          <div id="empty-model" class="empty-model" hidden>
+            <div class="card">
+              <h2 data-i18n="zumi.emptyTitle">No model yet</h2>
+              <p class="muted" data-i18n-html="zumi.emptyBody">The app ships no Zumi model. Pick a <b>.vrm</b> file on this machine to bring Zumi on stage.</p>
+              <button id="open-vrm-empty" class="primary" data-i18n="zumi.openVrm">Open VRM file…</button>
+            </div>
+          </div>
+          <div id="heard" class="heard" hidden></div>
+          <!-- T-31 talk-mode: the subtitle of Zumi's own line (spoken or muted). textContent only. -->
+          <div id="say-line" class="say-line" aria-live="polite" hidden></div>
+          <div id="demo-banner" class="demo-banner" hidden data-i18n="zumi.demoBanner">Reaction preview — canned answers, not real AI</div>
+          <p id="an-off" class="analysis-off" hidden data-i18n="zumi.analysisOff">The 'I understand…' box appears when real AI is on.</p>
+          <div id="talk" class="talk" hidden>
+            <div class="talk-row" hidden><span class="who" data-i18n="talk.whoUser">You say</span><span id="talk-user" class="talk-user"></span></div>
+            <div class="talk-row" hidden><span class="who" data-i18n="talk.whoZumi">Zumi replies</span><span id="talk-reply" class="talk-reply"></span></div>
+            <div id="talk-roles" class="talk-roles" hidden></div>
+            <div class="talk-row" hidden><span class="who" data-i18n="talk.whoCheck">Check</span><span id="talk-check" class="talk-check"></span></div>
+            <div id="talk-status" class="talk-status" aria-live="polite"></div>
+            <div id="talk-note" class="talk-status" aria-live="polite"></div>
+            <button id="talk-retry-voice" class="ghost slim" type="button" hidden data-i18n="talk.retryVoice">Retry voice</button>
+            <div id="talk-gesture" class="talk-gesture" aria-live="polite"></div>
+          </div>
+          <aside id="analysis" class="analysis" hidden aria-label="Zumi explains this turn" data-i18n-aria="analysis.aria">
+            <h3 data-i18n="analysis.title">Zumi explains this turn</h3>
+            <p id="an-reflex" class="muted" hidden></p>
+            <dl id="an-lines" hidden>
+              <dt data-i18n="analysis.understood">I understand…</dt><dd id="an-understood"></dd>
+              <dt data-i18n="analysis.plan">I will…</dt><dd id="an-plan"></dd>
+              <dt data-i18n="analysis.why">Why…</dt><dd id="an-why"></dd>
+            </dl>
+            <p id="an-missing" class="muted" hidden></p>
+          </aside>
+        </div>
+        <footer class="composer">
+          <input id="msg" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="Message Zumi… (Zumi only reacts with gestures, not replies yet)" data-i18n-placeholder="msg.placeholderOff">
+        </footer>
+      </section>
+
+      <section id="tab-board" class="panel">
+        <header class="toolbar">
+          <span class="title" data-i18n="board.title">Board</span>
+          <span class="board-mode" id="board-mode-label" data-i18n="board.mode.local">Local board</span>
+          <span class="muted" id="board-where" data-i18n="board.where.local">Runs on this machine, no network, no sign-in</span>
+          <button id="board-reload" class="ghost" data-i18n="board.reload">Reload</button>
+        </header>
+        <div id="board-host">
+          <div id="board-hint" class="loading"><div class="spinner"></div><span data-i18n="board.opening">Opening the board…</span></div>
+          <div id="board-locked" class="empty-model" hidden>
+            <div class="card">
+              <h2 data-i18n="board.locked.title">Locked</h2>
+              <p class="muted" data-i18n="board.locked.body">Locked — enter your PIN to reopen.</p>
+              <button id="board-locked-settings" class="primary" data-i18n="board.locked.settings">Unlock in Settings</button>
+            </div>
+          </div>
+          <!-- Owner build only (app:info.ownerAdmin): replaces #board-locked AND the sample/local board entirely --
+               never mounted in a non-owner build. Same secrets flow as Settings' "Live board" card (board-signin.js
+               reuses its error-key map + IPC calls), just a single-button, no-token, no-confirm-PIN form. -->
+          <div id="board-signin" class="empty-model" hidden>
+            <div class="card">
+              <h2 data-i18n="board.signin.title">Sign in to your task board</h2>
+              <div class="fields">
+                <label for="signin-user" data-i18n="settings.user">Username</label>
+                <input id="signin-user" type="text" autocomplete="off" spellcheck="false">
+                <label for="signin-pass" data-i18n="settings.pass">Password</label>
+                <input id="signin-pass" type="password" autocomplete="off" spellcheck="false">
+                <p class="muted" data-i18n="settings.credHint">Same as your web task-board account</p>
+                <label for="signin-pin" id="signin-pin-label" data-i18n="board.signin.setPin">Set a PIN</label>
+                <input id="signin-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" spellcheck="false">
+              </div>
+              <div class="row">
+                <button id="signin-button" class="primary" data-i18n="settings.unlock">Unlock</button>
+              </div>
+              <p id="signin-retry" class="muted" aria-live="polite"></p>
+              <p id="signin-note" class="note" aria-live="polite"></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Settings, design A2 (owner-approved 09-10): one card system --
+           every card is 520px, a 46px header (icon + 15px title), then rows (13px label, 12px description, controls on
+           the right) split by hairlines. Three type sizes only: 15 / 13 / 12. The language switch lives in the header.
+           Card order follows the mock: Account, AI brain, Models by role, Voice, Privacy & PIN, Usage, Room, Developer. -->
+      <section id="tab-market" class="panel">
+        <header class="toolbar">
+          <span class="title" data-i18n="market.title">Marketplace</span>
+          <span class="muted market-sub" data-i18n="market.sub">Add voices, rooms and models to Zumi.</span>
+          <input id="market-search" type="search" class="market-search" placeholder="Search" data-i18n-placeholder="market.search" aria-label="Search" data-i18n-aria="market.search">
+        </header>
+        <div class="stabbar" id="market-cats" role="group" aria-label="Marketplace categories" data-i18n-aria="market.catsAria"></div>
+        <div class="market-body">
+          <div class="market-list" id="market-list"></div>
+          <aside class="market-detail" id="market-detail"></aside>
+        </div>
+        <p class="market-foot" data-i18n="market.foot">Everything here is free and packaged by Zumia.</p>
+      </section>
+
+      <section id="tab-settings" class="panel">
+        <header class="toolbar">
+          <span class="title" data-i18n="settings.title">Settings</span>
+          <span class="sub" data-i18n="settings.sub">Your keys stay encrypted on this PC.</span>
+          <div id="lang-switch" class="lang-switch" role="radiogroup" aria-label="Language" data-i18n-aria="settings.language">
+            <button type="button" role="radio" data-lang="en" lang="en">EN</button>
+            <button type="button" role="radio" data-lang="vi" lang="vi">VI</button>
+            <button type="button" role="radio" data-lang="zh" lang="zh-CN">中文</button>
+          </div>
+        </header>
+        <div class="stabbar" role="tablist" aria-label="Settings sections" data-i18n-aria="settings.tabs">
+          <button class="stab active" type="button" role="tab" id="stab-account" aria-selected="true" aria-controls="stabpanel-account" tabindex="0" data-i18n="settings.tab.account">Account &amp; Privacy</button>
+          <button class="stab" type="button" role="tab" id="stab-ai" aria-selected="false" aria-controls="stabpanel-ai" tabindex="-1" data-i18n="settings.tab.ai">AI &amp; Usage</button>
+          <button class="stab" type="button" role="tab" id="stab-workflow" aria-selected="false" aria-controls="stabpanel-workflow" tabindex="-1" data-i18n="settings.tab.workflow">Workflow</button>
+          <button class="stab" type="button" role="tab" id="stab-agent" aria-selected="false" aria-controls="stabpanel-agent" tabindex="-1" data-i18n="settings.tab.agent">Agent &amp; Soul</button>
+          <button class="stab" type="button" role="tab" id="stab-room" aria-selected="false" aria-controls="stabpanel-room" tabindex="-1" data-i18n="settings.tab.room">Room &amp; HUD</button>
+          <button class="stab" type="button" role="tab" id="stab-app" aria-selected="false" aria-controls="stabpanel-app" tabindex="-1" data-i18n="settings.tab.app">App</button>
+        </div>
+        <div class="settings">
+          <div class="stabpanel" id="stabpanel-account" role="tabpanel" aria-labelledby="stab-account" tabindex="0">
+            <section class="card" id="account-card">
+              <div class="ghead"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20c1.4-3.6 4.4-5.5 8-5.5s6.6 1.9 8 5.5"/><circle cx="12" cy="8.5" r="4"/></svg><h2 data-i18n="settings.account">Account</h2></div>
+              <div class="srow">
+                <div class="lbl"><div class="k" data-i18n="settings.taskBoard">Task board</div><div class="d" id="board-status" aria-live="polite"></div></div>
+                <div class="ctl">
+                  <span id="board-chip" class="pill" hidden></span>
+                  <!-- label is set by settings.js (Sign in / Change sign-in / Cancel), so no data-i18n here -->
+                  <button id="board-form-toggle" class="ghost" type="button" aria-controls="board-form" aria-expanded="false" hidden></button>
+                </div>
+              </div>
+              <div class="srow" id="board-mode-switch" role="radiogroup" aria-label="Board choice" data-i18n-aria="settings.modeAria">
+                <div class="lbl"><div class="k" data-i18n="settings.whichBoard">Which board</div></div>
+                <div class="ctl modes">
+                  <label><input type="radio" id="mode-local" name="board-mode"> <span data-i18n="board.mode.local">Local board</span></label>
+                  <label><input type="radio" id="mode-live" name="board-mode"> <span data-i18n="board.mode.live">Your live board</span></label>
+                </div>
+              </div>
+              <div class="srow stack" id="board-form">
+                <div class="fields">
+                  <label for="board-user" data-i18n="settings.user">Board username</label>
+                  <input id="board-user" type="text" autocomplete="off" spellcheck="false">
+                  <label for="board-pass" data-i18n="settings.pass">Board password</label>
+                  <input id="board-pass" type="password" autocomplete="off" spellcheck="false">
+                  <p class="muted" data-i18n="settings.credHint">Same as your web task-board account</p>
+                  <label for="board-pin" data-i18n="settings.pin">6-digit PIN</label>
+                  <input id="board-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" spellcheck="false">
+                  <label for="board-pin-confirm" data-i18n="settings.pinConfirm">Repeat PIN</label>
+                  <input id="board-pin-confirm" type="password" inputmode="numeric" maxlength="6" autocomplete="off" spellcheck="false">
+                  <details class="advanced">
+                    <summary data-i18n="settings.advanced">Advanced</summary>
+                    <label for="board-token" data-i18n="settings.token">Zumi app key</label>
+                    <input id="board-token" type="password" autocomplete="off" spellcheck="false">
+                  </details>
+                </div>
+                <div class="line end"><button id="board-save" class="primary" type="button" data-i18n="settings.save">Save and lock with PIN</button></div>
+              </div>
+              <p id="board-note" class="note" aria-live="polite"></p>
+            </section>
+            <section class="card" id="privacy-card">
+              <div class="ghead"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/><path d="M12 14.5v2.5"/></svg><h2 data-i18n="settings.privacy">Privacy &amp; PIN</h2></div>
+              <label class="srow">
+                <span class="lbl"><span class="k" data-i18n="settings.requirePin">Require PIN for Board</span><span class="d" data-i18n="settings.requirePinD">Ask for your 6-digit PIN before the board opens</span></span>
+                <input type="checkbox" class="sw" id="board-pin-required">
+              </label>
+              <p id="pin-off-risk" class="note" hidden data-i18n="settings.pinOffRisk">PIN off: any app on this PC can change lane models while the board is open.</p>
+              <div class="srow" id="board-pin-toggle-prompt" hidden>
+                <div class="line grow">
+                  <input id="board-pin-toggle-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" spellcheck="false">
+                  <input id="board-pin-toggle-confirm" type="password" inputmode="numeric" maxlength="6" autocomplete="off" spellcheck="false" hidden>
+                  <button id="board-pin-toggle-apply" class="primary" type="button" data-i18n="settings.apply">Apply</button>
+                  <button id="board-pin-toggle-cancel" class="ghost" type="button" data-i18n="settings.cancel">Cancel</button>
+                </div>
+              </div>
+              <p id="board-pin-toggle-note" class="note" aria-live="polite"></p>
+              <div class="srow stack" id="board-unlock-row">
+                <div class="top"><div class="lbl"><div class="k" data-i18n="settings.session">Board session</div><div class="d" id="board-session-desc"></div></div></div>
+                <div class="line">
+                  <input id="board-unlock-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" spellcheck="false" placeholder="PIN to unlock" data-i18n-placeholder="settings.unlockPin">
+                  <button id="board-unlock" class="ghost" type="button" data-i18n="settings.unlock">Unlock</button>
+                  <button id="board-lock" class="ghost" type="button" data-i18n="settings.lock">Lock now</button>
+                </div>
+              </div>
+              <div class="srow stack" id="board-signout-row" hidden>
+                <div class="line">
+                  <button id="board-signout" class="ghost" type="button" data-i18n="settings.signOut">Sign out of Board</button>
+                </div>
+              </div>
+              <p id="board-retry" class="note" aria-live="polite"></p>
+              <p id="board-session-note" class="note" aria-live="polite"></p>
+              <label class="srow">
+                <span class="lbl"><span class="k" data-i18n="settings.sendClientNames">Send client names to the AI</span><span class="d" data-i18n="settings.sendClientNamesD">Off: client names are masked before the board summary leaves this PC</span></span>
+                <input type="checkbox" class="sw" id="send-client-names">
+              </label>
+            </section>
+          </div>
+          <div class="stabpanel" id="stabpanel-ai" role="tabpanel" aria-labelledby="stab-ai" tabindex="0" hidden>
+            <section class="card" id="brain-card">
+              <div class="ghead"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx=".8"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg><h2 data-i18n="settings.brain">AI brain</h2></div>
+              <!-- T-31 OpenCode BYOK (owner 16-10): the two-choice header. "Use free models" shows the free-model
+                   providers only (Gemini, Groq, OpenRouter free); "Enter my own key" lists every provider, including
+                   OpenCode (paid, CORRECTION 17-10). A choice only regroups the picker below -- it never changes the
+                   active provider or how a request is sent. brain-key-card.js owns it. -->
+              <div class="srow" id="brain-mode-row">
+                <div class="lbl"><div class="k" data-i18n="settings.aiMode">How to start</div><div class="d" data-i18n="settings.aiModeD">Free models, or paste your own provider key</div></div>
+                <div class="ctl seg" role="group" data-i18n-aria="settings.aiMode">
+                  <button id="brain-mode-free" class="ghost segbtn" type="button" aria-pressed="false" data-i18n="settings.modeFree">Use free models</button>
+                  <button id="brain-mode-byok" class="ghost segbtn" type="button" aria-pressed="false" data-i18n="settings.modeByok">Enter my own key</button>
+                </div>
+              </div>
+              <div class="srow">
+                <div class="lbl"><div class="k"><label for="brain-provider" data-i18n="settings.provider">Provider</label></div><div class="d" data-i18n="settings.providerD">Who runs the chat model</div></div>
+                <!-- T-31 BYOK: the free providers, filled in by brain-key-card.js from the one provider table (main/providers.js),
+                     so a label or a guide step is edited in exactly one place. -->
+                <div class="ctl"><select id="brain-provider" aria-label="Provider" data-i18n-aria="settings.provider"></select></div>
+              </div>
+              <!-- "Get your key": the selected provider's numbered steps + a link to open its key page in the OS
+                   browser. brain-key-card.js fills the list and shows the provider's notice when it has one. -->
+              <div class="srow stack" id="brain-guide-row">
+                <div class="lbl"><div class="k" data-i18n="settings.getKey">Get your key</div></div>
+                <ol id="brain-guide" class="guide"></ol>
+                <div class="line"><button id="brain-guide-open" class="ghost" type="button" data-i18n="settings.openKeyPage">Open the key page</button></div>
+              </div>
+              <p id="brain-notice" class="note" hidden></p>
+              <!-- "Your own key" (KEY-HANDLING.md): saved -> a masked line (dots + last 4) with Change / Clear; no key or
+                   Change -> a password field with Save (+ Cancel when a key exists). The field is cleared the moment
+                   Save is pressed; the key never comes back from main. -->
+              <div class="srow stack" id="brain-key-row">
+                <div class="top">
+                  <div class="lbl"><div class="k"><label for="brain-key-input" data-i18n="settings.ownKey">Your own key</label></div><div class="d" id="brain-key-desc"></div></div>
+                  <span id="brain-key-chip" class="pill"></span>
+                </div>
+                <div class="line" id="brain-key-view" hidden>
+                  <span class="inp mask" id="brain-key-mask" aria-hidden="true"></span>
+                  <!-- shown only while the saved key is not known to work (never checked, provider unreachable, refused) -->
+                  <button id="brain-key-check" class="ghost" type="button" data-i18n="settings.checkAgain" hidden>Check again</button>
+                  <button id="brain-key-change" class="ghost" type="button" data-i18n="settings.change">Change</button>
+                  <button id="brain-key-clear" class="ghost" type="button" data-i18n="settings.voiceApiKeyClear">Clear</button>
+                </div>
+                <div class="line" id="brain-key-edit">
+                  <input id="brain-key-input" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your OpenRouter key">
+                  <button id="brain-key-test" class="ghost" type="button" data-i18n="settings.testKey">Test key</button>
+                  <button id="brain-key-save" class="primary" type="button" data-i18n="settings.voiceApiKeySave">Save</button>
+                  <!-- T-31 fix round item 1: shown only after an UNREACHABLE key test withheld the save; the one way to
+                       store a key the provider could not be reached to check. -->
+                  <button id="brain-key-save-anyway" class="ghost" type="button" data-i18n="settings.saveAnyway" hidden>Save anyway</button>
+                  <button id="brain-key-cancel" class="ghost" type="button" data-i18n="settings.cancel" hidden>Cancel</button>
+                </div>
+              </div>
+              <p id="brain-key-note" class="note" aria-live="polite"></p>
+              <p class="foot" data-i18n="settings.brainFoot">Chat goes straight from this PC to the provider you pick, and your provider bills your key.</p>
+            </section>
+            <!-- Models by role (T-31 board-roles): plan/do/check/look up, each a model + effort from the user's own
+                 provider. role-models.js builds the grid + popover; this is only the shell. -->
+            <section class="card roles-card" id="roles-card">
+              <div class="ghead"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg><h2 data-i18n="roles.title">Zumi's chat models</h2></div>
+              <div class="gbody">
+                <p id="roles-status" class="status" aria-live="polite"></p>
+                <div id="roles-grid" class="roles-grid" hidden></div>
+                <p id="roles-legend" class="roles-legend" hidden></p>
+                <p id="roles-note" class="note" aria-live="polite"></p>
+                <p id="roles-board-link" class="roles-board-link" hidden><span data-i18n="roles.boardLink">Models for task lanes (code sessions)</span><button id="roles-board-open" class="ghost slim" type="button" data-i18n="roles.boardOpen">Board →</button></p>
+              </div>
+            </section>
+            <section class="card usage-card" id="usage-card">
+              <div class="ghead"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/></svg><h2 data-i18n="usage.title">Usage</h2>
+                <div class="right"><button id="usage-refresh" class="ghost" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg><span data-i18n="usage.refresh">Refresh</span></button></div>
+              </div>
+              <table class="utable" id="usage-summary">
+                <thead><tr><th data-i18n="usage.period">Period</th><th class="num" data-i18n="usage.colCalls">Calls</th><th class="num" data-i18n="usage.tokens">Tokens</th><th class="num" data-i18n="usage.estCost">Est. cost</th></tr></thead>
+                <tbody id="usage-summary-body"></tbody>
+              </table>
+              <!-- text + visibility set by usage.js: shown when a period total is a floor ("≥ $X", an unpriced model) -->
+              <p id="usage-partial" class="note" hidden></p>
+              <!-- label is set by usage.js (Details / Hide details), so no data-i18n on it -->
+              <button id="usage-details-toggle" class="disc" type="button" aria-controls="usage-detail" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg><span id="usage-details-label"></span></button>
+              <div class="detailwrap" id="usage-detail" hidden>
+                <table class="utable detail" id="usage-table">
+                  <thead><tr><th data-i18n="usage.colDate">Date</th><th data-i18n="usage.colModel">Model</th><th class="num" data-i18n="usage.colCalls">Calls</th><th class="num" data-i18n="usage.inOut">In / Out</th><th class="num" data-i18n="usage.estCost">Est. cost</th></tr></thead>
+                  <tbody id="usage-tbody"></tbody>
+                </table>
+                <p id="usage-empty" class="note" data-i18n="usage.empty" hidden>No usage recorded yet.</p>
+              </div>
+              <p class="foot" data-i18n="usage.costFootnote">Estimates from an editable price table; your provider's bill is the real number.</p>
+            </section>
+          </div>
+          <div class="stabpanel" id="stabpanel-workflow" role="tabpanel" aria-labelledby="stab-workflow" tabindex="0" hidden>
+            <section class="card" id="workflow-card">
+              <div class="ghead"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="15" y="15" width="6" height="6" rx="1.5"/><path d="M9 6h5a3 3 0 0 1 3 3v6"/></svg><h2 data-i18n="settings.workflow">Workflow</h2></div>
+              <label class="srow">
+                <span class="lbl"><span class="k" data-i18n="settings.typedReplySpeech">Read the reply aloud when the mic is off</span><span class="d" data-i18n="settings.typedReplySpeechD">Mic off (you type): Zumi still speaks the typed reply out loud</span></span>
+                <input type="checkbox" class="sw" id="typed-reply-speech" checked>
+              </label>
+            </section>
+          </div>
+          <div class="stabpanel" id="stabpanel-agent" role="tabpanel" aria-labelledby="stab-agent" tabindex="0" hidden>
+            <section class="card" id="voice-card">
+              <div class="ghead"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 8v8M19 10v4"/></svg><h2 data-i18n="settings.voiceSection">Voice</h2></div>
+              <p id="voice-speaking" class="note" aria-live="polite" hidden></p>
+              <label class="srow">
+                <span class="lbl"><span class="k" data-i18n="settings.voiceEnabled">Speak replies aloud</span><span class="d" data-i18n="settings.voiceEnabledD">Zumi reads each reply out loud</span></span>
+                <input type="checkbox" class="sw" id="voice-enabled">
+              </label>
+              <label class="srow">
+                <span class="lbl"><span class="k" data-i18n="settings.thinkSound">Soft sound while thinking</span><span class="d" data-i18n="settings.thinkSoundD">A soft chime while Zumi is thinking</span></span>
+                <input type="checkbox" class="sw" id="think-sound">
+              </label>
+              <!-- T-31 talk-mode (PLAN 5.1 / 10.3): how much Zumi talks on her own, when she stays quiet, and which
+                   voice speaks her own lines. Wired in settings.js to zumi.talk.get/setTalkPrefs + the voice prefs. -->
+              <div class="srow">
+                <div class="lbl"><div class="k"><label for="talk-level" data-i18n="settings.talkLevel">How much Zumi talks</label></div><div class="d" id="talk-level-desc"></div></div>
+                <div class="ctl"><select id="talk-level" aria-label="How much Zumi talks" data-i18n-aria="settings.talkLevel">
+                  <option value="off" data-i18n="talk.level.off">Off</option>
+                  <option value="quiet" data-i18n="talk.level.quiet">Quiet</option>
+                  <option value="normal" data-i18n="talk.level.normal">Normal</option>
+                  <option value="chatty" data-i18n="talk.level.chatty">Chatty</option>
+                </select></div>
+              </div>
+              <label class="srow">
+                <span class="lbl"><span class="k" data-i18n="settings.talkQuiet">Quiet hours</span><span class="d" data-i18n="settings.talkQuietD">She stays quiet in this window; asks appear as text only</span></span>
+                <input type="checkbox" class="sw" id="talk-quiet" checked>
+              </label>
+              <div class="srow">
+                <div class="lbl"><div class="k" data-i18n="settings.talkQuietFrom">Quiet from</div></div>
+                <div class="ctl"><input type="time" id="talk-quiet-start" value="22:30"><span class="val" data-i18n="settings.talkQuietTo">to</span><input type="time" id="talk-quiet-end" value="07:30"></div>
+              </div>
+              <div class="srow">
+                <div class="lbl"><div class="k"><label for="talk-lang" data-i18n="settings.talkLang">Voice for her own lines</label></div><div class="d" data-i18n="settings.talkLangD">Which voice speaks Zumi's own lines</div></div>
+                <div class="ctl"><select id="talk-lang" aria-label="Voice for her own lines" data-i18n-aria="settings.talkLang">
+                  <option value="en" data-i18n="talk.lang.en">English · uses the English voice chosen below</option>
+                  <option value="vi" data-i18n="talk.lang.vi">Vietnamese · uses the Vietnamese voice chosen below</option>
+                </select></div>
+              </div>
+              <p id="talk-lang-note" class="note" aria-live="polite"></p>
+              <div class="srow">
+                <div class="lbl"><div class="k"><label for="voice-provider-en" data-i18n="settings.talkProviderEn">English voice provider</label></div></div>
+                <div class="ctl"><select id="voice-provider-en" aria-label="English voice provider" data-i18n-aria="settings.talkProviderEn"></select><button id="voice-test-en" class="ghost" type="button">Test voice</button></div>
+              </div>
+              <div class="srow">
+                <div class="lbl"><div class="k"><label for="voice-provider-vi" data-i18n="settings.talkProviderVi">Vietnamese voice provider</label></div></div>
+                <div class="ctl"><select id="voice-provider-vi" aria-label="Vietnamese voice provider" data-i18n-aria="settings.talkProviderVi"></select><button id="voice-test-vi" class="ghost" type="button">Test voice</button></div>
+              </div>
+              <p id="voice-test-note" class="note" aria-live="polite"></p>
+              <div class="srow">
+                <div class="lbl"><div class="k"><label for="voice-reply-lang" data-i18n="settings.replyLang">Reply language</label></div><div class="d" data-i18n="settings.replyLangD">Which voice reads her chat replies</div></div>
+                <div class="ctl"><select id="voice-reply-lang" aria-label="Reply language" data-i18n-aria="settings.replyLang">
+                  <option value="auto" data-i18n="settings.replyLang.auto">Auto (detect from the reply)</option>
+                  <option value="en" data-i18n="settings.replyLang.en">English</option>
+                  <option value="vi" data-i18n="settings.replyLang.vi">Vietnamese</option>
+                </select></div>
+              </div>
+              <div class="srow">
+                <div class="lbl"><div class="k" data-i18n="settings.enVoice">English voice</div><div class="d" id="voice-status" aria-live="polite"></div></div>
+                <div class="ctl"><select id="voice-en-name" aria-label="English voice" data-i18n-aria="settings.enVoice" hidden></select></div>
+              </div>
+              <div class="srow" id="voice-market-row" hidden>
+                <div class="lbl"><div class="k" data-i18n="settings.voiceMarket">Free voices</div><div class="d" data-i18n="settings.voiceMarketDesc">Install or remove them in the Marketplace.</div></div>
+                <div class="ctl"><button type="button" id="voice-market-open" class="ghost" data-i18n="settings.voiceMarketOpen">Open Marketplace</button></div>
+              </div>
+              <div class="srow" id="voice-kokoro-row" hidden>
+                <div class="lbl"><div class="k" data-i18n="settings.enModel">English voice model</div><div class="d" id="voice-kokoro-desc"></div></div>
+                <div class="ctl">
+                  <span class="bar" id="voice-kokoro-bar" hidden><i></i></span>
+                  <span class="val" id="voice-kokoro-progress" aria-live="polite"></span>
+                  <span class="pill" id="voice-kokoro-chip" hidden></span>
+                </div>
+              </div>
+              <!-- T-31 talk-mode: shown only while Google Cloud is chosen for a language (voice-providers.js). -->
+              <div id="vp-google" class="vp">
+              <div class="srow stack">
+                <div class="top">
+                  <div class="lbl"><div class="k"><label for="voice-leda-key" data-i18n="settings.viVoice">Vietnamese voice</label></div><div class="d" data-i18n="settings.viVoiceD">Google Chirp3-HD · Leda · needs your Google Cloud key</div></div>
+                  <span id="voice-leda-chip" class="pill"></span>
+                </div>
+                <div class="line">
+                  <input id="voice-leda-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your Google Cloud API key" data-i18n-placeholder="settings.viKeyPh">
+                  <button id="voice-leda-test" class="ghost" type="button" hidden data-i18n="settings.voiceKeyTest">Test key</button>
+                  <button id="voice-leda-save" class="ghost" type="button" data-i18n="settings.voiceApiKeySave">Save</button>
+                  <button id="voice-leda-clear" class="ghost" type="button" data-i18n="settings.voiceApiKeyClear">Clear</button>
+                </div>
+              </div>
+              <p id="voice-leda-status" class="note" aria-live="polite"></p>
+              <!-- T-31 talk-mode (PLAN 10.3): the Google key guide (restrict the key to the Text-to-Speech API) and the
+                   no-key fallback note. The guide is plain text; opening an external page from Settings would need a
+                   link-allowlist entry, which is not part of this increment. -->
+              <p id="voice-leda-guide" class="note" data-i18n="settings.voiceGuide">Restrict this key to the Cloud Text-to-Speech API only</p>
+              <p class="note"><button id="vp-google-guide" class="ghost slim" type="button" data-i18n="settings.vp.guide.google">Open Google's setup guide</button></p>
+              </div>
+              <!-- T-31 talk-mode inc 3 (PLAN 10.3): Gemini / ElevenLabs / custom-endpoint panels, built by voice-providers.js. -->
+              <div id="voice-panels"></div>
+              <p id="talk-subtitle-note" class="note" data-i18n="settings.talkSubtitleFallback">With no key, her Vietnamese lines appear as text at the bottom instead of voice</p>
+              <!-- Speed: Kokoro's own speaking speed (0.75-1.5x); Volume: the playback gain for every voice. Both saved in
+                   settings.json (voiceSpeed / voiceVolume) and used from the next sentence on. -->
+              <div class="srow">
+                <div class="lbl"><div class="k"><label for="voice-speed" data-i18n="settings.speed">Speed</label></div><div class="d" data-i18n="settings.speedD">English voice</div></div>
+                <div class="ctl"><input type="range" class="range" id="voice-speed" min="0.75" max="1.5" step="0.05" value="1"><span class="val" id="voice-speed-val"></span></div>
+              </div>
+              <div class="srow">
+                <div class="lbl"><div class="k"><label for="voice-volume" data-i18n="settings.volume">Volume</label></div></div>
+                <div class="ctl"><input type="range" class="range" id="voice-volume" min="0" max="100" step="5" value="100"><span class="val" id="voice-volume-val"></span></div>
+              </div>
+              <div class="srow">
+                <div class="lbl"><div class="k" data-i18n="settings.tryVoice">Try the voice</div></div>
+                <div class="ctl"><button id="voice-sample" class="ghost" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg><span data-i18n="settings.playSample">Play sample</span></button></div>
+              </div>
+              <p id="voice-sample-note" class="note" aria-live="polite"></p>
+            </section>
+            <!-- T-31 float-holo QC: which hologram look (the r6 TOP3 parameter sets) and which rim colour (the two
+                 colours the r6 sweep measured). Renderer-only and live; the pick is saved in localStorage by
+                 app.js through room/float-holo-prefs.js (Electron main stays frozen). -->
+            <section class="card" id="holo-card">
+              <div class="ghead"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 4v10l-7 4-7-4V7z"/><path d="M12 8v8"/></svg><h2 data-i18n="settings.holoSection">Hologram</h2></div>
+              <div class="srow">
+                <div class="lbl"><div class="k"><label for="holo-style" data-i18n="settings.holoStyle">Hologram style</label></div><div class="d" data-i18n="settings.holoStyleD">Starting default — pick the one you like</div></div>
+                <div class="ctl"><select id="holo-style" aria-label="Hologram style" data-i18n-aria="settings.holoStyle">
+                  <option value="T1">T1</option>
+                  <option value="T2">T2</option>
+                  <option value="T3">T3</option>
+                </select></div>
+              </div>
+              <div class="srow">
+                <div class="lbl"><div class="k"><label for="holo-colour" data-i18n="settings.holoColour">Rim colour</label></div><div class="d" data-i18n="settings.holoColourD">The glow colour around Zumi</div></div>
+                <div class="ctl"><select id="holo-colour" aria-label="Rim colour" data-i18n-aria="settings.holoColour">
+                  <option value="cyan" data-i18n="holo.cyan">Cyan</option>
+                  <option value="amber" data-i18n="holo.amber">Amber</option>
+                </select></div>
+              </div>
+            </section>
+          </div>
+          <div class="stabpanel" id="stabpanel-room" role="tabpanel" aria-labelledby="stab-room" tabindex="0" hidden>
+            <section class="card" id="room-card">
+              <div class="ghead"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6 8 6"/><path d="M6 10v10h12V10"/><path d="M10 20v-5h4v5"/></svg><h2 data-i18n="room.title">Room</h2></div>
+              <div class="srow">
+                <div class="lbl"><div class="k"><label for="room-picker" data-i18n="room.title">Room</label></div><div class="d" data-i18n="room.pickD">Where Zumi works</div></div>
+                <div class="ctl"><select id="room-picker" aria-label="Room" data-i18n-aria="room.title"></select></div>
+              </div>
+              <div class="srow">
+                <div class="lbl"><div class="k"><label for="chair-picker" data-i18n="settings.chair">Chair</label></div><div class="d" data-i18n="settings.chairD">Where Zumi sits in the Talk view</div></div>
+                <div class="ctl"><select id="chair-picker" aria-label="Chair" data-i18n-aria="settings.chair"></select></div>
+              </div>
+              <div class="srow">
+                <div class="lbl"><div class="k"><label for="stage-mode" data-i18n="settings.stageMode">Pose (pilot)</label></div><div class="d" data-i18n="settings.stageModeD">Seated or floating in the Talk view</div></div>
+                <div class="ctl"><select id="stage-mode" aria-label="Pose" data-i18n-aria="settings.stageMode">
+                  <option value="seated" data-i18n="stage.seated">Seated</option>
+                  <option value="float" data-i18n="stage.float">Floating</option>
+                </select></div>
+              </div>
+              <div class="srow">
+                <div class="lbl"><div class="k" data-i18n="room.files">Room files</div><div class="d" data-i18n="room.filesD">Add your own .glb room from this PC</div></div>
+                <div class="ctl">
+                  <button id="room-delete" class="ghost" type="button" hidden title="Remove this room from the list" data-i18n-title="room.deleteTitle" data-i18n="room.delete">Delete room</button>
+                  <button id="room-open" class="ghost" type="button" title="Pick a .glb room file on this machine" data-i18n-title="room.openFileTitle" data-i18n="room.openFile">Open room file…</button>
+                </div>
+              </div>
+              <p id="room-note" class="note" aria-live="polite"></p>
+            </section>
+            <section class="card" id="hud-card">
+              <div class="ghead"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="7" height="9" rx="1.5"/><rect x="14" y="5" width="7" height="9" rx="1.5"/><path d="M5 18c2 1.6 4.4 2.4 7 2.4s5-.8 7-2.4"/></svg><h2 data-i18n="settings.hud">HUD hologram</h2></div>
+              <div class="srow">
+                <div class="lbl"><div class="k"><label for="hud-style" data-i18n="settings.hudStyle">HUD style</label></div><div class="d" data-i18n="settings.hudStyleD">Task panels at the talk camera</div></div>
+                <div class="ctl"><select id="hud-style" aria-label="HUD style" data-i18n-aria="settings.hudStyle">
+                  <option value="off" data-i18n="hud.style.off">Off</option>
+                  <option value="a" data-i18n="hud.style.a">A · side panels</option>
+                  <option value="b" data-i18n="hud.style.b">B · arc panels</option>
+                </select></div>
+              </div>
+              <!-- T-31 hud-panels: the new panel (default T1, in place). Renderer-only prefs in localStorage
+                   (src/renderer/hud/panel-prefs.js); hud.js wires these two selects exactly like #hud-style. -->
+              <div class="srow">
+                <div class="lbl"><div class="k"><label for="hud-panel-design" data-i18n="settings.hudPanel">Task panel</label></div><div class="d" data-i18n="settings.hudPanelD">Extra panel for the task Zumi is on</div></div>
+                <div class="ctl"><select id="hud-panel-design" aria-label="Task panel" data-i18n-aria="settings.hudPanel">
+                  <option value="none" data-i18n="hud.panel.none">None</option>
+                  <option value="t1" data-i18n="hud.panel.t1">Task card</option>
+                  <option value="t2" data-i18n="hud.panel.t2">Step list</option>
+                  <option value="t3" data-i18n="hud.panel.t3">Log and chart</option>
+                </select></div>
+              </div>
+              <div class="srow">
+                <div class="lbl"><div class="k"><label for="hud-panel-place" data-i18n="settings.hudPlace">Panel position</label></div><div class="d" data-i18n="settings.hudPlaceD">Small, grows while Zumi works on it.</div></div>
+                <div class="ctl"><select id="hud-panel-place" aria-label="Panel position" data-i18n-aria="settings.hudPlace">
+                  <option value="inplace" data-i18n="hud.place.inplace">In place (small until Zumi works on it)</option>
+                </select></div>
+              </div>
+            </section>
+          </div>
+          <div class="stabpanel" id="stabpanel-app" role="tabpanel" aria-labelledby="stab-app" tabindex="0" hidden>
+            <!-- Always visible (not developer chrome): the owner could not find the version (T-31 0.2.6). Filled by app.js from app:info.version. -->
+            <section class="card" id="about-card">
+              <div class="ghead"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/></svg><h2 data-i18n="settings.about">About</h2></div>
+              <div class="srow" id="about-version-row">
+                <div class="lbl"><div class="k" data-i18n="settings.version">Version</div></div>
+                <div class="ctl"><span id="about-version"></span></div>
+              </div>
+              <!-- Hidden until zumi.update.status() says this build has an updater (update-ui.js). -->
+              <div class="srow" id="update-check-row" hidden>
+                <div class="lbl"><div class="k" data-i18n="update.check">Check for updates</div><div class="d" id="update-check-note" aria-live="polite"></div></div>
+                <div class="ctl"><button id="update-check" class="ghost" type="button" data-i18n="update.checkBtn">Check</button></div>
+              </div>
+              <!-- R4: hidden until zumi.links.list() says the community link is set (settings.js). The page never holds the URL:
+                   the click names the id and the Tauri host opens it (tauri/sidecar/links.mjs). Electron has no zumi.links: never shown. -->
+              <div class="srow" id="join-discord-row" hidden>
+                <div class="lbl"><div class="k" data-i18n="settings.joinDiscord">Join Discord</div><div class="d" data-i18n="settings.joinDiscordHint">Chat with other Zumi users and the team.</div></div>
+                <div class="ctl"><button id="join-discord" class="ghost" type="button" data-i18n="settings.joinDiscord">Join Discord</button></div>
+              </div>
+            </section>
+            <!-- T-31-MOBILE M3, Tauri owner build only (hidden until src/renderer/phone-card.js gets an answer from zumi.phone.status):
+                 pair the phone app. The Rust host draws the QR; the QR ENCODES the board login, and this page holds that picture for 60 s. -->
+            <section class="card" id="phone-card" hidden>
+              <div class="ghead"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/></svg><h2 data-i18n="phone.card">Phone</h2></div>
+              <div class="srow">
+                <div class="lbl"><div class="k" data-i18n="phone.pair">Pair phone</div><div class="d" id="phone-state"></div></div>
+                <div class="ctl"><button id="phone-pair" class="ghost" type="button" data-i18n="phone.pairBtn">Show code</button><button id="phone-unpair" class="ghost" type="button" hidden data-i18n="phone.unpair">Remove phone</button></div>
+              </div>
+              <div id="phone-qr-slot" class="gbody" hidden></div>
+              <p class="note" data-i18n="phone.note">The code holds your board sign-in. Scan it only with the Zumi phone app; it hides itself after 60 seconds. Each new code cancels the previous phone code.</p>
+              <p class="note" data-i18n="phone.revokeNote">Remove phone cancels the phone's code. The board password stays on that phone: if the phone is lost, change the board password.</p>
+              <p id="phone-note" class="note" aria-live="polite"></p>
+            </section>
+            <!-- Tauri only (hidden until src/renderer/profile-import.js sees zumi.settings): one-time import of the non-secret settings from the Electron Zumi app. -->
+            <section class="card" id="import-card" hidden>
+              <div class="ghead"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><h2 data-i18n="import.card">Import from Zumi (desktop)</h2></div>
+              <div class="srow">
+                <div class="lbl"><div class="k" data-i18n="import.card">Import from Zumi (desktop)</div><div class="d" data-i18n="import.cardD">Copy non-secret settings from the earlier app. Safe to run again.</div></div>
+                <div class="ctl"><button id="import-run" class="ghost" type="button" data-i18n="import.run">Import…</button></div>
+              </div>
+              <p id="import-card-note" class="note" aria-live="polite"></p>
+            </section>
+            <section class="card" id="developer-card">
+              <div class="ghead"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg><h2 data-i18n="settings.developer">Developer</h2></div>
+              <label class="srow">
+                <span class="lbl"><span class="k" data-i18n="settings.developerMode">Developer mode</span><span class="d" data-i18n="settings.developerModeD">Simulator, camera and look-tuning buttons in the sidebar, plus the version tag</span></span>
+                <input type="checkbox" class="sw" id="dev-tools">
+              </label>
+            </section>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Auto-update (src/renderer/update-ui.js): a quiet progress line while a new version downloads, then one offer. -->
+  <div id="update-pill" class="update-pill" role="status" aria-live="polite" hidden></div>
+  <dialog id="update-dialog" class="update-dialog" aria-labelledby="update-title">
+    <h2 id="update-title"></h2>
+    <p class="update-body" data-i18n="update.readyBody">Restart now to install it. Choose Later and it installs the next time you quit Zumi.</p>
+    <h3 class="update-notes-h" data-i18n="update.notesTitle">What's new</h3>
+    <pre id="update-notes" class="update-notes"></pre>
+    <div class="update-actions">
+      <button id="update-later" class="ghost" type="button" data-i18n="update.later">Later</button>
+      <button id="update-restart" class="primary" type="button" data-i18n="update.restart">Restart now</button>
+    </div>
+  </dialog>
+
+  <!-- One-time import from the Electron Zumi app (src/renderer/profile-import.js): dry-run summary, then the result + re-entry checklist. -->
+  <dialog id="import-dialog" class="update-dialog import-dialog" aria-labelledby="import-title">
+    <h2 id="import-title" data-i18n="import.title">Import from Zumi (desktop)?</h2>
+    <div id="import-body"></div>
+    <div id="import-actions" class="update-actions">
+      <button id="import-never" class="ghost" type="button" data-i18n="import.never">Never</button>
+      <button id="import-later" class="ghost" type="button" data-i18n="import.later">Not now</button>
+      <button id="import-apply" class="primary" type="button" data-i18n="import.apply">Import</button>
+      <button id="import-close" class="primary" type="button" data-i18n="import.close" hidden>Close</button>
+    </div>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

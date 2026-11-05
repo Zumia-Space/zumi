@@ -1,0 +1,9 @@
+{
+  "_comment": "T-31 0.2.8: pin of the default avatar (restrictive asset, NOT in this repo, NOT AGPL). The .vrm is never committed (*.vrm is gitignored). scripts/lib/default-vrm.cjs copies it (from ZUMI_DEFAULT_VRM_PATH, else the owner values' defaultAvatarSource in src/main/owner-values.json) into <resources>/models at build time (afterPack) after checking size + sha256 here, and FAILS the build if it is missing or different. src/main/default-model.js pins the same sha256 at runtime; scripts/check-default-model.mjs asserts the two agree.",
+  "file": "zumi-default-0910.vrm",
+  "bytes": 9141588,
+  "sha256": "d1183bcf27bac3a587de7e383bcd8f6f4e0068e0a7c56653fa3e731e1460c372",
+  "sourceEnvVar": "ZUMI_DEFAULT_VRM_PATH",
+  "licenceNoticeFile": "LICENSE-zumi-default.txt",
+  "packagedAs": "<resources>/models/zumi-default-0910.vrm + <resources>/models/LICENSE-zumi-default.txt"
+}

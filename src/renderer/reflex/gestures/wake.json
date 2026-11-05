@@ -1,0 +1,47 @@
+{
+  "trigger": "wake",
+  "labelVi": "Woken from sleep",
+  "variants": [
+    {
+      "id": "startle-wake", "labelVi": "Startles awake",
+      "selftest": { "peakMs": 200 },
+      "command": {
+        "id": "wake-startle", "priority": 8, "interrupt": true,
+        "expressions": [{ "name": "surprised", "weight": 1, "inMs": 40, "holdMs": 300, "outMs": 500 }],
+        "bones": [
+          { "bone": "head", "rot": [-9, 0, 0], "inMs": 60, "holdMs": 150, "outMs": 450 },
+          { "bone": "spine", "rot": [-5, 0, 0], "inMs": 60, "holdMs": 150, "outMs": 450 },
+          { "bone": "rightShoulder", "rot": [0, 0, -8], "inMs": 60, "holdMs": 120, "outMs": 400 },
+          { "bone": "leftShoulder", "rot": [0, 0, 8], "inMs": 60, "holdMs": 120, "outMs": 400 }
+        ],
+        "lookAt": [{ "target": "camera", "weight": 1, "inMs": 60, "holdMs": 700, "outMs": 300 }]
+      }
+    },
+    {
+      "id": "rub-eyes", "labelVi": "Rubs eyes",
+      "selftest": { "peakMs": 900 },
+      "command": {
+        "id": "wake-rub-eyes", "priority": 8, "interrupt": true, "mirror": "random",
+        "reach": [{ "hand": "right", "target": "eye", "inMs": 300, "holdMs": 900, "outMs": 500, "osc": { "hz": 3, "amp": [0.03, 0.02, 0] } }],
+        "expressions": [
+          { "name": "blink", "weight": 1, "inMs": 150, "holdMs": 1000, "outMs": 250 },
+          { "name": "relaxed", "weight": 0.3, "inMs": 200, "holdMs": 1000, "outMs": 400 },
+          { "name": "aa", "weight": 0.2, "inMs": 200, "holdMs": 400, "outMs": 300 }
+        ],
+        "bones": [{ "bone": "head", "rot": [4, 0, 5], "inMs": 250, "holdMs": 900, "outMs": 400 }]
+      }
+    },
+    {
+      "id": "blink-rapid", "labelVi": "Blinks rapidly",
+      "selftest": { "peakMs": 320 },
+      "command": {
+        "id": "wake-blink-rapid", "priority": 8, "interrupt": true,
+        "expressions": [
+          { "name": "blink", "weight": 0, "inMs": 40, "holdMs": 700, "outMs": 100, "osc": { "hz": 7, "amp": 1, "wave": "pulse" } },
+          { "name": "surprised", "weight": 0.5, "inMs": 60, "holdMs": 700, "outMs": 400 }
+        ],
+        "bones": [{ "bone": "head", "rot": [-3, 0, 0], "inMs": 80, "holdMs": 700, "outMs": 300, "osc": { "hz": 3.5, "amp": [0, 5, 0] } }]
+      }
+    }
+  ]
+}

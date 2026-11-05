@@ -1,0 +1,60 @@
+{
+  "trigger": "typing",
+  "labelVi": "You started typing",
+  "state": true,
+  "variants": [
+    {
+      "id": "look-down-attentive", "labelVi": "Looks down at the text box, attentive",
+      "selftest": { "peakMs": 800 },
+      "command": {
+        "id": "typing-look-down", "priority": 3, "interrupt": false, "sustain": true,
+        "lookAt": [{ "target": "down", "weight": 0.95, "inMs": 180, "outMs": 300 }],
+        "bones": [
+          { "bone": "head", "rot": [10, 0, 0], "inMs": 200, "outMs": 350, "osc": { "hz": 1.1, "amp": [1.2, 0, 0] } },
+          { "bone": "neck", "rot": [3, 0, 0], "inMs": 200, "outMs": 350 },
+          { "bone": "spine", "rot": [3, 0, 0], "inMs": 250, "outMs": 350 }
+        ],
+        "expressions": [{ "name": "surprised", "weight": 0.14, "inMs": 150, "outMs": 300 }]
+      }
+    },
+    {
+      "id": "peek-lean", "labelVi": "Leans in to peek at the text box",
+      "selftest": { "peakMs": 800 },
+      "command": {
+        "id": "typing-peek-lean", "priority": 3, "interrupt": false, "sustain": true, "mirror": "random",
+        "lookAt": [{ "target": "down", "weight": 0.95, "inMs": 180, "outMs": 300 }],
+        "bones": [
+          { "bone": "spine", "rot": [8, 0, 0], "inMs": 250, "outMs": 350 },
+          { "bone": "chest", "rot": [4, 0, 0], "inMs": 250, "outMs": 350 },
+          { "bone": "head", "rot": [5, 4, 5], "inMs": 200, "outMs": 350 }
+        ],
+        "expressions": [
+          { "name": "surprised", "weight": 0.25, "inMs": 150, "outMs": 300 },
+          { "name": "happy", "weight": 0.2, "inMs": 200, "outMs": 300 }
+        ],
+        "reach": [
+          { "hand": "right", "target": { "frame": "shoulder", "pos": [0.1, -0.85, 0.32] }, "weight": 0.8, "inMs": 300, "outMs": 350 },
+          { "hand": "left", "target": { "frame": "shoulder", "pos": [0.1, -0.85, 0.32] }, "weight": 0.8, "inMs": 300, "outMs": 350 }
+        ]
+      }
+    },
+    {
+      "id": "chin-think", "labelVi": "Hand on chin, thinking",
+      "selftest": { "peakMs": 900 },
+      "command": {
+        "id": "typing-chin-think", "priority": 3, "interrupt": false, "sustain": true, "mirror": "random",
+        "lookAt": [{ "target": "down", "weight": 0.9, "inMs": 200, "outMs": 300 }],
+        "bones": [{ "bone": "head", "rot": [7, 3, 8], "inMs": 250, "outMs": 350 }],
+        "expressions": [{ "name": "relaxed", "weight": 0.2, "inMs": 200, "outMs": 300 }],
+        "reach": [
+          { "hand": "right", "target": "chin", "weight": 0.95, "inMs": 350, "outMs": 400 },
+          { "hand": "left", "target": "chest", "weight": 0.7, "inMs": 350, "outMs": 400 }
+        ],
+        "hands": [
+          { "hand": "right", "shape": "loose", "weight": 1, "inMs": 350, "outMs": 400 },
+          { "hand": "left", "shape": "loose", "weight": 1, "inMs": 350, "outMs": 400 }
+        ]
+      }
+    }
+  ]
+}

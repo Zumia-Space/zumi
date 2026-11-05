@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/prefs.set.json",
+  "title": "data for prefs.set",
+  "description": "Save the caller's own display preferences. target_id must be the caller's own token id (see GET /api/v1/whoami). Fields are merged into what is stored; omitted fields keep their value.",
+  "x-roles": [
+    "owner",
+    "coordinator",
+    "reporter"
+  ],
+  "x-target": "tokenId",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "lang": { "enum": ["en", "zh", "vi"] },
+    "theme": { "enum": ["system", "dark", "light"] },
+    "accent": { "enum": ["neutral", "blue", "violet", "green", "orange", "rose"] },
+    "font_size": { "enum": ["default", "large", "larger"] },
+    "density": { "enum": ["comfortable", "compact"] },
+    "notify_owner_asks": { "type": "boolean" }
+  }
+}

@@ -1,0 +1,247 @@
+{
+ "intent": "agree",
+ "labelVi": "Đồng ý — gật đầu",
+ "variants": [
+  {
+   "id": "agree-p5-1",
+   "provenance": {
+    "source": "T-31 P5 library: composed with the desktop gesture prompt + gate (services/desktopTalk) called directly on staging; coordinator eye-QC 01-10",
+    "model": "gemini-3.8-flash",
+    "request": {
+     "intent": "agree",
+     "brief": "nod twice with a warm smile, eyes on the viewer",
+     "energy": "mid",
+     "deixis": "none",
+     "targetMs": 2600
+    },
+    "repaired": false,
+    "latencyMs": 5445,
+    "file": "out-20261001/agree-1.json"
+   },
+   "command": {
+    "id": "agree-nod-warm",
+    "label": "Warm nod agreement",
+    "priority": 6,
+    "interrupt": true,
+    "mirror": "none",
+    "jitter": 0.05,
+    "moves": [
+     {
+      "move": "nod",
+      "beats": 2,
+      "deg": 18,
+      "beatMs": 420,
+      "delayMs": 300
+     }
+    ],
+    "bones": [
+     {
+      "bone": "chest",
+      "rot": [
+       4,
+       0,
+       0
+      ],
+      "delayMs": 250,
+      "inMs": 400,
+      "holdMs": 900,
+      "outMs": 500
+     },
+     {
+      "bone": "spine",
+      "rot": [
+       3,
+       0,
+       0
+      ],
+      "delayMs": 200,
+      "inMs": 400,
+      "holdMs": 950,
+      "outMs": 500
+     },
+     {
+      "bone": "rightShoulder",
+      "rot": [
+       2,
+       2,
+       -2
+      ],
+      "delayMs": 200,
+      "inMs": 350,
+      "holdMs": 1100,
+      "outMs": 500
+     },
+     {
+      "bone": "leftShoulder",
+      "rot": [
+       2,
+       -2,
+       2
+      ],
+      "delayMs": 200,
+      "inMs": 350,
+      "holdMs": 1100,
+      "outMs": 500
+     }
+    ],
+    "hands": [
+     {
+      "hand": "right",
+      "shape": "relaxed",
+      "delayMs": 100,
+      "inMs": 300,
+      "holdMs": 1600,
+      "outMs": 500
+     },
+     {
+      "hand": "left",
+      "shape": "relaxed",
+      "delayMs": 100,
+      "inMs": 300,
+      "holdMs": 1600,
+      "outMs": 500
+     }
+    ],
+    "expressions": [
+     {
+      "name": "happy",
+      "weight": 0.85,
+      "delayMs": 150,
+      "inMs": 350,
+      "holdMs": 1600,
+      "outMs": 450
+     },
+     {
+      "name": "relaxed",
+      "weight": 0.4,
+      "delayMs": 150,
+      "inMs": 400,
+      "holdMs": 1550,
+      "outMs": 450
+     }
+    ],
+    "lookAt": [
+     {
+      "target": "camera",
+      "weight": 1,
+      "delayMs": 0,
+      "inMs": 200,
+      "holdMs": 2000,
+      "outMs": 400
+     }
+    ]
+   }
+  },
+  {
+   "id": "agree-p5-2",
+   "provenance": {
+    "source": "T-31 P5 library: composed with the desktop gesture prompt + gate (services/desktopTalk) called directly on staging; coordinator eye-QC 01-10",
+    "model": "gemini-3.8-flash",
+    "request": {
+     "intent": "agree",
+     "brief": "one small calm nod, slight head tilt, soft smile",
+     "energy": "low",
+     "deixis": "none",
+     "targetMs": 2600
+    },
+    "repaired": false,
+    "latencyMs": 5120,
+    "file": "out-20261001/agree-2.json"
+   },
+   "command": {
+    "id": "calm-nod-agree",
+    "label": "Calm nod agree",
+    "priority": 6,
+    "interrupt": true,
+    "mirror": "none",
+    "jitter": 0.05,
+    "moves": [
+     {
+      "move": "nod",
+      "beats": 1,
+      "deg": 14,
+      "beatMs": 450,
+      "delayMs": 300
+     }
+    ],
+    "bones": [
+     {
+      "bone": "head",
+      "rot": [
+       0,
+       2,
+       8
+      ],
+      "delayMs": 150,
+      "inMs": 400,
+      "holdMs": 1400,
+      "outMs": 600
+     },
+     {
+      "bone": "neck",
+      "rot": [
+       2,
+       1,
+       3
+      ],
+      "delayMs": 200,
+      "inMs": 350,
+      "holdMs": 1400,
+      "outMs": 550
+     },
+     {
+      "bone": "chest",
+      "rot": [
+       3,
+       0,
+       -2
+      ],
+      "delayMs": 100,
+      "inMs": 450,
+      "holdMs": 1500,
+      "outMs": 550
+     },
+     {
+      "bone": "spine",
+      "rot": [
+       2,
+       0,
+       -1
+      ],
+      "delayMs": 100,
+      "inMs": 450,
+      "holdMs": 1500,
+      "outMs": 550
+     }
+    ],
+    "expressions": [
+     {
+      "name": "relaxed",
+      "weight": 0.7,
+      "delayMs": 50,
+      "inMs": 300,
+      "holdMs": 1700,
+      "outMs": 550
+     },
+     {
+      "name": "happy",
+      "weight": 0.4,
+      "delayMs": 150,
+      "inMs": 350,
+      "holdMs": 1600,
+      "outMs": 500
+     }
+    ],
+    "lookAt": [
+     {
+      "target": "camera",
+      "weight": 0.85,
+      "inMs": 300,
+      "holdMs": 1800,
+      "outMs": 500
+     }
+    ]
+   }
+  }
+ ]
+}

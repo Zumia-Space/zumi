@@ -1,0 +1,212 @@
+{
+  "uiLang": "enum:en|vi|zh",
+  "developerMode": "bool",
+  "sendClientNamesToAi": "bool",
+  "aiMode": "enum:free|byok",
+  "aiProvider": "str:^[a-z0-9][a-z0-9-]{1,31}$:max32",
+  "aiDefaultsLegacy": "bool",
+  "chatModel": "str:^[a-z0-9][a-z0-9._:/-]{0,80}$:max81:model",
+  "roleModels": {
+    "fields": {
+      "plan": {
+        "fields": {
+          "model": "str:^[a-z0-9][a-z0-9._:/-]{0,80}$:max81:model",
+          "effort": "enum:off|low|medium|high"
+        },
+        "required": [
+          "model",
+          "effort"
+        ]
+      },
+      "do": {
+        "fields": {
+          "model": "str:^[a-z0-9][a-z0-9._:/-]{0,80}$:max81:model",
+          "effort": "enum:off|low|medium|high"
+        },
+        "required": [
+          "model",
+          "effort"
+        ]
+      },
+      "check": {
+        "fields": {
+          "model": "str:^[a-z0-9][a-z0-9._:/-]{0,80}$:max81:model",
+          "effort": "enum:off|low|medium|high"
+        },
+        "required": [
+          "model",
+          "effort"
+        ]
+      },
+      "lookup": {
+        "fields": {
+          "model": "str:^[a-z0-9][a-z0-9._:/-]{0,80}$:max81:model",
+          "effort": "enum:off|low|medium|high"
+        },
+        "required": [
+          "model",
+          "effort"
+        ]
+      },
+      "off": {
+        "arr": "max3",
+        "item": "enum:plan|check|lookup"
+      }
+    },
+    "required": []
+  },
+  "roleModelsByProvider": {
+    "map": "^[a-z0-9][a-z0-9-]{1,31}$:max16",
+    "value": {
+      "fields": {
+        "plan": {
+          "fields": {
+            "model": "str:^[a-z0-9][a-z0-9._:/-]{0,80}$:max81:model",
+            "effort": "enum:off|low|medium|high"
+          },
+          "required": [
+            "model",
+            "effort"
+          ]
+        },
+        "do": {
+          "fields": {
+            "model": "str:^[a-z0-9][a-z0-9._:/-]{0,80}$:max81:model",
+            "effort": "enum:off|low|medium|high"
+          },
+          "required": [
+            "model",
+            "effort"
+          ]
+        },
+        "check": {
+          "fields": {
+            "model": "str:^[a-z0-9][a-z0-9._:/-]{0,80}$:max81:model",
+            "effort": "enum:off|low|medium|high"
+          },
+          "required": [
+            "model",
+            "effort"
+          ]
+        },
+        "lookup": {
+          "fields": {
+            "model": "str:^[a-z0-9][a-z0-9._:/-]{0,80}$:max81:model",
+            "effort": "enum:off|low|medium|high"
+          },
+          "required": [
+            "model",
+            "effort"
+          ]
+        },
+        "off": {
+          "arr": "max3",
+          "item": "enum:plan|check|lookup"
+        }
+      },
+      "required": []
+    }
+  },
+  "voiceEnabled": "bool",
+  "voiceSpeed": "num:0.75..1.5",
+  "voiceVolume": "num:0..1",
+  "thinkSound": "bool",
+  "speakTypedWhenMicOff": "bool",
+  "voiceProviderEn": "enum:kokoro|google|gemini|elevenlabs|http-openai|http-zumia",
+  "voiceProviderVi": "enum:google|gemini|elevenlabs|http-openai|http-zumia|off",
+  "voiceReplyLang": "enum:auto|en|vi",
+  "voiceGoogle": {
+    "fields": {
+      "en": "str:^[A-Za-z0-9_-]{1,80}$:max80",
+      "vi": "str:^[A-Za-z0-9_-]{1,80}$:max80"
+    },
+    "required": [
+      "en",
+      "vi"
+    ]
+  },
+  "voiceGemini": {
+    "fields": {
+      "model": "str:^[A-Za-z0-9._-]{1,60}$:max60",
+      "voice": "str:^[A-Za-z0-9_-]{1,40}$:max40"
+    },
+    "required": [
+      "model",
+      "voice"
+    ]
+  },
+  "voiceEleven": {
+    "fields": {
+      "voiceId": "str:^[A-Za-z0-9]{8,24}$:max24:opaque",
+      "model": "str:^[a-z0-9_]{1,40}$:max40"
+    },
+    "required": [
+      "voiceId",
+      "model"
+    ]
+  },
+  "voiceCustom": {
+    "fields": {
+      "base": "url:https-or-loopback,no-query,no-userinfo,no-token-path",
+      "model": "str:^[A-Za-z0-9._:+/-]{1,80}$:max80",
+      "voice": "str:^[A-Za-z0-9._:+/-]{1,80}$:max80"
+    },
+    "required": [
+      "base",
+      "model",
+      "voice"
+    ]
+  },
+  "voiceCustomZumia": {
+    "fields": {
+      "url": "url:https-or-loopback,no-query,no-userinfo,no-token-path"
+    },
+    "required": [
+      "url"
+    ]
+  },
+  "talkLevel": "enum:off|quiet|normal|chatty",
+  "talkVoiceLang": "enum:en|vi",
+  "talkQuietHours": {
+    "fields": {
+      "on": "bool",
+      "start": "str:^\\d{2}:\\d{2}$:max5",
+      "end": "str:^\\d{2}:\\d{2}$:max5"
+    },
+    "required": [
+      "on",
+      "start",
+      "end"
+    ]
+  },
+  "talkAsksBreakQuiet": "bool",
+  "talkCheckins": "bool",
+  "chair3d": "str:^[A-Za-z0-9._-]{1,64}$:max64",
+  "sceneRoom": "str:^[A-Za-z0-9._-]{1,64}$:max64",
+  "hudStyle": "enum:off|a|b",
+  "model": "str:^[a-z0-9][a-z0-9._:/-]{0,80}$:max81:model",
+  "room": "str:^(?:none|default|default-v2|[0-9a-f]{12})$:max16:opaque",
+  "roomChoiceV2": "bool",
+  "importedRooms": {
+    "arr": "max64",
+    "item": {
+      "fields": {
+        "id": "str:^[0-9a-f]{12}$:max12:opaque",
+        "fileBase": "str:^[A-Za-z0-9._ ()-]{1,100}$:max100",
+        "manifest": {
+          "fields": {
+            "name": "str:^[\\p{L}\\p{M}\\p{N} .,'()&-]{1,80}$:max80:text",
+            "author": "str:^[\\p{L}\\p{M}\\p{N} .,'()&-]{1,80}$:max80:text",
+            "license": "str:^[\\p{L}\\p{M}\\p{N} .,'()&-]{1,80}$:max80:text",
+            "attribution": "str:^[\\p{L}\\p{M}\\p{N} .,'()&-]{1,80}$:max80:text"
+          },
+          "required": []
+        }
+      },
+      "required": [
+        "id"
+      ]
+    }
+  },
+  "userModelPath": "plain-local-absolute-path:drive-letter,fixed-drive,.vrm,no-unc,no-device,no-dotdot"
+}

@@ -1,0 +1,263 @@
+{
+ "intent": "point-screen",
+ "labelVi": "Chỉ sang bảng việc",
+ "variants": [
+  {
+   "id": "nod-and-point-to-the-right-s1",
+   "faces": "screen-right",
+   "provenance": {
+    "source": "T-31 approach C round 3 (owner verdict 01-10: right side wins)",
+    "model": "gemini-3.8-flash",
+    "prompt": "nod and point to the right",
+    "sample": 1,
+    "latencyMs": 8481,
+    "file": "unimate/compare/C-llm-dsl/llm/nod-and-point-to-the-right-s1.json"
+   },
+   "command": {
+    "id": "nod-point-right",
+    "label": "Nod and point to the right",
+    "priority": 6,
+    "interrupt": true,
+    "mirror": "none",
+    "jitter": 0.05,
+    "moves": [
+     {
+      "move": "turn",
+      "deg": 20,
+      "delayMs": 200,
+      "inMs": 300,
+      "holdMs": 1300,
+      "outMs": 400
+     },
+     {
+      "move": "nod",
+      "beats": 2,
+      "deg": 18,
+      "beatMs": 350,
+      "delayMs": 400
+     }
+    ],
+    "reach": [
+     {
+      "hand": "left",
+      "target": "point-screen-right",
+      "delayMs": 150,
+      "inMs": 350,
+      "holdMs": 1200,
+      "outMs": 400
+     }
+    ],
+    "hands": [
+     {
+      "hand": "left",
+      "shape": "point",
+      "delayMs": 100,
+      "inMs": 250,
+      "holdMs": 1300,
+      "outMs": 350
+     },
+     {
+      "hand": "right",
+      "shape": "relaxed",
+      "delayMs": 200,
+      "inMs": 300,
+      "holdMs": 1300,
+      "outMs": 350
+     }
+    ],
+    "bones": [
+     {
+      "bone": "chest",
+      "rot": [
+       3,
+       10,
+       -2
+      ],
+      "delayMs": 150,
+      "inMs": 350,
+      "holdMs": 1250,
+      "outMs": 400
+     },
+     {
+      "bone": "leftShoulder",
+      "rot": [
+       -5,
+       12,
+       8
+      ],
+      "delayMs": 150,
+      "inMs": 300,
+      "holdMs": 1250,
+      "outMs": 350
+     }
+    ],
+    "lookAt": [
+     {
+      "target": {
+       "x": 0.8,
+       "y": 0.1
+      },
+      "weight": 0.9,
+      "delayMs": 100,
+      "inMs": 300,
+      "holdMs": 800,
+      "outMs": 400
+     },
+     {
+      "target": "camera",
+      "weight": 1,
+      "delayMs": 1300,
+      "inMs": 300,
+      "holdMs": 600,
+      "outMs": 350
+     }
+    ],
+    "expressions": [
+     {
+      "name": "happy",
+      "weight": 0.75,
+      "delayMs": 100,
+      "inMs": 250,
+      "holdMs": 1600,
+      "outMs": 350
+     },
+     {
+      "name": "relaxed",
+      "weight": 0.3,
+      "delayMs": 200,
+      "inMs": 300,
+      "holdMs": 1500,
+      "outMs": 350
+     }
+    ]
+   }
+  },
+  {
+   "id": "nod-and-point-to-the-right-s2",
+   "faces": "screen-right",
+   "provenance": {
+    "source": "T-31 approach C round 3 (owner verdict 01-10: right side wins)",
+    "model": "gemini-3.8-flash",
+    "prompt": "nod and point to the right",
+    "sample": 2,
+    "latencyMs": 5485,
+    "file": "unimate/compare/C-llm-dsl/llm/nod-and-point-to-the-right-s2.json"
+   },
+   "command": {
+    "id": "nod-point-right",
+    "label": "Nod and point to the right",
+    "priority": 6,
+    "interrupt": true,
+    "mirror": "none",
+    "jitter": 0.05,
+    "moves": [
+     {
+      "move": "nod",
+      "beats": 2,
+      "deg": 20,
+      "beatMs": 360,
+      "delayMs": 100
+     },
+     {
+      "move": "turn",
+      "deg": 22,
+      "delayMs": 400,
+      "inMs": 350,
+      "holdMs": 1200,
+      "outMs": 450
+     }
+    ],
+    "reach": [
+     {
+      "hand": "left",
+      "target": "point-screen-right",
+      "delayMs": 450,
+      "inMs": 350,
+      "holdMs": 1100,
+      "outMs": 400
+     },
+     {
+      "hand": "right",
+      "target": "hip",
+      "delayMs": 300,
+      "inMs": 350,
+      "holdMs": 1300,
+      "outMs": 450
+     }
+    ],
+    "hands": [
+     {
+      "hand": "left",
+      "shape": "point",
+      "delayMs": 400,
+      "inMs": 250,
+      "holdMs": 1250,
+      "outMs": 350
+     },
+     {
+      "hand": "right",
+      "shape": "fist",
+      "delayMs": 300,
+      "inMs": 300,
+      "holdMs": 1300,
+      "outMs": 400
+     }
+    ],
+    "bones": [
+     {
+      "bone": "leftShoulder",
+      "rot": [
+       5,
+       10,
+       -5
+      ],
+      "delayMs": 450,
+      "inMs": 300,
+      "holdMs": 1100,
+      "outMs": 400
+     },
+     {
+      "bone": "chest",
+      "rot": [
+       -3,
+       8,
+       0
+      ],
+      "delayMs": 400,
+      "inMs": 350,
+      "holdMs": 1200,
+      "outMs": 450
+     }
+    ],
+    "expressions": [
+     {
+      "name": "happy",
+      "weight": 0.75,
+      "delayMs": 100,
+      "inMs": 250,
+      "holdMs": 1700,
+      "outMs": 400
+     }
+    ],
+    "lookAt": [
+     {
+      "target": "camera",
+      "weight": 1,
+      "delayMs": 0,
+      "inMs": 200,
+      "holdMs": 450,
+      "outMs": 250
+     },
+     {
+      "target": "sidebar",
+      "weight": 0.9,
+      "delayMs": 650,
+      "inMs": 350,
+      "holdMs": 850,
+      "outMs": 400
+     }
+    ]
+   }
+  }
+ ]
+}

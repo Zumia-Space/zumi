@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/ask.raise.json",
+  "title": "data for ask.raise",
+  "description": "Open a structured question for the owner. Shows in the owner-attention block at once.",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-target": "taskId",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "text"
+  ],
+  "properties": {
+    "text": {
+      "type": "string",
+      "maxLength": 2000,
+      "minLength": 1
+    },
+    "step_id": {
+      "$ref": "../common.json#/$defs/stepId"
+    },
+    "options": {
+      "$ref": "../common.json#/$defs/options"
+    },
+    "lane": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The lane that owns this record. Absent means the task's lane. s21: a step or ask of another lane on a shared task."
+    },
+    "waiting_since": {
+      "$ref": "../common.json#/$defs/timestamp",
+      "description": "The age the ask carries when it replaces another (a migration splitting a composite ask keeps the original wait). Accepted only with origin \"migrate-s21 …\"."
+    }
+  }
+}

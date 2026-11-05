@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "task-time.json",
+  "title": "Server-measured task-level clock: first seen, first step started, first moment every step was done. imported_at is set when the values came from times.import.",
+  "type": "object", "additionalProperties": false,
+  "required": ["first_seen_at"],
+  "properties": {
+    "first_seen_at": { "$ref": "common.json#/$defs/timestamp" },
+    "started_at": { "$ref": "common.json#/$defs/timestamp" },
+    "done_at": { "$ref": "common.json#/$defs/timestamp" },
+    "imported_at": { "$ref": "common.json#/$defs/timestamp" }
+  }
+}

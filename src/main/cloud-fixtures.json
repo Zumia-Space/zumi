@@ -1,0 +1,424 @@
+{
+ "note": "Self-test answers for the talk path (cloud.js fixture mode). No network. Keys are the exact user lines sent by src/renderer/selftest/talk.js.",
+ "speechCharsPerSec": 13,
+ "defaultTurn": {
+  "delayMs": 300,
+  "reply": "Em nghe rồi ạ.",
+  "analysis": {
+   "understood": "Anh vừa nhắn cho em một câu.",
+   "plan": "Em xác nhận là em đã nghe.",
+   "why": "Câu này chưa cần em làm gì thêm."
+  },
+  "gesture": {
+   "intent": "none",
+   "brief": "",
+   "energy": "low",
+   "deixis": "none"
+  },
+  "speechMs": 1500
+ },
+ "turns": {
+  "Chào Zumi, hôm nay em thế nào?": {
+   "delayMs": 350,
+   "speechMs": 2600,
+   "reply": "Chào anh! Hôm nay em vui lắm, sẵn sàng làm việc cùng anh rồi.",
+   "analysis": {
+    "understood": "Anh đang chào em và hỏi thăm em hôm nay thế nào.",
+    "plan": "Em chào lại anh và cho anh biết em đã sẵn sàng.",
+    "why": "Lời chào đầu buổi nên em đáp lại thân thiện và ngắn gọn."
+   },
+   "gesture": {
+    "intent": "greet",
+    "brief": "wave hello with the right hand",
+    "energy": "mid",
+    "deixis": "none"
+   }
+  },
+  "Mình làm bản thử trước nhé, được không?": {
+   "delayMs": 300,
+   "speechMs": 6000,
+   "reply": "Được ạ, làm bản thử trước là hợp lý. Em sẽ dựng bản thử, chạy kiểm trên máy phụ rồi mới mời anh xem bản đầy đủ.",
+   "analysis": {
+    "understood": "Anh muốn làm bản thử trước rồi mới làm bản đầy đủ.",
+    "plan": "Em đồng ý và nói rõ thứ tự em sẽ làm.",
+    "why": "Làm bản thử trước giúp phát hiện lỗi sớm mà không tốn công làm lại."
+   },
+   "gesture": {
+    "intent": "agree",
+    "brief": "nod twice, warm smile",
+    "energy": "mid",
+    "deixis": "none"
+   }
+  },
+  "Việc nào đang chờ anh trên bảng?": {
+   "delayMs": 300,
+   "speechMs": 2500,
+   "reply": "Trên bảng đang có một việc chờ anh quyết, em chỉ cho anh nhé.",
+   "analysis": {
+    "understood": "Anh hỏi việc nào trên bảng đang chờ anh.",
+    "plan": "Em chỉ sang bảng việc và nói có một việc đang chờ.",
+    "why": "Câu hỏi nhắc tới bảng việc nên em hướng anh về phía đó."
+   },
+   "gesture": {
+    "intent": "point-screen",
+    "brief": "point to the board on the viewer left",
+    "energy": "mid",
+    "deixis": "board"
+   }
+  },
+  "Thử một cử chỉ cần kẹp góc nhé.": {
+   "delayMs": 300,
+   "speechMs": 2400,
+   "reply": "Dạ, em thử ăn mừng một chút nhé!",
+   "analysis": {
+    "understood": "Anh muốn em thử một cử chỉ ăn mừng.",
+    "plan": "Em ăn mừng bằng cử chỉ có sẵn.",
+    "why": "Cử chỉ mới không hợp lệ thì em dùng cử chỉ đã kiểm."
+   },
+   "gesture": {
+    "intent": "celebrate",
+    "brief": "jump with arms up",
+    "energy": "high",
+    "deixis": "none"
+   }
+  },
+  "Thử một cử chỉ xuyên người nhé.": {
+   "delayMs": 300,
+   "speechMs": 2400,
+   "reply": "Để em nghĩ một chút đã nhé.",
+   "analysis": {
+    "understood": "Anh muốn em thử một cử chỉ suy nghĩ.",
+    "plan": "Em chống cằm suy nghĩ bằng cử chỉ đã kiểm.",
+    "why": "Cử chỉ nào làm tay đi xuyên người sẽ bị em bỏ."
+   },
+   "gesture": {
+    "intent": "think",
+    "brief": "hand to chin, look up",
+    "energy": "low",
+    "deixis": "none"
+   }
+  },
+  "Lượt này máy chủ lỗi.": {
+   "delayMs": 300,
+   "error": {
+    "code": "upstream_unavailable",
+    "message": "model unavailable",
+    "retryable": true,
+    "status": 503
+   }
+  },
+  "Lượt này không có giải thích.": {
+   "delayMs": 300,
+   "speechMs": 1600,
+   "reply": "Dạ, em nghe rồi.",
+   "analysis": null,
+   "gesture": {
+    "intent": "none",
+    "brief": "",
+    "energy": "low",
+    "deixis": "none"
+   }
+  },
+  "Lượt này giải thích có mã T-31.": {
+   "delayMs": 300,
+   "speechMs": 1600,
+   "reply": "Dạ, em ghi nhận.",
+   "analysis": {
+    "understood": "Anh nhắc tới việc T-31.",
+    "plan": "Em ghi nhận việc đó.",
+    "why": "Việc này đang chạy."
+   },
+   "gesture": {
+    "intent": "none",
+    "brief": "",
+    "energy": "low",
+    "deixis": "none"
+   }
+  },
+  "Em nghĩ kỹ rồi trả lời nhé.": {
+   "delayMs": 1700,
+   "speechMs": 2200,
+   "reply": "Em nghĩ xong rồi, mình làm từng bước một nhé.",
+   "analysis": {
+    "understood": "Anh muốn em suy nghĩ kỹ trước khi trả lời.",
+    "plan": "Em trả lời sau khi đã cân nhắc và đề xuất làm từng bước.",
+    "why": "Việc cần cẩn thận nên đi từng bước sẽ an toàn hơn."
+   },
+   "gesture": {
+    "intent": "explain",
+    "brief": "both hands present ideas in front of the chest",
+    "energy": "low",
+    "deixis": "none"
+   }
+  },
+  "Kể anh nghe một chuyện dài đi.": {
+   "delayMs": 300,
+   "speechMs": 7000,
+   "reply": "Ngày xửa ngày xưa có một bạn robot nhỏ tên Zumi, ngày nào cũng học cách vẫy tay, gật đầu và chỉ tay sao cho thật tự nhiên để nói chuyện với mọi người.",
+   "analysis": {
+    "understood": "Anh muốn nghe một câu chuyện dài.",
+    "plan": "Em kể một chuyện ngắn về chính em.",
+    "why": "Câu chuyện vui giúp anh thư giãn giữa giờ làm."
+   },
+   "gesture": {
+    "intent": "explain",
+    "brief": "storytelling hands",
+    "energy": "mid",
+    "deixis": "none"
+   }
+  }
+ },
+ "gestures": {
+  "Chào Zumi, hôm nay em thế nào?": {
+   "delayMs": 2500,
+   "command": {
+    "id": "greet-composed",
+    "label": "Wave hello (composed)",
+    "priority": 6,
+    "interrupt": true,
+    "mirror": "none",
+    "jitter": 0.05,
+    "reach": [
+     {
+      "hand": "right",
+      "target": "beside-head",
+      "inMs": 320,
+      "holdMs": 1400,
+      "outMs": 400,
+      "osc": {
+       "hz": 2.5,
+       "amp": [
+        0.12,
+        0,
+        0
+       ]
+      }
+     }
+    ],
+    "bones": [
+     {
+      "bone": "rightHand",
+      "rot": [
+       0,
+       0,
+       0
+      ],
+      "delayMs": 200,
+      "inMs": 200,
+      "holdMs": 1300,
+      "outMs": 350,
+      "osc": {
+       "hz": 2.5,
+       "amp": [
+        0,
+        18,
+        0
+       ]
+      }
+     },
+     {
+      "bone": "head",
+      "rot": [
+       -3,
+       -4,
+       6
+      ],
+      "delayMs": 100,
+      "inMs": 280,
+      "holdMs": 1400,
+      "outMs": 400
+     },
+     {
+      "bone": "chest",
+      "rot": [
+       0,
+       0,
+       -3
+      ],
+      "delayMs": 50,
+      "inMs": 300,
+      "holdMs": 1400,
+      "outMs": 400
+     }
+    ],
+    "hands": [
+     {
+      "hand": "right",
+      "shape": "open",
+      "inMs": 200,
+      "holdMs": 1500,
+      "outMs": 350
+     },
+     {
+      "hand": "left",
+      "shape": "relaxed",
+      "inMs": 200,
+      "holdMs": 1500,
+      "outMs": 350
+     }
+    ],
+    "expressions": [
+     {
+      "name": "happy",
+      "weight": 0.85,
+      "inMs": 200,
+      "holdMs": 1600,
+      "outMs": 350
+     },
+     {
+      "name": "aa",
+      "weight": 0.3,
+      "delayMs": 200,
+      "inMs": 120,
+      "holdMs": 300,
+      "outMs": 250
+     }
+    ],
+    "lookAt": [
+     {
+      "target": "camera",
+      "weight": 1,
+      "inMs": 150,
+      "holdMs": 1800,
+      "outMs": 300
+     }
+    ]
+   }
+  },
+  "Mình làm bản thử trước nhé, được không?": {
+   "delayMs": 900,
+   "command": {
+    "id": "agree-nod",
+    "label": "Agree nod",
+    "priority": 6,
+    "interrupt": true,
+    "mirror": "none",
+    "jitter": 0.05,
+    "moves": [
+     {
+      "move": "nod",
+      "beats": 2,
+      "deg": 22,
+      "beatMs": 380,
+      "delayMs": 100
+     }
+    ],
+    "expressions": [
+     {
+      "name": "happy",
+      "weight": 0.6,
+      "inMs": 200,
+      "holdMs": 1300,
+      "outMs": 350
+     }
+    ],
+    "lookAt": [
+     {
+      "target": "camera",
+      "weight": 1,
+      "inMs": 150,
+      "holdMs": 1600,
+      "outMs": 300
+     }
+    ],
+    "bones": [
+     {
+      "bone": "chest",
+      "rot": [
+       4,
+       0,
+       0
+      ],
+      "inMs": 250,
+      "holdMs": 1100,
+      "outMs": 400
+     }
+    ]
+   }
+  },
+  "Việc nào đang chờ anh trên bảng?": {
+   "delayMs": 400,
+   "command": null
+  },
+  "Thử một cử chỉ cần kẹp góc nhé.": {
+   "delayMs": 400,
+   "command": {
+    "id": "celebrate-bad",
+    "label": "Celebrate (needs clamping)",
+    "priority": 6,
+    "bones": [
+     {
+      "bone": "head",
+      "rot": [
+       -170,
+       0,
+       0
+      ],
+      "inMs": 200,
+      "holdMs": 1300,
+      "outMs": 400
+     }
+    ],
+    "reach": [
+     {
+      "hand": "right",
+      "target": "overhead",
+      "inMs": 300,
+      "holdMs": 1200,
+      "outMs": 450
+     }
+    ],
+    "expressions": [
+     {
+      "name": "happy",
+      "weight": 1,
+      "inMs": 150,
+      "holdMs": 1500,
+      "outMs": 350
+     }
+    ]
+   }
+  },
+  "Thử một cử chỉ xuyên người nhé.": {
+   "delayMs": 400,
+   "command": {
+    "id": "think-through-body",
+    "label": "Hand through the body",
+    "priority": 6,
+    "reach": [
+     {
+      "hand": "right",
+      "target": {
+       "frame": "shoulder",
+       "pos": [
+        -0.9,
+        -0.35,
+        -0.1
+       ]
+      },
+      "inMs": 350,
+      "holdMs": 1300,
+      "outMs": 450
+     }
+    ],
+    "lookAt": [
+     {
+      "target": "up",
+      "weight": 0.8,
+      "inMs": 200,
+      "holdMs": 1500,
+      "outMs": 300
+     }
+    ]
+   }
+  },
+  "Em nghĩ kỹ rồi trả lời nhé.": {
+   "delayMs": 300,
+   "command": null
+  },
+  "Kể anh nghe một chuyện dài đi.": {
+   "delayMs": 5000,
+   "command": null
+  }
+ }
+}

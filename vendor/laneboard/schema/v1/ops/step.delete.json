@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/step.delete.json",
+  "title": "data for step.delete",
+  "description": "Remove one step from its task. Its timing history stays. Checked by the board rules like a state change.",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-target": "stepKey",
+  "x-revision": "required",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

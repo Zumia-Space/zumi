@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/freshness.set.json",
+  "title": "data for freshness.set",
+  "description": "Owner sets when a task's Now/Next text counts as stale and whether the board asks the lane for a status update by itself (a rebrief.request in mode status, at most one open per task, checked hourly).",
+  "x-roles": [
+    "owner"
+  ],
+  "x-target": "board",
+  "x-revision": "none",
+  "x-device": false,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "stale_h": {
+      "enum": [
+        0,
+        6,
+        12,
+        24,
+        48
+      ],
+      "description": "Hours without a Now/Next change after which the text is stale; 0 turns the age rule off (a step changing after the text still counts)."
+    },
+    "auto_request": {
+      "type": "boolean"
+    }
+  }
+}

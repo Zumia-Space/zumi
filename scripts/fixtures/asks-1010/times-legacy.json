@@ -1,0 +1,356 @@
+{
+ "tasks": {
+  "F-04": {
+   "firstSeenAt": "2026-09-27T06:23:13.264Z",
+   "startedAt": "2026-09-27T06:23:13.264Z",
+   "doneAt": "2026-10-07T07:25:03.015Z",
+   "steps": {
+    "s1": {
+     "firstSeenAt": "2026-09-27T06:23:13.264Z",
+     "startedAt": "2026-09-27T06:23:13.264Z",
+     "doneAt": "2026-09-27T06:29:39.575Z",
+     "waitingSince": null,
+     "waitingTotalMs": 0,
+     "lastState": "done",
+     "untracked": false,
+     "transitions": [
+      {
+       "t": "2026-09-27T06:29:39.575Z",
+       "from": "active",
+       "to": "done"
+      }
+     ]
+    },
+    "s2": {
+     "firstSeenAt": "2026-09-27T06:23:13.264Z",
+     "startedAt": "2026-09-27T06:29:39.575Z",
+     "doneAt": "2026-09-27T16:23:46.891Z",
+     "waitingSince": null,
+     "waitingTotalMs": 35287425,
+     "lastState": "done",
+     "untracked": false,
+     "transitions": [
+      {
+       "t": "2026-09-27T06:29:39.575Z",
+       "from": "todo",
+       "to": "active"
+      },
+      {
+       "t": "2026-09-27T06:35:39.466Z",
+       "from": "active",
+       "to": "waiting"
+      },
+      {
+       "t": "2026-09-27T16:23:46.891Z",
+       "from": "waiting",
+       "to": "done"
+      }
+     ]
+    },
+    "s2b": {
+     "firstSeenAt": "2026-09-27T16:23:46.891Z",
+     "startedAt": null,
+     "doneAt": "2026-09-28T02:08:34.797Z",
+     "waitingSince": null,
+     "waitingTotalMs": 35087906,
+     "lastState": "done",
+     "untracked": false,
+     "transitions": [
+      {
+       "t": "2026-09-28T02:08:34.797Z",
+       "from": "waiting",
+       "to": "done"
+      }
+     ]
+    },
+    "s2c": {
+     "firstSeenAt": "2026-09-28T02:08:34.797Z",
+     "startedAt": null,
+     "doneAt": "2026-09-30T11:00:25.536Z",
+     "waitingSince": null,
+     "waitingTotalMs": 204710739,
+     "lastState": "done",
+     "untracked": false,
+     "transitions": [
+      {
+       "t": "2026-09-30T11:00:25.536Z",
+       "from": "waiting",
+       "to": "done"
+      }
+     ]
+    },
+    "z3d": {
+     "firstSeenAt": "2026-09-28T15:06:43.735Z",
+     "startedAt": null,
+     "doneAt": "2026-09-29T06:47:23.844Z",
+     "waitingSince": null,
+     "waitingTotalMs": 56440109,
+     "lastState": "done",
+     "untracked": false,
+     "transitions": [
+      {
+       "t": "2026-09-29T06:47:23.844Z",
+       "from": "waiting",
+       "to": "done"
+      }
+     ]
+    },
+    "talk": {
+     "firstSeenAt": "2026-09-29T06:47:23.844Z",
+     "startedAt": null,
+     "doneAt": "2026-09-29T09:19:22.847Z",
+     "waitingSince": null,
+     "waitingTotalMs": 9119003,
+     "lastState": "done",
+     "untracked": false,
+     "transitions": [
+      {
+       "t": "2026-09-29T09:19:22.847Z",
+       "from": "waiting",
+       "to": "done"
+      }
+     ]
+    },
+    "studio": {
+     "firstSeenAt": "2026-09-29T09:19:22.847Z",
+     "startedAt": null,
+     "doneAt": "2026-09-30T11:00:25.536Z",
+     "waitingSince": null,
+     "waitingTotalMs": 92462689,
+     "lastState": "done",
+     "untracked": false,
+     "transitions": [
+      {
+       "t": "2026-09-30T11:00:25.536Z",
+       "from": "waiting",
+       "to": "done"
+      }
+     ]
+    },
+    "s3": {
+     "firstSeenAt": "2026-09-27T06:23:13.264Z",
+     "startedAt": null,
+     "doneAt": "2026-09-30T11:00:25.536Z",
+     "waitingSince": null,
+     "waitingTotalMs": 0,
+     "lastState": "done",
+     "untracked": false,
+     "transitions": [
+      {
+       "t": "2026-09-30T11:00:25.536Z",
+       "from": "todo",
+       "to": "done"
+      }
+     ]
+    },
+    "s4": {
+     "firstSeenAt": "2026-09-27T06:23:13.264Z",
+     "startedAt": null,
+     "doneAt": "2026-09-30T11:00:25.536Z",
+     "waitingSince": null,
+     "waitingTotalMs": 0,
+     "lastState": "done",
+     "untracked": false,
+     "transitions": [
+      {
+       "t": "2026-09-30T11:00:25.536Z",
+       "from": "todo",
+       "to": "done"
+      }
+     ]
+    },
+    "s5": {
+     "firstSeenAt": "2026-09-27T06:23:13.264Z",
+     "startedAt": null,
+     "doneAt": "2026-09-30T11:00:25.536Z",
+     "waitingSince": null,
+     "waitingTotalMs": 0,
+     "lastState": "done",
+     "untracked": false,
+     "transitions": [
+      {
+       "t": "2026-09-30T11:00:25.536Z",
+       "from": "todo",
+       "to": "done"
+      }
+     ]
+    },
+    "s6": {
+     "firstSeenAt": "2026-09-27T06:23:13.264Z",
+     "startedAt": null,
+     "doneAt": "2026-09-30T11:00:25.536Z",
+     "waitingSince": null,
+     "waitingTotalMs": 0,
+     "lastState": "done",
+     "untracked": false,
+     "transitions": [
+      {
+       "t": "2026-09-30T11:00:25.536Z",
+       "from": "todo",
+       "to": "done"
+      }
+     ]
+    },
+    "v6": {
+     "firstSeenAt": "2026-09-30T09:06:33.574Z",
+     "startedAt": null,
+     "doneAt": null,
+     "waitingSince": null,
+     "waitingTotalMs": 0,
+     "lastState": "done",
+     "untracked": true,
+     "transitions": []
+    },
+    "ab": {
+     "firstSeenAt": "2026-09-30T09:06:33.574Z",
+     "startedAt": null,
+     "doneAt": null,
+     "waitingSince": null,
+     "waitingTotalMs": 0,
+     "lastState": "done",
+     "untracked": true,
+     "transitions": []
+    },
+    "robot": {
+     "firstSeenAt": "2026-09-30T09:06:33.574Z",
+     "startedAt": null,
+     "doneAt": null,
+     "waitingSince": null,
+     "waitingTotalMs": 0,
+     "lastState": "done",
+     "untracked": true,
+     "transitions": []
+    },
+    "dress": {
+     "firstSeenAt": "2026-09-30T09:06:33.574Z",
+     "startedAt": null,
+     "doneAt": null,
+     "waitingSince": null,
+     "waitingTotalMs": 0,
+     "lastState": "done",
+     "untracked": true,
+     "transitions": []
+    },
+    "assets": {
+     "firstSeenAt": "2026-09-30T09:06:33.574Z",
+     "startedAt": null,
+     "doneAt": "2026-10-07T06:56:49.570Z",
+     "waitingSince": null,
+     "waitingTotalMs": 590184034,
+     "lastState": "done",
+     "untracked": false,
+     "transitions": [
+      {
+       "t": "2026-09-30T11:00:25.536Z",
+       "from": "blocked",
+       "to": "waiting"
+      },
+      {
+       "t": "2026-10-07T06:56:49.570Z",
+       "from": "waiting",
+       "to": "done"
+      }
+     ]
+    },
+    "lock": {
+     "firstSeenAt": "2026-09-30T13:48:42.760Z",
+     "startedAt": null,
+     "doneAt": "2026-10-06T17:13:19.612Z",
+     "waitingSince": null,
+     "waitingTotalMs": 530676852,
+     "lastState": "done",
+     "untracked": false,
+     "transitions": [
+      {
+       "t": "2026-10-06T17:13:19.612Z",
+       "from": "waiting",
+       "to": "done"
+      }
+     ]
+    },
+    "model": {
+     "firstSeenAt": "2026-10-06T17:08:01.553Z",
+     "startedAt": null,
+     "doneAt": "2026-10-07T04:58:47.375Z",
+     "waitingSince": null,
+     "waitingTotalMs": 42645822,
+     "lastState": "done",
+     "untracked": false,
+     "transitions": [
+      {
+       "t": "2026-10-07T04:58:47.375Z",
+       "from": "waiting",
+       "to": "done"
+      }
+     ]
+    },
+    "looks0710": {
+     "firstSeenAt": "2026-10-07T04:58:47.386Z",
+     "startedAt": null,
+     "doneAt": "2026-10-07T07:25:03.015Z",
+     "waitingSince": null,
+     "waitingTotalMs": 8775629,
+     "lastState": "done",
+     "untracked": false,
+     "transitions": [
+      {
+       "t": "2026-10-07T07:25:03.015Z",
+       "from": "waiting",
+       "to": "done"
+      }
+     ]
+    },
+    "hero-r2": {
+     "firstSeenAt": "2026-10-10T11:03:09.169Z",
+     "startedAt": null,
+     "doneAt": null,
+     "waitingSince": null,
+     "waitingTotalMs": 0,
+     "lastState": "done",
+     "untracked": true,
+     "transitions": []
+    },
+    "hero-r3": {
+     "firstSeenAt": "2026-10-10T11:03:09.191Z",
+     "startedAt": null,
+     "doneAt": null,
+     "waitingSince": null,
+     "waitingTotalMs": 0,
+     "lastState": "done",
+     "untracked": true,
+     "transitions": []
+    },
+    "hero-r4": {
+     "firstSeenAt": "2026-10-10T11:03:09.207Z",
+     "startedAt": null,
+     "doneAt": null,
+     "waitingSince": "2026-10-10T11:03:09.207Z",
+     "waitingTotalMs": 0,
+     "lastState": "waiting",
+     "untracked": false,
+     "transitions": []
+    },
+    "real-models": {
+     "firstSeenAt": "2026-10-10T11:03:09.222Z",
+     "startedAt": null,
+     "doneAt": null,
+     "waitingSince": "2026-10-10T11:03:09.222Z",
+     "waitingTotalMs": 0,
+     "lastState": "waiting",
+     "untracked": false,
+     "transitions": []
+    },
+    "load-idle": {
+     "firstSeenAt": "2026-10-10T11:03:09.231Z",
+     "startedAt": null,
+     "doneAt": null,
+     "waitingSince": null,
+     "waitingTotalMs": 0,
+     "lastState": "todo",
+     "untracked": false,
+     "transitions": []
+    }
+   }
+  }
+ }
+}

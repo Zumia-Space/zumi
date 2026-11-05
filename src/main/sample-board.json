@@ -1,0 +1,66 @@
+{
+  "$comment": "First-run content of a fresh Zumi board, fed to Laneboard's scripts/seed.mjs (every record goes through POST /api/v1/write as the owner). One sample task with one open question on its waiting step; nobody's real board is copied.",
+  "tokens": [],
+  "writes": [
+    {
+      "as": "owner",
+      "op": "task.create",
+      "target_id": "VM-01",
+      "data": {
+        "title": "Sample task: how to use the board",
+        "lane": "personal",
+        "health": "green",
+        "order": 1,
+        "goal": "Understand the board in 2 minutes",
+        "now": "Look at the steps below: each step has one state; the current step is computed by the server",
+        "next": "Add your own real task",
+        "context": "This board runs right on your machine (127.0.0.1): no network, no sign-in. Its core is Laneboard: every change goes through a single write gate and is journaled.\n- Each step has exactly one of 5 states: Done · Doing · Waiting · Blocked · Todo.\n- A Waiting step may not sit before a Done step: that question was already overtaken by new work. The server refuses the whole write and lists each violation.\n- The current step is computed by the server: the first Doing step; if none, the Waiting step, then Blocked, then Todo.\n- A task with a Doing step that has not been updated for 12 hours shows the \"stale 12h\" label.\nThis sample task uses all 5 states.",
+        "steps": [
+          {
+            "id": "s1",
+            "label": "Open the Board tab",
+            "zone": "plan",
+            "state": "done",
+            "detail": "You are here. A finished step is labelled Done."
+          },
+          {
+            "id": "s2",
+            "label": "Read the current step",
+            "zone": "build",
+            "state": "active",
+            "detail": "The \"Current step\" line at the top of the task is computed by the server; the page only displays it."
+          },
+          {
+            "id": "s3",
+            "label": "A question waiting for your call",
+            "zone": "owner",
+            "state": "waiting",
+            "detail": "The Waiting state is for an open question. Mark the step after it as Done while this one is still Waiting and the server refuses."
+          },
+          {
+            "id": "s4",
+            "label": "A step that is blocked",
+            "zone": "test",
+            "state": "blocked",
+            "detail": "Blocked means something outside is in the way; clear it before continuing."
+          },
+          {
+            "id": "s5",
+            "label": "Add a task of your own",
+            "zone": "ship",
+            "state": "todo"
+          }
+        ]
+      }
+    },
+    {
+      "as": "owner",
+      "op": "ask.raise",
+      "target_id": "VM-01",
+      "data": {
+        "step_id": "s3",
+        "text": "Sample question: do you want to do step 4 or step 5 first? Answer in the composer below; paste an image with Ctrl+V if needed."
+      }
+    }
+  ]
+}

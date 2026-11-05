@@ -1,0 +1,113 @@
+[package]
+name = "zumi-preview"
+version = "0.3.0"
+description = "T-31 P1a — Zumi Tauri preview shell (reversible scaffolding; Electron 0.2.3 stays the shipped app)"
+authors = ["Zumia Space"]
+edition = "2021"
+# Tauri 2 needs a recent stable Rust; the dev machine runs 1.96. This is a floor, not a pin.
+rust-version = "1.90"
+license = "AGPL-3.0-only"
+publish = false
+# Two bins now (parity step 5): the app and the secrets-vault helper. `cargo run`/`cargo tauri` keep building the app.
+default-run = "zumi-preview"
+
+[lib]
+# Explicit lib target: tauri.conf.json's build.rs and future mobile targets expect one. Holds the
+# `rpc` command + sidecar supervision so the binary entry point stays trivial.
+name = "zumi_preview_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+# The secrets-vault helper (parity step 5, docs/decisions/2026-10-20-preview-secret-backend.md): a small console exe,
+# shipped next to the main exe and spawned synchronously by the sidecar. It compiles src/vault.rs by path, so it links
+# no Tauri/WebView2 code. Its tests run once, through the lib (the bin is test = false to avoid duplicate runs).
+[[bin]]
+name = "zumi-vault"
+path = "src/bin/zumi-vault.rs"
+test = false
+# Installer payload (26-10): tauri-cli bundles EVERY bin target of the package beside the main exe, and tauri.conf.json bundle.resources
+# "bundle/" ships the staged copy of the same exe (tauri/stage-bundle.mjs), so the installer packed zumi-vault.exe twice (r4).
+# required-features hides the bin from tauri-cli (it counts only features on ITS command line), while the default feature keeps
+# plain `cargo build`, `--bins` and `--bin zumi-vault` building it. scripts/check-tauri-installer.mjs pins this; the payload gate
+# is scripts/check-tauri-installer-payload.mjs.
+required-features = ["vault-bin"]
+
+[features]
+default = ["vault-bin"]
+vault-bin = []
+# Box E2E only (scripts/box-e2e-tauri-update.mjs): an env hook presses Restart or quits through the same code path. Never in
+# default features; scripts/check-tauri-updater.mjs pins that.
+update-e2e = []
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+# build.rs reads the owner-only values file (owner_open_roots); already a dependency of tauri-build and of this crate.
+serde_json = "1"
+
+[dependencies]
+# `unstable` is required only for Window::add_child (the native child-webview guest host, guest.rs);
+# it adds no crate. `~2.12` keeps API drift bounded while the lockfile holds 2.12.4.
+tauri = { version = "~2.12", features = ["unstable"] }
+# Updater (PLAN-UPDATER): Rust-driven only, no JS plugin surface and no updater:* capability. Its ^2.12 tauri requirement fits the ~2.12 pin above.
+# Exact, so a patch that changes download, signature or install behaviour is a reviewed bump.
+tauri-plugin-updater = { version = "=2.14.1", default-features = false, features = ["rustls-tls", "system-proxy"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Parity 12-2 (self-test capture): decode the WebView2 screenshot PNG to the BGRA frame the sidecar measures, and
+# encode the self-test clipboard card. Both crates are ALREADY in Cargo.lock through tauri/wry: this adds an edge,
+# not a crate (the same rule step 4 used for `windows`).
+png = "0.17"
+base64 = "0.23"
+# Node runtime download check (node_runtime.rs): sha256 of the downloaded archive. Already in Cargo.lock via tauri.
+sha2 = "0.10"
+# T-31-MOBILE M3: the phone pairing QR (phone_pair.rs), encoded in the host so the bundle text never reaches the page.
+# SVG renderer only: no image crate.
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+
+# Windows-only: the sidecar and everything it spawns are placed in a job object that kills the whole
+# tree when the host process dies (JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE). windows-sys is already in
+# Cargo.lock (a Windows dep of tauri), so this adds no new crate — only features.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  # Parity step 5: DPAPI (CryptProtectData/CryptUnprotectData) + CNG AES-GCM for the Electron v10 import (vault.rs).
+  # A feature of the windows-sys already locked: no new crate.
+  "Win32_Security_Cryptography",
+  "Win32_System_JobObjects",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Threading",
+  # P1c3: ShellExecuteW (shell_ops.rs). Both are feature flags of the windows-sys already locked: ShellExecuteW
+  # is declared under Win32_UI_Shell + Win32_UI_WindowsAndMessaging (SW_SHOWNORMAL). No new crate.
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+  # Parity step 6-pre (F6): native signals pushed to the sidecar (os_signals.rs): GetLastInputInfo + GetTickCount (idle) and
+  # WTSRegisterSessionNotification (lock-screen). Feature flags of the windows-sys already locked: no new crate.
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_System_SystemInformation",
+  "Win32_System_RemoteDesktop",
+  # Parity 12-2 (self-test clipboard image): OpenClipboard/SetClipboardData(CF_DIB/CF_UNICODETEXT) + GlobalAlloc.
+  # Feature flags of the windows crate already locked: no new crate.
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
+] }
+# WebView2 request filter + NavigationCompleted status for guests (Tauri 2.12 exposes neither); both
+# already in Cargo.lock via wry (0.39.1 / 0.62.2). A future `tauri ~2.12` patch that moves wry's pins
+# to a different minor would give a second copy, so the `cast::<ICoreWebView2_22>()` types stop
+# matching: a loud compile error, the behaviour we want. These are the matching minor series, not an
+# exact pin: `"0.39"` allows any 0.39.x (the lockfile holds 0.39.1, same for 0.62.x).
+webview2-com = "0.39"
+windows-core = "0.62"
+# Parity step 4 (GATE-step4.md condition 1): the native file dialog (dialog_ops.rs, IFileOpenDialog). `windows` 0.62.2
+# is already in Cargo.lock through tauri/wry/tao, so this adds no crate, only an edge and features. Same minor
+# series as windows-core above; tauri-plugin-dialog is deliberately not used (it hands raw paths to JavaScript).
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_System_Com",
+  "Win32_UI_Shell",
+  "Win32_UI_Shell_Common",
+] }
+
+# Release profile matches the spike (a normal Tauri release build). The preview is not measured here.
+[profile.release]
+codegen-units = 1

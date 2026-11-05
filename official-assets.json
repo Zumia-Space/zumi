@@ -1,0 +1,102 @@
+{
+  "ASSETS-LICENSE.md": {
+    "bytes": 558,
+    "sha256": "3843925139e27894e96cdba000bdf7d84d9861daedd1fedd588700470aa53314"
+  },
+  "assets/chair3d/talk-plate-nochair.png": {
+    "bytes": 3140321,
+    "sha256": "70a721833ca0aa8da8a5dcded8abee8a43c284f55a93b4952a339cc4fe22c071"
+  },
+  "assets/models/zumi-default-0910.vrm": {
+    "bytes": 9141588,
+    "sha256": "d1183bcf27bac3a587de7e383bcd8f6f4e0068e0a7c56653fa3e731e1460c372"
+  },
+  "assets/pricing/pricing-zumi.webp": {
+    "bytes": 68050,
+    "sha256": "bd0317d86cccd1a568546b4255e4d2877c4916f9eb84b16be1fc9877ef06c2e4"
+  },
+  "assets/rooms-video/chair-talk.png": {
+    "bytes": 975895,
+    "sha256": "8dedd74552d2362ff8c8bd8b43f2513baa6ad5ad2e62659a4a453bfe24f82b1e"
+  },
+  "resources-pinned/default-model/LICENSE-zumi-default.txt": {
+    "bytes": 2735,
+    "sha256": "c5d205d79eaa3fef8e544133198d35798b9963009b71873a2283bc7c39823ad5"
+  },
+  "resources-pinned/room-v2/B-room-plate.png": {
+    "bytes": 3317931,
+    "sha256": "c5878aa2ac04e71df3589671a9e3b3fe1b629783d490fae295a4e1d82fdf0256"
+  },
+  "resources-pinned/room-v2/B-talk-plate.png": {
+    "bytes": 3398268,
+    "sha256": "1d48a5e0608e9b953a92a0aa9b7e47d5ec8bdc15ee8057449d8300b708b3953d"
+  },
+  "resources-pinned/room-v2/B-work-plate.png": {
+    "bytes": 3240183,
+    "sha256": "a696e603b97735e927659063b3e565ce84b2371c74368261587c6a23efec8bf6"
+  },
+  "resources-pinned/room-v2/PIN-MANIFEST.json": {
+    "bytes": 4359,
+    "sha256": "9b8dac55221879a0f721a942bbf3507867eee10b97e7e437880a92d81757aff3"
+  },
+  "resources-pinned/room-v2/layout.json": {
+    "bytes": 42659,
+    "sha256": "ba4be75c45e7096d73fcffcd89ae807f84f4366a9010c9b9559f986df644705d"
+  },
+  "resources-pinned/room-v2/legacy/props-visible.glb": {
+    "bytes": 322084,
+    "sha256": "f2e663ae35163f1d5c03e066e7f3ccc065378d661c244ca0442d7eb1094a5315"
+  },
+  "resources-pinned/room-v2/occluders.glb": {
+    "bytes": 28228,
+    "sha256": "271630a668863e2812dc4310e6c473257cd13981376b965ab74840e4622188ea"
+  },
+  "resources-pinned/room-v2/occluders.stats.json": {
+    "bytes": 1618,
+    "sha256": "1f8b39e279e58ef2e68df4afd1f0cc08baef1df7133b0f04fe804685accf1141"
+  },
+  "resources-pinned/room-v2/occluders.validation.json": {
+    "bytes": 229,
+    "sha256": "bcaac4d8c7255a4ca63d54314abf23304d82945bb2dc3b471fca02f08cddbcaf"
+  },
+  "resources-pinned/room-v2/pose-measure.json": {
+    "bytes": 223,
+    "sha256": "101d9a680095ea1e7f21b064b18bae1bde8ffe428d4faf1a9c2141a2745a5fd2"
+  },
+  "resources-pinned/room-v2/room.json": {
+    "bytes": 47864,
+    "sha256": "5dfa1996c8e98ebe9d84f4a0b5d204f31302f77c00d276b9bbeb548daeaf8385"
+  },
+  "resources-pinned/room-v2/seat-check.json": {
+    "bytes": 1427,
+    "sha256": "a27a352d29fb411b201afe9fe688a27f7a2f6810eca5b5ec43967011ac7e406f"
+  },
+  "rooms-video/01-cozy-study.mp4": {
+    "bytes": 3773697,
+    "sha256": "a72863ba002224e834aee84685d083a16bdb18d7fdfcfb563d36c0f1a44d13c8"
+  },
+  "rooms-video/02-scifi-bridge.mp4": {
+    "bytes": 3366468,
+    "sha256": "b0ccbd3caeb133dd4543ecb8eb64b9ddc1145d2c4100a9957eaeeba42ea42901"
+  },
+  "rooms-video/03-zen-garden-room.mp4": {
+    "bytes": 1707504,
+    "sha256": "198272c05ceac01cb308f45224dc738dd068d975aa00cfe75f543d9d298d884a"
+  },
+  "rooms-video/04-rooftop-night-city.mp4": {
+    "bytes": 4606712,
+    "sha256": "e1c4cec3e09e3e0cc822268f2ff9d1e29746db558038baa3d60422e103e9cbda"
+  },
+  "rooms-video/05-grand-library.mp4": {
+    "bytes": 1705468,
+    "sha256": "5110764351df6bfcb29b03907e33f1d60503c0e141918bd59bdc7fd6875057ff"
+  },
+  "rooms-video/06-beach-cabin-studio-2710.mp4": {
+    "bytes": 10371176,
+    "sha256": "df8eaf3ce82726cdce25578927e5cf93b82e6b79c26d2d52dcc5db53db05a8a0"
+  },
+  "rooms-video/07-space-station-window.mp4": {
+    "bytes": 1498568,
+    "sha256": "f7ca85c560c0dfd29d0ed108c8f998b204e746d16c317db55163ce13145c6624"
+  }
+}

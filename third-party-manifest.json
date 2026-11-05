@@ -1,0 +1,487 @@
+{
+  "_comment": "T-31 0.2.11 third-party gate (scripts/check-third-party.mjs, npm run check:third-party [-- --flavour release|owner]). The bundled set is DERIVED from the electron-builder config (package.json build + scripts/builder-selftest.cjs + afterPack + the esbuild bundle), so a new root is covered automatically. `files`: EXACT path -> licence id; a bundled file not listed here (or matched by a glob below) is UNMAPPED, even beside listed files. Paths are as bundled: repo-relative for in-repo files, build/renderer/... for the esbuild output, node_modules/... for npm packages, bundled:<pkg> for packages esbuild inlines into app.js, models/... for the afterPack default avatar, rooms-video/... for the owner videos. `globs`: only for first-party code and the vendored Laneboard tree; each states the matched `count` and `listSha256` (sha256 of the sorted matched paths joined by newline) so an added, removed or renamed file fails until a human re-verifies it. `unverified`: exact bundled files whose licence/terms are not confirmed: owner flavour WARNs (prints the list), release flavour FAILs. Add an entry ONLY for an asset whose origin and licence were verified (evidence listed). `noticeKey` = text that must appear in THIRD_PARTY_LICENSES.md; `mustContain` = licence text (whitespace-insensitive) that must be in THIRD_PARTY_LICENSES.md when the packed copy ships no LICENSE file or esbuild strips it; `version` = the version the credit row names (must equal node_modules). ROUND 3: npm packages shipped through extraResources are listed PER FILE (glob rules with count + listSha256, exact entries for files whose terms differ); `globs` are matched in order and a file belongs to the FIRST glob that matches it, so list a specific glob before a broad one. `signatures` name components that can hide inside another file (content regex over shipped node_modules files, or a path regex); a file that carries one must map to a licence whose `embeds` lists it and whose `mustContain` terms ship in THIRD_PARTY_LICENSES.md. `nonNpm: true` = not an npm package credit (no npm version/licence-file check; the terms must be in THIRD_PARTY_LICENSES.md). `ownerOnly` = files that must be ABSENT from the release bundle (OWNER-ONLY-LEAK fails otherwise). Only the flavour being run is counted: release counts what the release build packs, owner what the owner build packs. OWNER-ATTESTED (T-31 0.2.11, 2026-10-26): \"attested\" maps an exact path to {status:\"OWNER-ATTESTED\", attestation:{source,quote,event,note_id,date}}; it counts as verified in both flavours ONLY when all five attestation fields are non-empty strings, else ATTESTATION-INCOMPLETE (hard fail). The 5 room plates (AI-generated, resources-pinned/room-v2/room.json) carry the owner statement of 2026-10-26 (board event owner record); an earlier attestation (owner record) that named a different generator was WITHDRAWN. The statement covers the room images only, so the 7 room videos (rooms-video/*.mp4, owner build only) are NOT covered and stay UNVERIFIED (owner flavour WARN; they are absent from the release bundle). OPEN LEGAL (T-31 0.2.11): \"openLegal\" lists legal items still open ({id,item,status,detail,needs,closure?}). An item is closed ONLY when closure.{closed,evidence,note} are all non-empty strings. Flavour public: every open item is a hard FAIL. Flavours release (npm run dist, the owner's own installer) and owner: a WARN, so the owner build is never blocked. ATTESTATION PIN: every \"attested\" entry carries the sha256 of the attested file; the gate recomputes it and a missing or different sha256 is ATTESTATION-STALE (hard fail, every flavour).",
+  "licences": {
+    "cc-by-4.0-thethieme-office-chair": {
+      "name": "Office Chair (assets/chair3d/mesh-highback.glb)",
+      "author": "thethieme",
+      "source": "https://sketchfab.com/3d-models/b8d24c146a6844788c0ba6f7b135e99e",
+      "licence": "CC BY 4.0",
+      "url": "https://creativecommons.org/licenses/by/4.0/",
+      "changes": "rescaled to 1.25 m, decimated 167k -> 40k tris, WebP 1k textures, origin/orientation set",
+      "evidence": [
+        "assets/chair3d/chairs.json mesh-highback.source",
+        "owner records: chair3d-1310/LICENSES.md",
+        "WebFetch of the Sketchfab page 2026-10-26: title Office Chair, user thethieme, CC Attribution, licence link creativecommons.org/licenses/by/4.0/"
+      ],
+      "noticeKey": "\"Office Chair\" by thethieme"
+    },
+    "cc-by-4.0-kiiba-gaming-chair": {
+      "name": "Gaming Chair (assets/chair3d/gaming-chair.glb)",
+      "author": "Kiiba",
+      "source": "https://sketchfab.com/3d-models/ccb3ada5917a4b90b689e1d1bf852dc2",
+      "licence": "CC BY 4.0",
+      "url": "https://creativecommons.org/licenses/by/4.0/",
+      "changes": "rescaled to 1.32 m, WebP 1k textures, origin/orientation set (13.5k tris, not decimated)",
+      "evidence": [
+        "assets/chair3d/chairs.json gaming-chair.source",
+        "owner records: chair3d-1310/LICENSES.md",
+        "WebFetch of the Sketchfab page 2026-10-26: title Gaming Chair, user Kiiba, CC Attribution, licence link creativecommons.org/licenses/by/4.0/"
+      ],
+      "noticeKey": "\"Gaming Chair\" by Kiiba"
+    },
+    "cc-by-4.0-guillaumecrz-mesh-chair": {
+      "name": "Ergonomic mesh office chair (assets/chair3d/mesh-office.glb)",
+      "author": "guillaumecrz",
+      "source": "https://sketchfab.com/3d-models/cd5ef0305d8545dd8cd934ebb99cf7d5",
+      "licence": "CC BY 4.0",
+      "url": "https://creativecommons.org/licenses/by/4.0/",
+      "changes": "rescaled to 0.955 m, decimated 181k -> 40k tris, WebP 1k textures, origin/orientation set",
+      "evidence": [
+        "assets/chair3d/chairs.json mesh-office.source",
+        "owner records: chair3d-1310/LICENSES.md",
+        "WebFetch of the Sketchfab page 2026-10-26: title Ergonomic mesh office chair, user guillaumecrz, CC Attribution, licence link creativecommons.org/licenses/by/4.0/"
+      ],
+      "noticeKey": "\"Ergonomic mesh office chair\" by guillaumecrz"
+    },
+    "cc0-polyhaven-armchair-01": {
+      "name": "Arm Chair 01 (assets/chair3d/armchair-01.glb)",
+      "author": "Kirill Sannikov",
+      "source": "https://polyhaven.com/a/ArmChair_01",
+      "licence": "CC0 1.0",
+      "changes": "scaled 0.95",
+      "evidence": [
+        "assets/chair3d/chairs.json armchair-01.source",
+        "owner records: chair3d-1310/LICENSES.md",
+        "WebFetch of the Poly Haven page 2026-10-26: Arm Chair 01, Kirill Sannikov, CC0"
+      ],
+      "noticeKey": "\"Arm Chair 01\" by Kirill Sannikov"
+    },
+    "zumia-own-clips": {
+      "name": "Built-in VRMA clips",
+      "author": "Zumia Space",
+      "licence": "first-party (AGPL-3.0 with the source)",
+      "evidence": [
+        "each clip is written by scripts/make-float-pose.mjs, make-sit-pose.mjs, make-sit-work-pose.mjs (header: no Mixamo, no downloads, hand-built glTF)"
+      ]
+    },
+    "zumia-own-data": {
+      "name": "Own manifests, data and notices",
+      "author": "Zumia Space",
+      "licence": "first-party",
+      "evidence": [
+        "authored in this repo (chairs.json, rooms.json, models.json, clips README, room-v2 json files declare LicenseRef-ZumiaSpace-Internal and \"No third-party assets\", pin manifests, default-model notice text, NOTICE, THIRD_PARTY_LICENSES.md, gesture/speech data, package.json)"
+      ]
+    },
+    "zumia-own-room-code": {
+      "name": "Room v2 occluders and legacy props",
+      "author": "Zumia Space",
+      "licence": "first-party",
+      "evidence": [
+        "resources-pinned/room-v2/room.json attribution: 'Occluders: self-made in code. No third-party assets.'",
+        "occluders.glb asset.generator = THREE.GLTFExporter r186; legacy/props-visible.glb asset.generator = 'zumi room v2-B build_props.mjs' (named primitives only)"
+      ]
+    },
+    "zumia-brand": {
+      "name": "Zumia ZS mark (app icon, sidebar mark)",
+      "author": "Zumia Space",
+      "licence": "first-party, brand/trademark use reserved",
+      "evidence": [
+        "git cca4ec11 'ZS mark for the sidebar tile and the app/taskbar/installer icon'; owner records: OSS-V1-GAPS.md 2.2 row buildres/icon.png"
+      ]
+    },
+    "zumia-voice-stub": {
+      "name": "vendor/voice-stubs/sharp",
+      "author": "Zumia Space",
+      "licence": "first-party",
+      "evidence": [
+        "package.json: version 0.0.0-stub, 'Intentional no-op stub'"
+      ]
+    },
+    "apache-2.0-laneboard": {
+      "name": "Laneboard (vendor/laneboard)",
+      "author": "The Laneboard Authors",
+      "licence": "Apache-2.0",
+      "evidence": [
+        "vendor/laneboard/LICENSE (Apache 2.0 text), vendor/laneboard/NOTICE 'Copyright 2026 The Laneboard Authors ... Apache License, Version 2.0'"
+      ],
+      "noticeKey": "Laneboard (`vendor/laneboard/`"
+    },
+    "vroid-default-avatar": {
+      "name": "Default avatar zumi-default-0910.vrm + notice",
+      "author": "3K FOREST CO.,LTD; sample content (c) pixiv Inc.",
+      "licence": "restrictive (VRoid Studio terms and sample-model conditions)",
+      "evidence": [
+        "resources-pinned/default-model/LICENSE-zumi-default.txt",
+        "PIN-MANIFEST.json provenance",
+        "NOTICE"
+      ],
+      "note": "Attribution is covered; whether a PUBLIC installer may carry it is the open legal decision in OSS-V1-GAPS 2.6, not decided here.",
+      "noticeKey": "zumi-default-0910.vrm"
+    },
+    "apache-2.0-kokoro-js": {
+      "name": "kokoro-js 1.2.1",
+      "author": "per package.json",
+      "licence": "Apache-2.0",
+      "evidence": [
+        "node_modules/kokoro-js/package.json license Apache-2.0 + LICENSE file (read 2026-10-26)"
+      ],
+      "noticeKey": "`kokoro-js` (npm, v1.2.1)",
+      "version": "1.2.1"
+    },
+    "apache-2.0-kokoro-voice-af-heart": {
+      "assetInPackage": true,
+      "name": "Kokoro af_heart voice pack",
+      "author": "hexgrad",
+      "licence": "Apache-2.0 (Kokoro-82M model card)",
+      "evidence": [
+        "THIRD_PARTY_LICENSES.md af_heart row (sha256 pinned in src/main/kokoro-worker.mjs); 522240 B file present in node_modules/kokoro-js/voices"
+      ],
+      "noticeKey": "`af_heart` voice pack"
+    },
+    "apache-2.0-phonemizer": {
+      "name": "phonemizer 1.2.1, Apache-2.0 wrapper files (everything except dist/phonemizer.js and dist/phonemizer.cjs, which carry eSpeak NG)",
+      "author": "Xenova",
+      "licence": "Apache-2.0",
+      "evidence": [
+        "node_modules/phonemizer/package.json license Apache-2.0 + LICENSE (read 2026-10-26)"
+      ],
+      "noticeKey": "`phonemizer` (npm, v1.2.1",
+      "version": "1.2.1"
+    },
+    "apache-2.0-hf-transformers": {
+      "name": "@huggingface/transformers 3.8.1",
+      "author": "Hugging Face",
+      "licence": "Apache-2.0",
+      "evidence": [
+        "node_modules/@huggingface/transformers/package.json Apache-2.0 + LICENSE (read 2026-10-26)"
+      ],
+      "noticeKey": "`@huggingface/transformers` (npm",
+      "version": "3.8.1"
+    },
+    "mit-onnxruntime-nested": {
+      "name": "onnxruntime-common / onnxruntime-node 1.21.0 (nested under transformers): JavaScript, onnxruntime.dll, onnxruntime_binding.node (NOT DirectML.dll)",
+      "author": "Microsoft",
+      "licence": "MIT",
+      "evidence": [
+        "package.json license MIT in both nested packages (read 2026-10-26); neither ships a LICENSE file, so the Microsoft MIT text is carried in THIRD_PARTY_LICENSES.md (text = microsoft/onnxruntime LICENSE)"
+      ],
+      "noticeKey": "`onnxruntime-node` (npm, v1.21.0",
+      "version": "1.21.0",
+      "mustContain": [
+        "Copyright (c) Microsoft Corporation Permission is hereby granted"
+      ]
+    },
+    "zumia-own-code": {
+      "name": "Zumi first-party source (src/main, built renderer app code)",
+      "author": "Zumia Space",
+      "licence": "first-party (AGPL-3.0 with the source)",
+      "evidence": [
+        "authored in this repo; git log of src/main/** and src/renderer/**"
+      ]
+    },
+    "mit-three": {
+      "name": "three 0.186.1 (+ the fflate 0.8.2 it vendors in examples/jsm/libs)",
+      "author": "three.js authors; fflate: Arjun Barrett",
+      "licence": "MIT",
+      "version": "0.186.1",
+      "embedded": [
+        "fflate"
+      ],
+      "evidence": [
+        "node_modules/three/package.json license MIT + LICENSE file (read 2026-10-26)",
+        "esbuild metafile of src/renderer/app.js: inputs three/build/*, three/examples/jsm/{loaders/GLTFLoader,loaders/FBXLoader,utils/*,curves/*,libs/fflate.module.js}",
+        "fflate.module.js header: \"Licensed under MIT ... version 0.8.2\""
+      ],
+      "noticeKey": "The MIT License",
+      "mustContain": [
+        "Copyright (c) 2023 Arjun Barrett Permission is hereby granted"
+      ]
+    },
+    "mit-pixiv-three-vrm": {
+      "name": "@pixiv/three-vrm 3.5.5 and @pixiv/three-vrm-animation 3.5.5 (+ the @pixiv/three-vrm-core, -materials-*, -node-constraint, -springbone and @pixiv/types-* packages their prebuilt lib inlines)",
+      "author": "pixiv Inc.",
+      "licence": "MIT",
+      "version": "3.5.5",
+      "evidence": [
+        "each package LICENSE is byte-identical (md5 5e4dbdd0...) \"Copyright (c) 2019-2026 pixiv Inc.\"",
+        "esbuild metafile inputs: only @pixiv/three-vrm and @pixiv/three-vrm-animation lib files; their declared dependencies are inlined in those lib bundles"
+      ],
+      "noticeKey": "Copyright (c) 2019-2026 pixiv Inc."
+    },
+    "python-2.0-argparse": {
+      "name": "argparse 2.0.1 (electron-updater -> js-yaml)",
+      "author": "argparse authors",
+      "licence": "Python-2.0",
+      "version": "2.0.1",
+      "evidence": [
+        "node_modules/argparse/LICENSE ships inside the package in app.asar (read 2026-10-26)"
+      ]
+    },
+    "mit-lazy-val": {
+      "name": "lazy-val 1.0.5 (electron-updater production dependency)",
+      "author": "Vladimir Krivosheev",
+      "licence": "MIT",
+      "version": "1.0.5",
+      "evidence": [
+        "package.json license MIT, author Vladimir Krivosheev; the package and its upstream repo ship no LICENSE file, so the MIT text is carried in THIRD_PARTY_LICENSES.md"
+      ],
+      "noticeKey": "`lazy-val` (npm, v1.0.5",
+      "mustContain": [
+        "Copyright (c) Vladimir Krivosheev Permission is hereby granted"
+      ]
+    },
+    "gpl-3.0-espeak-ng-in-phonemizer": {
+      "name": "eSpeak NG (wasm2js build + espeak-ng-data) embedded in phonemizer/dist/phonemizer.js, phonemizer/dist/phonemizer.cjs and kokoro-js/dist/kokoro.web.js (which inlines a copy of phonemizer)",
+      "author": "eSpeak NG contributors",
+      "licence": "GPL-3.0",
+      "nonNpm": true,
+      "embeds": [
+        "espeak-ng"
+      ],
+      "componentVersion": "not recorded in the artifact; nearest release 1.52.0 (4870adfa25b1a32b4361592f1be8a40337c58d6c), UNVERIFIED",
+      "evidence": [
+        "kokoro-js/dist/kokoro.web.js (2135146 B, the browser build, not loaded by the Node worker) inlines the same 603032-char gzip+base64 data blob: found by the round-3 content scan",
+        "both dist files contain the Emscripten 3.1.30 wasm2js worker (eSpeakNGWorker, espeak_VOICE_* exports) and a gzip+base64 espeak-ng-data blob (890802 B, 333 files)",
+        "upstream https://github.com/espeak-ng/espeak-ng COPYING = GPL-3.0 (tag 1.52.0)",
+        "owner records: release-0211/licenses/ (decoded blobs, red-gate3.txt)"
+      ],
+      "noticeKey": "**eSpeak NG** (https://github.com/espeak-ng/espeak-ng",
+      "mustContain": [
+        "GNU GENERAL PUBLIC LICENSE Version 3, 29 June 2007",
+        "Public License instead of this License. But first, please read <http://www.gnu.org/philosophy/why-not-lgpl.html>.",
+        "Zumia Space will provide the corresponding source of the eSpeak NG code contained in this app on request"
+      ]
+    },
+    "ms-directml-redistributable": {
+      "name": "Microsoft DirectML redistributable DirectML.dll 1.15.4 (copied from onnxruntime-node 1.21.0)",
+      "author": "Microsoft Corporation",
+      "licence": "Microsoft Software License Terms: Microsoft DirectX Machine Learning (DirectML) (NOT MIT)",
+      "nonNpm": true,
+      "embeds": [
+        "directml"
+      ],
+      "componentVersion": "1.15.4",
+      "evidence": [
+        "DirectML.dll VersionInfo: DirectML Redistributable Library 1.15.4+241025-1615.1.dml-1.15.fac7597, Microsoft Corporation",
+        "byte-identical (sha256 9c9e6d82...92da1) to bin/x64-win/DirectML.dll in NuGet Microsoft.AI.DirectML 1.15.4 (nupkg sha256 4e7cb7dd...15b9), whose nuspec says license type=file LICENSE.txt",
+        "onnxruntime-node 1.21.0 ships no licence file at all"
+      ],
+      "noticeKey": "`DirectML.dll` (Microsoft DirectML redistributable",
+      "mustContain": [
+        "MICROSOFT SOFTWARE LICENSE TERMS MICROSOFT DIRECTX MACHINE LEARNING (DIRECTML)",
+        "The above limitation or exclusion may not apply to you because your state, province, or country may not allow the exclusion or limitation of incidental, consequential, or other damages.",
+        "Microsoft/GSL Copyright (c) 2015 Microsoft Corporation. All rights reserved."
+      ]
+    }
+  },
+  "files": {
+    "NOTICE": "zumia-own-data",
+    "THIRD_PARTY_LICENSES.md": "zumia-own-data",
+    "ASSETS-LICENSE.md": "zumia-own-data",
+    "package.json": "zumia-own-data",
+    "assets/chair3d/chairs.json": "zumia-own-data",
+    "assets/clips/README.txt": "zumia-own-data",
+    "assets/models/models.json": "zumia-own-data",
+    "assets/rooms-video/rooms.json": "zumia-own-data",
+    "assets/chair3d/mesh-highback.glb": "cc-by-4.0-thethieme-office-chair",
+    "assets/chair3d/gaming-chair.glb": "cc-by-4.0-kiiba-gaming-chair",
+    "assets/chair3d/mesh-office.glb": "cc-by-4.0-guillaumecrz-mesh-chair",
+    "assets/chair3d/armchair-01.glb": "cc0-polyhaven-armchair-01",
+    "assets/clips/float-idle.vrma": "zumia-own-clips",
+    "assets/clips/sit-idle.vrma": "zumia-own-clips",
+    "assets/clips/sit-work.vrma": "zumia-own-clips",
+    "build/renderer/app.js": "zumia-own-code",
+    "build/renderer/index.html": "zumia-own-code",
+    "build/renderer/next-ui.json": "zumia-own-data",
+    "build/renderer/styles.css": "zumia-own-code",
+    "build/renderer/hud.css": "zumia-own-code",
+    "build/renderer/next/theme-a.css": "zumia-own-code",
+    "build/renderer/next/pricing.css": "zumia-own-code",
+    "build/renderer/next/tokens-a.css": "zumia-own-code",
+    "build/renderer/next/brain/brain.css": "zumia-own-code",
+    "build/renderer/brand/zumia-mark.svg": "zumia-brand",
+    "buildres/icon.png": "zumia-brand",
+    "models/zumi-default-0910.vrm": "vroid-default-avatar",
+    "models/LICENSE-zumi-default.txt": "vroid-default-avatar",
+    "node_modules/kokoro-js/voices/af_heart.bin": "apache-2.0-kokoro-voice-af-heart",
+    "node_modules/argparse": "python-2.0-argparse",
+    "node_modules/lazy-val": "mit-lazy-val",
+    "bundled:three": "mit-three",
+    "bundled:@pixiv/three-vrm": "mit-pixiv-three-vrm",
+    "bundled:@pixiv/three-vrm-animation": "mit-pixiv-three-vrm",
+    "resources-pinned/room-v2/occluders.glb": "zumia-own-room-code",
+    "assets/pricing/pricing-zumi.webp": "vroid-default-avatar",
+    "build/renderer/next/pricing-zumi.webp": "vroid-default-avatar",
+    "resources-pinned/room-v2/legacy/props-visible.glb": "zumia-own-room-code",
+    "vendor/voice-stubs/sharp/index.js": "zumia-voice-stub",
+    "vendor/voice-stubs/sharp/package.json": "zumia-voice-stub",
+    "resources-pinned/room-v2/layout.json": "zumia-own-data",
+    "resources-pinned/room-v2/occluders.stats.json": "zumia-own-data",
+    "resources-pinned/room-v2/occluders.validation.json": "zumia-own-data",
+    "resources-pinned/room-v2/PIN-MANIFEST.json": "zumia-own-data",
+    "resources-pinned/room-v2/pose-measure.json": "zumia-own-data",
+    "resources-pinned/room-v2/room.json": "zumia-own-data",
+    "resources-pinned/room-v2/seat-check.json": "zumia-own-data",
+    "node_modules/phonemizer/dist/phonemizer.js": "gpl-3.0-espeak-ng-in-phonemizer",
+    "node_modules/phonemizer/dist/phonemizer.cjs": "gpl-3.0-espeak-ng-in-phonemizer",
+    "node_modules/@huggingface/transformers/node_modules/onnxruntime-node/bin/napi-v3/win32/x64/DirectML.dll": "ms-directml-redistributable",
+    "node_modules/kokoro-js/dist/kokoro.web.js": "gpl-3.0-espeak-ng-in-phonemizer"
+  },
+  "globs": [
+    {
+      "glob": "node_modules/@huggingface/transformers/node_modules/onnxruntime-node/**",
+      "id": "mit-onnxruntime-nested",
+      "count": 19,
+      "listSha256": "9d278ea6653d9885bb1fe85edecd7f073e4fcf400d6afaa9b66127c359650ed3"
+    },
+    {
+      "glob": "node_modules/@huggingface/transformers/node_modules/onnxruntime-common/**",
+      "id": "mit-onnxruntime-nested",
+      "count": 193,
+      "listSha256": "c30d565062b27a34ef709c3f3f3dc24b9f4b6a5a6bccf5e17799771288555bf8"
+    },
+    {
+      "glob": "node_modules/@huggingface/transformers/**",
+      "id": "apache-2.0-hf-transformers",
+      "count": 20,
+      "listSha256": "407f43769eafdcddd09972e71e1d91db8ae760e309f3dbfb3429e8813cfb7a81"
+    },
+    {
+      "glob": "node_modules/kokoro-js/**",
+      "id": "apache-2.0-kokoro-js",
+      "count": 5,
+      "listSha256": "01517391f4c8d0219e31dfc773708f0f10c29870500623b437e9b9740912dd31"
+    },
+    {
+      "glob": "node_modules/phonemizer/**",
+      "id": "apache-2.0-phonemizer",
+      "count": 3,
+      "listSha256": "28d94f9c98d80e9568772662f2faad893b4b87cf1f2f87b7fb839f946f750adf"
+    },
+    {
+      "glob": "src/main/*.js",
+      "id": "zumia-own-code",
+      "count": 31,
+      "listSha256": "8c19ab507cfd2591f3281fc61946ea0337ea872b472c8a0546c200d5788b01d0"
+    },
+    {
+      "glob": "src/main/*.mjs",
+      "id": "zumia-own-code",
+      "count": 30,
+      "listSha256": "61fd402609a8a1ebdc4d32336b031ccfd3f611a4713f3b26e693874e964940dc"
+    },
+    {
+      "glob": "src/main/*.json",
+      "id": "zumia-own-data",
+      "count": 9,
+      "listSha256": "be67e99dcf35d6b081e28b6f55e6f2cae7f7ddffa530276fdb9c71fc9c84d63f"
+    },
+    {
+      "glob": "build/renderer/gestures/*.json",
+      "id": "zumia-own-data",
+      "count": 14,
+      "listSha256": "fa1d4b09c10ce0cf40ae1a5096b7a20ef2c2b32b7687e2dcc2ce13c90c2a559c"
+    },
+    {
+      "glob": "build/renderer/speech/*.json",
+      "id": "zumia-own-data",
+      "count": 8,
+      "listSha256": "42fd634dceb8d4493d7e2d8165b3344c35850c17e93a02587468b9820cf76b54"
+    },
+    {
+      "glob": "vendor/laneboard/**",
+      "id": "apache-2.0-laneboard",
+      "count": 108,
+      "listSha256": "613ab847bbfe48cc0e410c14e2fc4b5f68cb942b5beab4bd2cf66df6e2c14aed"
+    }
+  ],
+  "openLegal": [
+    {
+      "id": "directml-licence-text",
+      "item": "Microsoft DirectML redistributable terms for DirectML.dll 1.15.4",
+      "status": "OPEN",
+      "detail": "THIRD_PARTY_LICENSES.md reproduces LICENSE.txt + ThirdPartyNotices.txt from the NuGet package Microsoft.AI.DirectML 1.15.4, but that is a copy taken from the nupkg, not a licence that ships with this DLL: onnxruntime-node 1.21.0 ships no licence file and no standalone licence text sits beside DirectML.dll in the installer. Not verified that those terms are the ones governing this exact redistribution; no legal review done.",
+      "needs": "ship the licence text beside DirectML.dll (or drop DirectML.dll) and confirm the redistribution terms"
+    },
+    {
+      "id": "espeak-gpl-notice-and-offer",
+      "item": "eSpeak NG GPL-3.0 notice and written offer (section 6)",
+      "status": "OPEN",
+      "detail": "The GPL text and a written offer ship in THIRD_PARTY_LICENSES.md, but the corresponding source is not pinned: the shipped phonemizer.js/phonemizer.cjs state no eSpeak NG release or commit (nearest 1.52.0, unconfirmed), so the offer cannot point at the exact source of what ships.",
+      "needs": "pin the exact eSpeak NG commit (or host the matching source) so the offer names it; then record closure {closed, evidence, note}"
+    }
+  ],
+  "attested": {
+    "resources-pinned/room-v2/B-room-plate.png": {
+      "status": "OWNER-ATTESTED",
+      "sha256": "c5878aa2ac04e71df3589671a9e3b3fe1b629783d490fae295a4e1d82fdf0256",
+      "note": "room background plate",
+      "attestation": {
+        "source": "AI-generated image (owner-produced)",
+        "date": "2026-10-26"
+      }
+    },
+    "resources-pinned/room-v2/B-talk-plate.png": {
+      "status": "OWNER-ATTESTED",
+      "sha256": "1d48a5e0608e9b953a92a0aa9b7e47d5ec8bdc15ee8057449d8300b708b3953d",
+      "note": "room background plate",
+      "attestation": {
+        "source": "AI-generated image (owner-produced)",
+        "date": "2026-10-26"
+      }
+    },
+    "resources-pinned/room-v2/B-work-plate.png": {
+      "status": "OWNER-ATTESTED",
+      "sha256": "a696e603b97735e927659063b3e565ce84b2371c74368261587c6a23efec8bf6",
+      "note": "room background plate",
+      "attestation": {
+        "source": "AI-generated image (owner-produced)",
+        "date": "2026-10-26"
+      }
+    },
+    "assets/chair3d/talk-plate-nochair.png": {
+      "status": "OWNER-ATTESTED",
+      "sha256": "70a721833ca0aa8da8a5dcded8abee8a43c284f55a93b4952a339cc4fe22c071",
+      "note": "derived from B-talk-plate.png (inpainted)",
+      "attestation": {
+        "source": "AI-generated image (owner-produced)",
+        "date": "2026-10-26"
+      }
+    },
+    "assets/rooms-video/chair-talk.png": {
+      "status": "OWNER-ATTESTED",
+      "sha256": "8dedd74552d2362ff8c8bd8b43f2513baa6ad5ad2e62659a4a453bfe24f82b1e",
+      "note": "cut-out of B-talk-plate.png",
+      "attestation": {
+        "source": "AI-generated image (owner-produced)",
+        "date": "2026-10-26"
+      }
+    }
+  },
+  "unverified": {
+    "rooms-video/01-cozy-study.mp4": "AI-generated room video (owner build only); output terms not confirmed",
+    "rooms-video/02-scifi-bridge.mp4": "AI-generated room video (owner build only); output terms not confirmed",
+    "rooms-video/03-zen-garden-room.mp4": "AI-generated room video (owner build only); output terms not confirmed",
+    "rooms-video/04-rooftop-night-city.mp4": "AI-generated room video (owner build only); output terms not confirmed",
+    "rooms-video/05-grand-library.mp4": "AI-generated room video (owner build only); output terms not confirmed",
+    "rooms-video/06-beach-cabin-studio-2710.mp4": "AI-generated room video (owner build only); output terms not confirmed",
+    "rooms-video/07-space-station-window.mp4": "AI-generated room video (owner build only); output terms not confirmed"
+  },
+  "signatures": {
+    "espeak-ng": {
+      "content": "espeak-ng-data|eSpeakNGWorker|espeak_VOICE"
+    },
+    "directml": {
+      "path": "(^|/)(libdirectml|directml)[^/]*.(dll|so)$"
+    }
+  },
+  "ownerOnly": [
+    "rooms-video/01-cozy-study.mp4",
+    "rooms-video/02-scifi-bridge.mp4",
+    "rooms-video/03-zen-garden-room.mp4",
+    "rooms-video/04-rooftop-night-city.mp4",
+    "rooms-video/05-grand-library.mp4",
+    "rooms-video/06-beach-cabin-studio-2710.mp4",
+    "rooms-video/07-space-station-window.mp4"
+  ]
+}

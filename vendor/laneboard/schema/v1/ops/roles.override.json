@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/roles.override.json",
+  "title": "data for roles.override",
+  "description": "CoS-only: allow Sonnet for one task code until an expiry, with a reason. The board journals the computed expiry, so replay never reads the clock. clear=true removes the entry. If the server has no CoS identity on the token, data.lane must spell \"CoS\".",
+  "x-roles": [
+    "coordinator",
+    "owner"
+  ],
+  "x-target": "taskId",
+  "x-revision": "none",
+  "x-device": false,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "reason": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "hours": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 72,
+      "description": "How long the allowance lasts; default 24."
+    },
+    "clear": {
+      "type": "boolean",
+      "description": "Remove the task's override instead of setting one."
+    },
+    "lane": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "The calling lane when the token carries none: must be \"CoS\"."
+    }
+  }
+}

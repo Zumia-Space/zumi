@@ -1,0 +1,428 @@
+{
+  "$comment": "Discovery index. Each op lists who may call it, what target_id names, and whether expected_revision is required (required), must be 0/absent with a new target (create), or ignored (none).",
+  "version": 1,
+  "write_endpoint": "POST /api/v1/write",
+  "envelope": "write-request.json",
+  "records": [
+    "task.json",
+    "step.json",
+    "ask.json",
+    "inbox-item.json",
+    "feedback.json",
+    "attachment.json",
+    "routing.json",
+    "route-override.json",
+    "time.json",
+    "prefs.json",
+    "notify.json",
+    "event.json",
+    "task-time.json",
+    "board-doc.json",
+    "goal.json",
+    "plan.json",
+    "ping.json",
+    "stats.json",
+    "quota.json"
+  ],
+  "ops": {
+    "task.create": {
+      "schema": "ops/task.create.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "taskId",
+      "revision": "create",
+      "description": "Create a task, optionally with its steps."
+    },
+    "task.update": {
+      "schema": "ops/task.update.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "taskId",
+      "revision": "required",
+      "description": "Change task fields, or the order of its steps (step_order). Step contents are changed with step.* ops."
+    },
+    "step.create": {
+      "schema": "ops/step.create.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "stepKey",
+      "revision": "create",
+      "description": "Append a step to an existing task. target_id is <taskId>/<stepId>."
+    },
+    "step.update": {
+      "schema": "ops/step.update.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "stepKey",
+      "revision": "required",
+      "description": "Change a step. State changes are timed by the server clock."
+    },
+    "steps.compact": {
+      "schema": "ops/steps.compact.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "taskId",
+      "revision": "required",
+      "description": "Fold a task's older done steps into one history step (`lich-su`) and keep their records in state.archive; archived steps do not count toward the 50-step cap. Dry run: GET /api/v1/compact/preview?task=<id>&keep_last=<n>."
+    },
+    "ask.raise": {
+      "schema": "ops/ask.raise.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "description": "Open a structured question for the owner. Shows in the owner-attention block at once."
+    },
+    "ask.update": {
+      "schema": "ops/ask.update.json",
+      "roles": [
+        "coordinator"
+      ],
+      "target": "recordId",
+      "revision": "required",
+      "description": "Fill the lane of an open ask that has none (s21 migration only)."
+    },
+    "ask.clear": {
+      "schema": "ops/ask.clear.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "recordId",
+      "revision": "required",
+      "description": "Withdraw an open ask without an owner answer."
+    },
+    "ask.answer": {
+      "schema": "ops/ask.answer.json",
+      "roles": [
+        "owner"
+      ],
+      "target": "recordId",
+      "revision": "required",
+      "description": "Owner answers an ask, by option key and/or free text, or approve/reject (verdict). The answer is also recorded as an owner feedback on the task (choice, approve, reject or note) so it shows in the thread and stays open until the coordinator handles it."
+    },
+    "inbox.submit": {
+      "schema": "ops/inbox.submit.json",
+      "roles": [
+        "owner",
+        "coordinator",
+        "reporter"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "description": "Any session files a report, an ask proposal or a step-state proposal. Append-only; the coordinator merges it."
+    },
+    "inbox.merge": {
+      "schema": "ops/inbox.merge.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "recordId",
+      "revision": "required",
+      "description": "Accept (ask -> open ask, step -> step.update, report -> feedback) or dismiss an inbox item."
+    },
+    "feedback.add": {
+      "schema": "ops/feedback.add.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "description": "Owner note on a task, or coordinator reply. approve/reject/newtask/choice/goal-lock are owner-only; choice records an option the owner picked on a step (step_id) or a reviewer plan (plan_id) outside an ask; goal-lock (with goal_version) is how a migration records a predecessor's goal-lock row (goal.lock writes its own). target_id NEW is the board's thread of new-task requests (no task needed)."
+    },
+    "feedback.resolve": {
+      "schema": "ops/feedback.resolve.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "recordId",
+      "revision": "required",
+      "description": "Mark a feedback item handled."
+    },
+    "routing.set": {
+      "schema": "ops/routing.set.json",
+      "roles": [
+        "owner"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "description": "Owner picks the worker for a task. Wins over the coordinator default."
+    },
+    "routing.reset": {
+      "schema": "ops/routing.reset.json",
+      "roles": [
+        "owner"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "description": "Drop the owner's override; the coordinator default applies again."
+    },
+    "roles.set": {
+      "schema": "ops/roles.set.json",
+      "roles": [
+        "owner"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "device": false,
+      "description": "Owner picks the model for one role slot (plan, review or scout) of a task."
+    },
+    "roles.reset": {
+      "schema": "ops/roles.reset.json",
+      "roles": [
+        "owner"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "device": false,
+      "description": "Drop the owner's override of one role slot."
+    },
+    "roles.escalate": {
+      "schema": "ops/roles.escalate.json",
+      "roles": [
+        "coordinator",
+        "owner"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "device": false,
+      "description": "CoS-only: record a failed gate under a stable key; the second fail on the same key bumps the code slot one tier."
+    },
+    "roles.override": {
+      "schema": "ops/roles.override.json",
+      "roles": [
+        "coordinator",
+        "owner"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "device": false,
+      "description": "CoS-only: allow Sonnet for one task code until an expiry, with a reason, and post a visible note on the task; clear=true removes it."
+    },
+    "attachment.add": {
+      "schema": "ops/attachment.add.json",
+      "roles": [
+        "owner",
+        "coordinator",
+        "reporter"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "description": "Attach a small file as base64 JSON. Size is capped by the server (BOARD_MAX_ATTACHMENT_BYTES, default 262144 decoded bytes)."
+    },
+    "token.issue": {
+      "schema": "ops/token.issue.json",
+      "roles": [
+        "owner"
+      ],
+      "target": "tokenName",
+      "revision": "none",
+      "device": false,
+      "description": "Issue a token to a session. The plaintext token is returned once, in this response only. At most one active coordinator: set replace_coordinator to hand the role over (the old coordinator token is revoked)."
+    },
+    "token.revoke": {
+      "schema": "ops/token.revoke.json",
+      "roles": [
+        "owner"
+      ],
+      "target": "tokenId",
+      "revision": "none",
+      "device": false,
+      "description": "Revoke a token by id. Takes effect on the next request."
+    },
+    "prefs.set": {
+      "schema": "ops/prefs.set.json",
+      "roles": [
+        "owner",
+        "coordinator",
+        "reporter"
+      ],
+      "target": "tokenId",
+      "revision": "none",
+      "description": "Save your own display preferences (language, theme, accent, font size, density, notifications). target_id is your own token id; anyone else's is refused."
+    },
+    "notify.set": {
+      "schema": "ops/notify.set.json",
+      "roles": [
+        "owner"
+      ],
+      "target": "board",
+      "revision": "none",
+      "device": false,
+      "description": "Owner sets how the coordinator is notified of owner feedback: `board watch` (SSE on GET /api/v1/events) or a signed webhook. A new signing secret is returned once as webhook_secret."
+    },
+    "freshness.set": {
+      "schema": "ops/freshness.set.json",
+      "roles": [
+        "owner"
+      ],
+      "target": "board",
+      "revision": "none",
+      "device": false,
+      "description": "Owner sets when a task's Now/Next text counts as stale (stale_h hours, 0 = never) and whether the board asks the lane for a status update by itself (auto_request)."
+    },
+    "times.import": {
+      "schema": "ops/times.import.json",
+      "roles": [
+        "owner"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "device": false,
+      "description": "Owner imports one task's timing history from a predecessor server, once."
+    },
+    "summary.set": {
+      "schema": "ops/summary.set.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "board",
+      "revision": "required",
+      "description": "Replace the board summary lines (owner or coordinator, revision-guarded)."
+    },
+    "registry.set": {
+      "schema": "ops/registry.set.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "board",
+      "revision": "required",
+      "description": "Replace the task registry: every known task, on the board or not (owner or coordinator, revision-guarded)."
+    },
+    "task.delete": {
+      "schema": "ops/task.delete.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "taskId",
+      "revision": "required",
+      "description": "Remove a task and its steps from the board. Its feedback, attachments and timing history stay (an archive); re-creating the same id later continues the timing history."
+    },
+    "step.delete": {
+      "schema": "ops/step.delete.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "stepKey",
+      "revision": "required",
+      "description": "Remove one step from its task. Its timing history stays. Checked by the board rules like a state change."
+    },
+    "goal.lock": {
+      "schema": "ops/goal.lock.json",
+      "roles": [
+        "owner"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "description": "Owner locks (or re-locks) a task's goal, desired output and desired outcome. Each re-lock keeps the earlier versions in history. Also records an open owner feedback of kind goal-lock and a ping, so the coordinator acts on it."
+    },
+    "goals.import": {
+      "schema": "ops/goals.import.json",
+      "roles": [
+        "owner"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "device": false,
+      "description": "Migration: a predecessor board's locked goal for one task with its version history and lock times (its own clock), once per task, before any goal.lock on it."
+    },
+    "rebrief.request": {
+      "schema": "ops/rebrief.request.json",
+      "roles": [
+        "owner"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "description": "Owner asks the reviewers to QC the task and re-plan if needed (mode strategy, the default) or only to say continue or change course (mode qc), or to update the task's Now/Next text (mode status; it closes when the text changes). Recorded as an open owner feedback of kind rebrief plus a ping; the task shows it as pending until a plan is posted after it."
+    },
+    "plan.add": {
+      "schema": "ops/plan.add.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "description": "A reviewer's re-plan for a task, append-only. verdict and eta are read from the body's 'VERDICT:' and 'ETA:' lines when not given. written_at is the reviewer's own declared time (unverified metadata); the server records posted_at and the task's goal version."
+    },
+    "plans.import": {
+      "schema": "ops/plans.import.json",
+      "roles": [
+        "owner"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "description": "Migration: a predecessor board's reviewer plans for one task, with their own posted times and goal versions, once per task, before any plan.add on it."
+    },
+    "ping.send": {
+      "schema": "ops/ping.send.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "board",
+      "revision": "none",
+      "description": "\"Send to the coordinator\": one ping for a finished batch of owner feedback (or, for the coordinator, kind ask: a lane raised a question). The coordinator's watcher wakes on unseen pings. Routing changes, owner registry status changes, goal locks and re-brief requests ping by themselves."
+    },
+    "ping.seen": {
+      "schema": "ops/ping.seen.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "board",
+      "revision": "none",
+      "description": "The coordinator's watcher marks every unseen ping seen (the owner's page shows when its last ping was picked up)."
+    },
+    "pings.import": {
+      "schema": "ops/pings.import.json",
+      "roles": [
+        "owner"
+      ],
+      "target": "board",
+      "revision": "none",
+      "description": "Migration: a predecessor board's pings with their own times and seen marks, once, before any other ping."
+    },
+    "turn.report": {
+      "schema": "ops/turn.report.json",
+      "roles": [
+        "owner",
+        "coordinator",
+        "reporter"
+      ],
+      "target": "laneName",
+      "revision": "none",
+      "description": "A lane finished a turn: its full report (detail) plus a quick report the server computes from the board at that moment. A lane token (a reporter with a lane and scope *) reports only its own lane, a scoped reporter is refused; the same (lane, turn_id) twice is 409 duplicate_turn with the original seq and quick."
+    }
+  },
+  "streams": {
+    "GET /api/v1/events (Accept: text/event-stream)": "Owner signals as server-sent events for owner and coordinator tokens. Resume with ?since=evt-N or the Last-Event-ID header; filter with ?types=feedback,answer,ask (turn is opt-in: ?types=turn)."
+  },
+  "reads": {
+    "GET /api/v1/state?v=2": "The state plus turns: { <lane>: { seq, at, quick } }, the latest turn.report per lane the token may read (owner, coordinator: every lane; a lane token: its own; anyone else, scoped reporters included: {}). v=1 and no v are unchanged.",
+    "GET /api/v1/turns?lane=<lane>&limit=20": "{ lane, turns: [{ seq, at, turn_id, quick, detail }] }, newest first, the last 50 per lane at most (limit 1..50, default 20). Owner and coordinator: any lane; a lane token: its own; a scoped reporter 403; 401 without a token, 403 otherwise, 404 unknown_lane."
+  },
+  "uploads": {
+    "POST /api/v1/upload": "Raw streamed attachment body for owner and coordinator tokens (query parameters: upload.json), capped by BOARD_MAX_UPLOAD_BYTES; journaled as attachment.add.",
+    "GET /api/v1/media/{id}": "Attachment bytes with Range support (206/416). Bearer header, or an expiring link from GET /api/v1/media/{id}/link."
+  }
+}

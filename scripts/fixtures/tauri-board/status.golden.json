@@ -1,0 +1,41 @@
+{
+  "source": "board.status = liveBoard.status() ({ mode, configured, locked, pinRequired }) with board-host.mjs's fresh-install rule: an unconfigured board takes pinRequired from settings.requireBoardPin (!== false), otherwise the envelope's own type decides. Electron parity: src/main/board-live.mjs:112 + main.js:1320-1371.",
+  "cases": {
+    "freshDefault": {
+      "mode": "local",
+      "configured": false,
+      "locked": true,
+      "pinRequired": true
+    },
+    "freshPreferenceOff": {
+      "mode": "local",
+      "configured": false,
+      "locked": true,
+      "pinRequired": false
+    },
+    "configuredUnlocked": {
+      "mode": "local",
+      "configured": true,
+      "locked": false,
+      "pinRequired": true
+    },
+    "liveUnlocked": {
+      "mode": "live",
+      "configured": true,
+      "locked": false,
+      "pinRequired": true
+    },
+    "locked": {
+      "mode": "local",
+      "configured": true,
+      "locked": true,
+      "pinRequired": true
+    },
+    "osModeUnlocked": {
+      "mode": "local",
+      "configured": true,
+      "locked": false,
+      "pinRequired": false
+    }
+  }
+}

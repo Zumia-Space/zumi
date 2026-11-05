@@ -1,0 +1,51 @@
+[
+ {
+  "code": "VM-01",
+  "title": "Việc mẫu: cách dùng bảng task",
+  "lane": "anh",
+  "health": "green",
+  "order": 1,
+  "goal": "Hiểu bảng task trong 2 phút, rồi thêm task thật của anh",
+  "now": "Đổi trạng thái một bước rồi bấm \"Lưu thay đổi\"",
+  "next": "Thêm task của riêng anh ở mục \"+ Thêm task\"",
+  "updated": "2026-09-30T13:34:46.230Z",
+  "context": "Bảng task này chạy ngay trong máy anh (địa chỉ 127.0.0.1), không cần mạng, không cần đăng nhập. Dữ liệu là vài tệp JSON trong thư mục dữ liệu của app.\n- Mỗi bước có đúng một trong 5 trạng thái: **Xong** · **Đang làm** · **Chờ** · **Bị chặn** · **Chưa làm**.\n- Bước **Chờ** không được nằm trước một bước **Xong**: câu hỏi đó đã bị việc mới vượt qua. Máy chủ từ chối cả lần lưu và liệt kê từng lỗi.\n- **Bước hiện tại** do máy chủ tính: bước Đang làm đầu tiên; nếu không có thì bước Chờ, rồi Bị chặn, rồi Chưa làm.\n- Task có bước Đang làm mà 12 giờ chưa cập nhật sẽ hiện nhãn **cũ Nh** trên thanh bên.\nViệc mẫu này dùng đủ 5 trạng thái. Anh sửa hay xoá bước tuỳ ý.",
+  "steps": [
+   {
+    "id": "s1",
+    "label": "Mở tab Bảng task",
+    "state": "done",
+    "zone": "plan",
+    "detail": "Anh đang ở đây. Bước đã xong có chấm xanh."
+   },
+   {
+    "id": "s2",
+    "label": "Đổi trạng thái một bước rồi bấm Lưu",
+    "state": "done",
+    "zone": "build",
+    "detail": "Kéo xuống thẻ **Sửa trạng thái các bước**, chọn trạng thái mới cho một bước rồi bấm **Lưu thay đổi**. Lưu hợp lệ thì bảng cập nhật ngay; không hợp lệ thì thẻ hiện danh sách lỗi do máy chủ trả về và không có gì bị lưu."
+   },
+   {
+    "id": "s3",
+    "label": "Một việc đang chờ anh quyết",
+    "state": "waiting",
+    "zone": "anh",
+    "detail": "Trạng thái **Chờ** dùng cho câu hỏi đang mở. Thử đặt bước sau (bước 4) thành **Xong** mà vẫn để bước này là **Chờ**: máy chủ sẽ từ chối."
+   },
+   {
+    "id": "s4",
+    "label": "Một bước đang bị chặn",
+    "state": "blocked",
+    "zone": "test",
+    "detail": "**Bị chặn** là có thứ bên ngoài đang cản, cần gỡ trước khi làm tiếp."
+   },
+   {
+    "id": "s5",
+    "label": "Thêm task của riêng anh",
+    "state": "todo",
+    "zone": "ship",
+    "detail": "Bấm **+ Thêm task** ở thanh bên: đặt tên, ghi đích, mỗi dòng một bước."
+   }
+  ]
+ }
+]

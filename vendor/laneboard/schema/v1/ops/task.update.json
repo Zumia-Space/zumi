@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/task.update.json",
+  "title": "data for task.update",
+  "description": "Change task fields, or the order of its steps (step_order). Step contents are changed with step.* ops.",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-target": "taskId",
+  "x-revision": "required",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1
+    },
+    "lane": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "health": {
+      "$ref": "../common.json#/$defs/health"
+    },
+    "status": {
+      "$ref": "../common.json#/$defs/taskStatus"
+    },
+    "goal": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "now": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "next": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "context": {
+      "type": "string",
+      "maxLength": 8000
+    },
+    "order": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100000
+    },
+    "visibility": {
+      "$ref": "../common.json#/$defs/visibility"
+    },
+    "worker": {
+      "anyOf": [
+        {
+          "$ref": "../common.json#/$defs/worker"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "loops": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "$ref": "../common.json#/$defs/loop"
+      }
+    },
+    "dossier": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Where the task's full notes live (a path or name, shown as text)."
+    },
+    "draft_output": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "Coordinator's draft of the desired output, offered to the owner before a goal lock."
+    },
+    "draft_outcome": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "Coordinator's draft of the desired outcome, offered to the owner before a goal lock."
+    },
+    "step_order": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "$ref": "../common.json#/$defs/stepId"
+      },
+      "description": "New order of the task's steps: exactly the current step ids, each once. Checked by the board rules like a state change."
+    },
+    "architecture": {
+      "anyOf": [
+        {
+          "$ref": "../common.json#/$defs/architecture"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Product structure diagram; null clears it."
+    }
+  }
+}

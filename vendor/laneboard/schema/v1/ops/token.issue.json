@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/token.issue.json",
+  "title": "data for token.issue",
+  "description": "Issue a token to a session. The plaintext token is returned once, in this response only. At most one active coordinator: set replace_coordinator to hand the role over (the old coordinator token is revoked).",
+  "x-roles": [
+    "owner"
+  ],
+  "x-target": "tokenName",
+  "x-revision": "none",
+  "x-device": false,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "role"
+  ],
+  "properties": {
+    "role": {
+      "$ref": "../common.json#/$defs/role"
+    },
+    "label": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "lane": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "model": {
+      "$ref": "../common.json#/$defs/model"
+    },
+    "scope_tasks": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "../common.json#/$defs/taskId"
+          },
+          {
+            "const": "*"
+          }
+        ]
+      }
+    },
+    "replace_coordinator": {
+      "type": "boolean"
+    },
+    "device": {
+      "type": "boolean",
+      "description": "A token for one device (a phone): it may not call ops marked x-device false (token.issue, token.revoke, roles.*, notify.set, times.import, goals.import, freshness.set)."
+    }
+  }
+}

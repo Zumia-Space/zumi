@@ -1,0 +1,119 @@
+# Public Windows release (PLAN-UPDATER.md section 7). A v* tag on the public repo builds and signs, in the protected `release`
+# environment, and stops at a draft: the owner publishes by hand, and publishing is the act that moves `releases/latest`.
+# Do not pass --prerelease: GitHub's `latest` skips prereleases.
+#
+# Run by hand (workflow_dispatch) it is a rehearsal: no environment, no secret, the public flavour, nothing signed, nothing published.
+#
+# Every step runs in bash with -eo pipefail, so any command that fails fails the job. No step uses pwsh, which would report only its last command.
+#
+# Before enabling: pin every action to a full commit SHA. The ones below are the release SHAs of those tags.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  windows:
+    # A tag push from a fork never reaches this repo's secrets; this also stops a copy of the file releasing from anywhere else
+    if: github.event_name == 'workflow_dispatch' || github.repository == 'Zumia-Space/zumi'
+    runs-on: windows-2022
+    environment: ${{ github.event_name == 'push' && 'release' || '' }}
+    permissions:
+      contents: write # gh release create --draft
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      # Read-only token for the private asset repo. The fetch below checks every byte against official-assets.json in this repo.
+      - name: Check out the official assets
+        if: github.event_name == 'push'
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          repository: Zumia-Space/zumi-assets
+          token: ${{ secrets.ZUMI_ASSETS_TOKEN }}
+          path: official-assets
+          persist-credentials: false
+      - name: Fetch the official assets
+        if: github.event_name == 'push'
+        run: node scripts/fetch-official-assets.mjs --from official-assets
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustc --version
+
+      - name: Version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "ZUMI_VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Tag equals package.json version
+        if: github.event_name == 'push'
+        run: test "v$ZUMI_VERSION" = "$GITHUB_REF_NAME"
+
+      - name: Release notes exist
+        run: test -f "release-notes/$ZUMI_VERSION.md"
+
+      - run: npm ci
+
+      - name: Release checks
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release-checks.mjs
+
+      - name: Release checks (rehearsal)
+        if: github.event_name == 'workflow_dispatch'
+        run: node scripts/release-checks.mjs --dry
+
+      # No secret here: npm packages and cargo build scripts run in this step.
+      - name: Build the official installer
+        if: github.event_name == 'push'
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tauri/build.ps1 -Flavour official -SkipNpm -UseDefaultLocalAppData
+
+      - name: Build the public installer (rehearsal)
+        if: github.event_name == 'workflow_dispatch'
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tauri/build.ps1 -Flavour public -SkipNpm -UseDefaultLocalAppData
+
+      - name: Installer payload and flavour
+        run: |
+          setup=$(ls tauri/src-tauri/target/release/bundle/nsis/*-setup.exe | head -n 1)
+          test -n "$setup"
+          node scripts/check-tauri-installer-payload.mjs --installer "$setup" --out installer-payload
+          test ! -e installer-payload/flavour.json
+          node scripts/installer-room-videos.mjs installer-payload "$( [ "$GITHUB_EVENT_NAME" = push ] && echo official || echo public )"
+          echo "ZUMI_SETUP=$setup" >> "$GITHUB_ENV"
+          sha256sum "$setup"
+
+      # The only step that sees the key. Nothing from npm or a build script runs in it or after it.
+      - name: Sign the installer
+        if: github.event_name == 'push'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: ./.cargo-home/bin/cargo-tauri.exe signer sign --app-version "$ZUMI_VERSION" "$ZUMI_SETUP"
+
+      - name: Feed and checksums
+        if: github.event_name == 'push'
+        run: |
+          node scripts/make-update-feed.mjs --installer "$ZUMI_SETUP" --notes "release-notes/$ZUMI_VERSION.md" --out release-out --base-url "https://github.com/Zumia-Space/zumi/releases/download/$GITHUB_REF_NAME" --version "$ZUMI_VERSION" --pubkey-conf tauri/src-tauri/tauri.conf.json
+          setup_name=$(basename "$ZUMI_SETUP")
+          cp "$ZUMI_SETUP.sig" "release-out/$setup_name.sig"
+          (cd release-out && sha256sum -- * > SHA256SUMS.txt)
+
+      - name: Draft release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --draft --title "Zumi $ZUMI_VERSION" --notes-file "release-notes/$ZUMI_VERSION.md" release-out/*

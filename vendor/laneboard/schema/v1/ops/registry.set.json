@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/registry.set.json",
+  "title": "data for registry.set",
+  "description": "Replace the task registry: the full list of known tasks, including those not on the board (the board holds only the ones being worked). Board-level document, edited by the owner or the coordinator; expected_revision is the registry's rev (0 before the first write), so an editor never overwrites a change it has not seen.",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-target": "board",
+  "x-revision": "required",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "entries"
+  ],
+  "properties": {
+    "entries": {
+      "type": "array",
+      "maxItems": 500,
+      "items": { "$ref": "../board-doc.json#/$defs/registryEntry" }
+    }
+  }
+}

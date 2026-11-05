@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/task.delete.json",
+  "title": "data for task.delete",
+  "description": "Remove a task and its steps from the board. Its feedback, attachments and timing history stay (an archive); re-creating the same id later continues the timing history.",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-target": "taskId",
+  "x-revision": "required",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

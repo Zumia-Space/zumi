@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "upload.json",
+  "title": "Query parameters of POST /api/v1/upload (the body is the raw file)",
+  "description": "Streamed attachment upload for owner and coordinator tokens, up to BOARD_MAX_UPLOAD_BYTES (default 64 MiB). Journaled as an ordinary attachment.add event; request_id deduplicates retries exactly like POST /api/v1/write. purpose=message: an image pasted into a message (png/jpeg/webp/gif only, at most 5 MiB), linked by feedback.add attachments.",
+  "type": "object", "additionalProperties": false,
+  "required": ["request_id", "task_id", "name", "mime"],
+  "properties": {
+    "request_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$" },
+    "task_id": { "$ref": "common.json#/$defs/taskId" },
+    "name": { "$ref": "common.json#/$defs/fileName" },
+    "mime": { "$ref": "common.json#/$defs/mime" },
+    "step_id": { "$ref": "common.json#/$defs/stepId" },
+    "caption": { "type": "string", "maxLength": 500 },
+    "visibility": { "$ref": "common.json#/$defs/visibility" },
+    "origin": { "type": "string", "maxLength": 120 },
+    "purpose": { "enum": ["message"] }
+  }
+}

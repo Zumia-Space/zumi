@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/ask.update.json",
+  "title": "data for ask.update",
+  "description": "Fill the lane of an open ask that has none (s21 migration only: coordinator token, origin \"migrate-s21 ...\"; a lane that is already set is never replaced).",
+  "x-roles": [
+    "coordinator"
+  ],
+  "x-target": "recordId",
+  "x-revision": "required",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "lane"
+  ],
+  "properties": {
+    "lane": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The lane that owns this record. Absent means the task's lane. s21: a step or ask of another lane on a shared task."
+    }
+  }
+}

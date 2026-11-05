@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "attachment.json",
+  "title": "Attachment metadata. Bytes live in the media store, addressed by sha256.",
+  "type": "object", "additionalProperties": false,
+  "required": ["id", "task_id", "rev", "visibility", "attribution", "name", "mime", "size", "sha256"],
+  "properties": {
+    "id": { "$ref": "common.json#/$defs/recordId" },
+    "task_id": { "$ref": "common.json#/$defs/taskId" },
+    "step_id": { "$ref": "common.json#/$defs/stepId" },
+    "rev": { "$ref": "common.json#/$defs/revision" },
+    "visibility": { "$ref": "common.json#/$defs/visibility" },
+    "attribution": { "$ref": "common.json#/$defs/attribution" },
+    "name": { "$ref": "common.json#/$defs/fileName" },    "mime": { "$ref": "common.json#/$defs/mime" },
+    "size": { "type": "integer", "minimum": 1 },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "caption": { "type": "string", "maxLength": 500 }
+  }
+}

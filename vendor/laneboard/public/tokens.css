@@ -1,0 +1,35 @@
+/* Single source of design tokens for Laneboard and the Zumi desktop app (vendored). Do not hardcode colours elsewhere. */
+:root {
+  --font: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --fs-title: 1.25rem; --fs-section: .9375rem; --fs-body: .875rem; --fs-ui: .8125rem; --fs-meta: .75rem;
+  --radius: .625rem; --radius-sm: calc(var(--radius) * .6); --radius-md: calc(var(--radius) * .8); --radius-xl: calc(var(--radius) * 1.4);
+  --rail-w: 17rem;
+  --primary: var(--foreground); --primary-foreground: var(--background);
+  /* domain accents (same hues Orca uses for these meanings) */
+  --question: #f97316; --question-text: #c2410c; --ai: #7c3aed; --success: #16a34a; --focus: #2563eb; --danger: #dc2626; --warn: #ca8a04;
+  --background: #ffffff; --foreground: #0a0a0a; --card: #ffffff; --muted: #f5f5f5; --muted-foreground: #525252;
+  --border: #e5e5e5; --input: #d4d4d4; --accent: #f5f5f5; --ring: #2563eb66; --shadow: 0 1px 2px #0000000f;
+}
+.dark {
+  --background: #0a0a0a; --foreground: #fafafa; --card: #171717; --muted: #262626; --muted-foreground: #a3a3a3;
+  --border: #ffffff14; --input: #ffffff26; --accent: #262626; --ring: #60a5fa80; --shadow: none;
+  --question: #f97316; --question-text: #fdba74; --ai: #a78bfa; --success: #86efac; --focus: #60a5fa; --danger: #f87171; --warn: #facc15;
+}
+
+/* user prefs: accent (set on <html> by applyPrefs) */
+html[data-accent="blue"] { --primary: #2563eb; --primary-foreground: #fff; }
+html[data-accent="violet"] { --primary: #7c3aed; --primary-foreground: #fff; }
+html[data-accent="green"] { --primary: #15803d; --primary-foreground: #fff; }
+html[data-accent="orange"] { --primary: #c2410c; --primary-foreground: #fff; }
+html[data-accent="rose"] { --primary: #e11d48; --primary-foreground: #fff; }
+html.dark[data-accent="blue"] { --primary: #3b82f6; }
+html.dark[data-accent="violet"] { --primary: #8b5cf6; }
+html.dark[data-accent="green"] { --primary: #16a34a; }
+html.dark[data-accent="orange"] { --primary: #ea580c; }
+html.dark[data-accent="rose"] { --primary: #f43f5e; }
+html[data-accent]:not([data-accent="neutral"]) { --ring: color-mix(in srgb, var(--primary) 55%, transparent); }
+
+/* Quota panel (J-05): a dark HUD console, the same in light and dark mode (the T-31 HUD palette, one look as the owner approved it). */
+:root { --hud-cy: #5ff2e1; --hud-cy-dim: rgba(95,242,225,.40); --hud-cy-faint: rgba(95,242,225,.10); --hud-fill: #071322; --hud-ink: #d9fbf6; --hud-mute: rgba(217,251,246,.62);
+  --hud-amber: #ffa43a; --hud-red: #ff5d6c; --hud-green: #6ff7a3; --hud-card: rgba(5,16,30,.55); }

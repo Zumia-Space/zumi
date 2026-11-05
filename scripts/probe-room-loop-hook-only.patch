@@ -1,0 +1,36 @@
+diff --git a/src/renderer/app.js b/src/renderer/app.js
+index 8819267..f4bccb8 100644
+--- a/src/renderer/app.js
++++ b/src/renderer/app.js
+@@ -189,6 +189,7 @@ async function main() {
+     sceneSelect.value = sceneList.selected;
+     scenePicker.hidden = !currentRoomV2 || !sceneList.rooms.length;
+   }
++  if (window.__zumiPlateProbe) director.plateProbe = window.__zumiPlateProbe; // debug probe only (see CameraDirector.plateProbe); undefined in any real run
+   async function applyScene() {
+     const token = ++sceneApplyToken;
+     const room = currentRoomV2 ? sceneList.rooms.find((r) => r.id === sceneList.selected) || null : null;
+diff --git a/src/renderer/room/camera-director.js b/src/renderer/room/camera-director.js
+index 5bb1da6..f539031 100644
+--- a/src/renderer/room/camera-director.js
++++ b/src/renderer/room/camera-director.js
+@@ -151,6 +151,9 @@ export class CameraDirector {
+     // Look-tuning panel (dev-only): (viewName) => {distanceM, heightM, fovDelta, chestUp} | null. Applied ON TOP
+     // of the room's own authored camera every time a view's camera is computed -- never mutates the room data.
+     this.getFramingOverride = typeof getFramingOverride === 'function' ? getFramingOverride : () => null;
++    // Debug probe (scripts/probe-room-loop-electron.mjs): null = off, and null in every release. app.js sets it only when the page was
++    // started with window.__zumiPlateProbe (injected over CDP by the probe harness, which no installed app has). Called once per drawPlate().
++    this.plateProbe = null;
+     this.room = null; // loadRoomV2() result, or null (no room / a v1 room / plain stage -- this director is then idle)
+     this.view = 'talk';
+     this.switching = false;
+@@ -354,7 +357,8 @@ export class CameraDirector {
+       if (!tex || !tex.image || !crop) return;
+       this.plateCtx.globalAlpha = alpha;
+       // video room: same crop window as the plate, so the camera/seat/occluders registration is untouched
+-      if (name === 'talk' && this.scene && this.scene.ready) { this.scene.draw(this.plateCtx, crop.plate, w, h); return; }
++      if (name === 'talk' && this.scene && this.scene.ready) { if (this.plateProbe) this.plateProbe({ kind: 'video', view: name, switching: this.switching, t: performance.now() }); this.scene.draw(this.plateCtx, crop.plate, w, h); return; }
++      if (this.plateProbe) this.plateProbe({ kind: 'plate', reason: !this.scene ? 'no-scene' : name !== 'talk' ? 'other-view' : 'not-ready', view: name, switching: this.switching, t: performance.now() });
+       const p = crop.plate;
+       this.plateCtx.drawImage(tex.image, p.x, p.y, p.w, p.h, 0, 0, w, h); // 9-arg form: source crop -> full destination (cover, never letterboxed)
+     };

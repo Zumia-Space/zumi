@@ -1,0 +1,37 @@
+/* T-31 alpha.3 R5: the Pricing card (a card over the room on the left, like the Devices card; created by next/boot.js addPricing, filled by
+   next/pricing.js). Tokens and the theme-a.css card classes (.frame .head .tag, .nx-card, .dchip) only: no colour literal here (check:palette).
+   Linked by pricing.js when the card is built; copied by scripts/build-renderer.mjs only when ZUMI_NEXT_UI is on. */
+/* alpha.4 (anh 30-10: no model on the Pricing page): a full page over the whole Zumi panel on the theme background. Everything else in the
+   panel (stage: avatar canvas, room plate, HUD, holo; the toolbar; the composer) is hidden by visibility only, so its layout, canvas size
+   and state stay as they were and closing the page shows them again unchanged. */
+#tab-zumi.nx-pricing-open > :not(#next-pricing) { visibility: hidden; }
+.nx-pricing { position: absolute; inset: 0; z-index: 30; box-sizing: border-box; padding: 48px 24px; overflow: auto; background: var(--background); scrollbar-width: thin; scrollbar-color: var(--line-dim) transparent; }
+.nx-pricing[hidden] { display: none; }
+.np-sheet { position: relative; max-width: 760px; margin: 0 auto; }
+.np-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.np-plan { padding: 10px 11px; border: 1px solid var(--line-dim); background: var(--line-faint); }
+.np-cloud { border-style: dashed; }
+.np-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.np-name { margin: 0; font-size: 14px; font-weight: 600; color: var(--foreground); }
+.np-top .dchip { margin-left: auto; }
+.np-price { margin: 8px 0 0; font-family: var(--mono); font-size: 13px; color: var(--primary); }
+.np-trial { margin: 2px 0 0; font-size: 11.5px; color: var(--muted-foreground); }
+.np-list { margin: 8px 0 0; padding: 0 0 0 16px; font-size: 12.5px; line-height: 1.5; color: var(--foreground); }
+.np-li::marker { color: var(--primary); }
+.np-link { margin-top: 10px; font: inherit; font-size: 12px; letter-spacing: .04em; color: var(--primary); background: transparent; border: 1px solid var(--primary); padding: 4px 12px; cursor: pointer; }
+.np-link:hover:not(:disabled) { background: var(--line-faint); }
+.np-link:disabled { cursor: default; color: var(--muted-foreground); border-color: var(--line-dim); }
+.np-link:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
+/* T-31 alpha.12 (owner 01-11): Donate is its own hero section above the plans: copy + one prominent button on the left, Zumi on the right. */
+.np-hero { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); align-items: stretch; margin-bottom: 14px; border: 1px solid var(--primary); background: linear-gradient(110deg, color-mix(in srgb, var(--primary) 12%, transparent), var(--line-faint) 62%); box-shadow: 0 0 22px color-mix(in srgb, var(--primary) 18%, transparent); overflow: hidden; }
+.np-hero-noart { grid-template-columns: minmax(0, 1fr); }
+.np-hero-copy { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; padding: 22px 22px 24px; }
+.np-hero-kicker { margin: 0; font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--primary); }
+.np-hero-title { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; color: var(--foreground); }
+.np-hero-body { margin: 0; max-width: 38ch; font-size: 13.5px; line-height: 1.5; color: var(--muted-foreground); }
+.np-hero-btn { margin-top: 8px; min-width: 200px; padding: 12px 30px; font-size: 16px; font-weight: 700; letter-spacing: .06em; color: var(--primary-foreground); background: var(--primary); box-shadow: 0 0 18px color-mix(in srgb, var(--primary) 55%, transparent); }
+.np-hero-btn:hover:not(:disabled) { color: var(--primary-foreground); background: color-mix(in srgb, var(--primary) 82%, var(--foreground)); box-shadow: 0 0 26px color-mix(in srgb, var(--primary) 75%, transparent); }
+.np-hero-btn:disabled { box-shadow: none; background: transparent; font-weight: 600; }
+.np-hero-art { margin: 0; min-height: 240px; border-left: 1px solid var(--line-dim); }
+.np-hero-img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%; }
+@media (max-width: 760px) { .np-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 200px); } .np-hero-title { font-size: 22px; } }

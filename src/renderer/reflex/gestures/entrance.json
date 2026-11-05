@@ -1,0 +1,76 @@
+{
+  "trigger": "entrance",
+  "labelVi": "Model change (entrance)",
+  "variants": [
+    {
+      "id": "look-wave", "labelVi": "Faces forward, waves",
+      "selftest": { "peakMs": 900 },
+      "command": {
+        "id": "entrance-look-wave", "priority": 9, "interrupt": true, "mirror": "random",
+        "lookAt": [{ "target": "camera", "weight": 1, "inMs": 100, "holdMs": 1700, "outMs": 400 }],
+        "reach": [{ "hand": "right", "target": "wave", "inMs": 350, "holdMs": 1300, "outMs": 500, "osc": { "hz": 2.4, "amp": [0.09, 0, 0] } }],
+        "hands": [{ "hand": "right", "shape": "open-flat", "weight": 1, "inMs": 350, "holdMs": 1300, "outMs": 500 }],
+        "bones": [
+          { "bone": "rightHand", "rot": [0, 0, 0], "inMs": 300, "holdMs": 1300, "outMs": 450, "osc": { "hz": 2.4, "amp": [0, 18, 0] } },
+          { "bone": "head", "rot": [0, 4, 7], "inMs": 250, "holdMs": 1400, "outMs": 500 }
+        ],
+        "expressions": [
+          { "name": "happy", "weight": 0.85, "inMs": 150, "holdMs": 1600, "outMs": 500 },
+          { "name": "aa", "weight": 0.35, "delayMs": 150, "inMs": 80, "holdMs": 250, "outMs": 250 }
+        ]
+      }
+    },
+    {
+      "id": "bow-wave", "labelVi": "Bows, then waves",
+      "selftest": { "peakMs": 480 },
+      "command": {
+        "id": "entrance-bow-wave", "priority": 9, "interrupt": true, "mirror": "random",
+        "bones": [
+          { "bone": "spine", "rot": [16, 0, 0], "inMs": 350, "holdMs": 150, "outMs": 350 },
+          { "bone": "chest", "rot": [6, 0, 0], "inMs": 350, "holdMs": 150, "outMs": 350 },
+          { "bone": "head", "rot": [12, 0, 0], "inMs": 350, "holdMs": 150, "outMs": 350 },
+          { "bone": "rightHand", "rot": [0, 0, 0], "delayMs": 900, "inMs": 300, "holdMs": 900, "outMs": 450, "osc": { "hz": 2.4, "amp": [0, 18, 0] } }
+        ],
+        "reach": [
+          { "hand": "right", "target": "clasp", "weight": 0.8, "inMs": 350, "holdMs": 200, "outMs": 350 },
+          { "hand": "left", "target": "clasp", "weight": 0.8, "inMs": 350, "holdMs": 200, "outMs": 350 },
+          { "hand": "right", "target": "wave", "delayMs": 900, "inMs": 300, "holdMs": 900, "outMs": 500, "osc": { "hz": 2.4, "amp": [0.09, 0, 0] } }
+        ],
+        "hands": [
+          { "hand": "right", "shape": "loose", "weight": 1, "inMs": 350, "holdMs": 200, "outMs": 350 },
+          { "hand": "right", "shape": "open-flat", "weight": 1, "delayMs": 900, "inMs": 300, "holdMs": 900, "outMs": 500 },
+          { "hand": "left", "shape": "loose", "weight": 1, "inMs": 350, "holdMs": 200, "outMs": 350 }
+        ],
+        "expressions": [
+          { "name": "happy", "weight": 0.8, "inMs": 150, "holdMs": 1900, "outMs": 500 },
+          { "name": "aa", "weight": 0.3, "delayMs": 950, "inMs": 80, "holdMs": 250, "outMs": 250 }
+        ],
+        "lookAt": [{ "target": "camera", "weight": 1, "delayMs": 700, "inMs": 150, "holdMs": 1300, "outMs": 400 }]
+      }
+    },
+    {
+      "id": "bounce-wave", "labelVi": "Bounces, waves both hands",
+      "selftest": { "peakMs": 800 },
+      "command": {
+        "id": "entrance-bounce-wave", "priority": 9, "interrupt": true,
+        "reach": [
+          { "hand": "right", "target": "wave-small", "inMs": 250, "holdMs": 1300, "outMs": 450, "osc": { "hz": 3, "amp": [0.07, 0, 0] } },
+          { "hand": "left", "target": "wave-small", "inMs": 250, "holdMs": 1300, "outMs": 450, "osc": { "hz": 3, "amp": [0.07, 0, 0], "phase": 0.5 } }
+        ],
+        "hands": [
+          { "hand": "right", "shape": "open-flat", "weight": 1, "inMs": 250, "holdMs": 1300, "outMs": 450 },
+          { "hand": "left", "shape": "open-flat", "weight": 1, "inMs": 250, "holdMs": 1300, "outMs": 450 }
+        ],
+        "bones": [
+          { "bone": "spine", "rot": [0, 0, 0], "inMs": 150, "holdMs": 1400, "outMs": 400, "osc": { "hz": 2.2, "amp": [2.5, 0, 0], "wave": "pulse" } },
+          { "bone": "head", "rot": [0, 0, 0], "inMs": 150, "holdMs": 1400, "outMs": 400, "osc": { "hz": 2.2, "amp": [3, 0, 0], "wave": "pulse", "phase": 0.1 } }
+        ],
+        "expressions": [
+          { "name": "happy", "weight": 1, "inMs": 120, "holdMs": 1500, "outMs": 500 },
+          { "name": "aa", "weight": 0.3, "delayMs": 100, "inMs": 80, "holdMs": 300, "outMs": 250 }
+        ],
+        "lookAt": [{ "target": "camera", "weight": 1, "inMs": 100, "holdMs": 1600, "outMs": 400 }]
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/token.revoke.json",
+  "title": "data for token.revoke",
+  "description": "Revoke a token by id. Takes effect on the next request.",
+  "x-roles": [
+    "owner"
+  ],
+  "x-target": "tokenId",
+  "x-revision": "none",
+  "x-device": false,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

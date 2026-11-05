@@ -1,0 +1,12 @@
+{
+ "note": "Speech-gesture library: LLM-authored GestureCommands per intent (data, not code). Every variant passes talk/validate.js checkSpeechGesture.",
+ "intents": [
+  "greet",
+  "agree",
+  "disagree",
+  "point-screen",
+  "think",
+  "celebrate",
+  "explain"
+ ]
+}

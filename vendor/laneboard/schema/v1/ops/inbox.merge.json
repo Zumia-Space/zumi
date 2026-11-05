@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/inbox.merge.json",
+  "title": "data for inbox.merge",
+  "description": "Accept (ask -> open ask, step -> step.update, report -> feedback) or dismiss an inbox item.",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-target": "recordId",
+  "x-revision": "required",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "action"
+  ],
+  "properties": {
+    "action": {
+      "enum": [
+        "accept",
+        "dismiss"
+      ]
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 2000
+    }
+  }
+}

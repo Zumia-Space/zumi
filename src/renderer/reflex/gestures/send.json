@@ -1,0 +1,54 @@
+{
+  "trigger": "send",
+  "labelVi": "You sent a message (Enter)",
+  "variants": [
+    {
+      "id": "nod", "labelVi": "Nods 'I heard you'",
+      "selftest": { "peakMs": 180 },
+      "command": {
+        "id": "send-nod", "priority": 6, "interrupt": true,
+        "bones": [
+          { "bone": "head", "rot": [14, 0, 0], "inMs": 130, "holdMs": 0, "outMs": 170 },
+          { "bone": "head", "rot": [10, 0, 0], "delayMs": 330, "inMs": 130, "holdMs": 0, "outMs": 180 },
+          { "bone": "neck", "rot": [5, 0, 0], "inMs": 130, "holdMs": 0, "outMs": 170 },
+          { "bone": "neck", "rot": [4, 0, 0], "delayMs": 330, "inMs": 130, "holdMs": 0, "outMs": 180 },
+          { "bone": "spine", "rot": [2, 0, 0], "inMs": 150, "holdMs": 300, "outMs": 300 }
+        ],
+        "expressions": [
+          { "name": "happy", "weight": 0.65, "inMs": 100, "holdMs": 700, "outMs": 400 },
+          { "name": "ee", "weight": 0.25, "inMs": 80, "holdMs": 150, "outMs": 200 }
+        ],
+        "lookAt": [{ "target": "camera", "weight": 0.8, "inMs": 100, "holdMs": 700, "outMs": 300 }]
+      }
+    },
+    {
+      "id": "hm-tilt", "labelVi": "Head tilt 'hm!'",
+      "selftest": { "peakMs": 260 },
+      "command": {
+        "id": "send-hm-tilt", "priority": 6, "interrupt": true, "mirror": "random",
+        "bones": [{ "bone": "head", "rot": [-4, 5, 14], "inMs": 120, "holdMs": 700, "outMs": 400 }],
+        "expressions": [
+          { "name": "surprised", "weight": 0.45, "inMs": 80, "holdMs": 300, "outMs": 300 },
+          { "name": "oh", "weight": 0.55, "inMs": 60, "holdMs": 200, "outMs": 200 },
+          { "name": "happy", "weight": 0.45, "delayMs": 400, "inMs": 200, "holdMs": 400, "outMs": 400 }
+        ],
+        "lookAt": [{ "target": "camera", "weight": 0.8, "inMs": 100, "holdMs": 800, "outMs": 300 }]
+      }
+    },
+    {
+      "id": "small-wave", "labelVi": "Small wave",
+      "selftest": { "peakMs": 750 },
+      "command": {
+        "id": "send-small-wave", "priority": 6, "interrupt": true, "mirror": "random",
+        "reach": [{ "hand": "right", "target": "wave-small", "inMs": 250, "holdMs": 1000, "outMs": 450, "osc": { "hz": 2.8, "amp": [0.07, 0, 0] } }],
+        "hands": [{ "hand": "right", "shape": "open-flat", "weight": 1, "inMs": 250, "holdMs": 1000, "outMs": 450 }],
+        "bones": [
+          { "bone": "rightHand", "rot": [0, 0, 0], "inMs": 200, "holdMs": 1000, "outMs": 400, "osc": { "hz": 2.8, "amp": [0, 14, 0] } },
+          { "bone": "head", "rot": [3, 4, 7], "inMs": 150, "holdMs": 1000, "outMs": 400 }
+        ],
+        "expressions": [{ "name": "happy", "weight": 0.75, "inMs": 150, "holdMs": 1100, "outMs": 400 }],
+        "lookAt": [{ "target": "camera", "weight": 0.9, "inMs": 100, "holdMs": 1200, "outMs": 300 }]
+      }
+    }
+  ]
+}

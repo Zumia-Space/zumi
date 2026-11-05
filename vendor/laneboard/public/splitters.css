@@ -1,0 +1,70 @@
+/* Adjustable panes (T-31 liveboard B2). Everything is under html.b2, which public/splitters.js sets only when the window is
+   >= 900px wide; below that, and without JS, none of this applies and the page lays out as before.
+   Widths arrive as --b2-tasks / --b2-insp (set through CSSOM, CSP-safe). Spec: 1px line (the panes' own borders), 7px hit area,
+   3px accent bar on hover / drag / focus, col-resize cursor, side panes collapse to a 36px strip. */
+.split { display: none; }
+html.b2 .split { display: block; position: fixed; top: var(--top); bottom: 0; width: 7px; z-index: 46; cursor: col-resize; touch-action: none; background: transparent; }
+html.b2 .split-tasks { left: calc(var(--rail-w) - 4px); }
+html.b2 .split-inspector { display: none; right: calc(var(--b2-insp) - 3px); }
+html.b2.b2-ctx .split-inspector { display: block; }
+html.b2 .split::after { content: ""; position: absolute; top: 0; bottom: 0; left: 2px; width: 3px; background: var(--focus); opacity: 0; transition: opacity .1s; pointer-events: none; }
+html.b2 .split:hover::after, html.b2 .split:focus-visible::after, html.b2 .split.drag::after { opacity: .9; }
+html.b2 .split.drag::after { opacity: 1; }
+html.b2 .split:focus-visible { outline: none; }
+html.b2 .split[data-collapsed="true"] { cursor: pointer; }
+html.b2-drag, html.b2-drag * { cursor: col-resize !important; user-select: none !important; }
+.split-btn { position: absolute; top: 10px; left: -5px; width: 17px; height: 22px; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--muted-foreground); font: 600 .75rem/20px var(--font); text-align: center; cursor: pointer; opacity: .55; z-index: 1; }
+.split:hover .split-btn, .split:focus-within .split-btn, .split-btn:focus-visible { opacity: 1; }
+.split-btn:hover { background: var(--accent); color: var(--foreground); }
+
+/* the shell: Tasks | main, with the 900-960px stacked layout of styles.css switched back to panes */
+html.b2 { --rail-w: var(--b2-tasks, 256px); }
+html.b2 .shell { grid-template-columns: var(--rail-w) minmax(0, 1fr); }
+html.b2 .rail { position: sticky; top: 0; height: 100vh; border-right: 1px solid var(--border); border-bottom: 0; }
+html.b2.ro .rail { top: var(--top); height: calc(100vh - var(--top)); }
+html.b2 .rail-toggle { display: none; }
+html.b2 .rail-tasks:not(.open) { display: block; }
+html.b2 .main.tv-mode { padding: 0; }
+html.b2 .tv { display: grid; grid-template-columns: minmax(0, 1fr) var(--b2-insp, 340px); height: 100vh; }
+html.b2 .center { height: 100vh; padding: 16px 24px 12px; border-right: 1px solid var(--border); overflow-y: auto; } /* a short window scrolls the column, not the page */
+html.b2 .stream-scroll { overflow-y: auto; min-height: 80px; } /* shrinks before the column has to scroll */
+html.b2 .tv .composer { position: static; box-shadow: none; }
+html.b2 .ctx { height: 100vh; overflow-y: auto; padding: 14px 16px 24px; }
+html.b2.ro .tv, html.b2.ro .center, html.b2.ro .ctx { height: calc(100vh - var(--top)); }
+
+/* the reader is a docked pane: it covers the detail column only, so the Tasks pane (and the Inspector) stay in reach */
+html.b2 .reader { inset: var(--top) 0 0 var(--rail-w); }
+html.b2.b2-ctx .reader { right: var(--b2-insp); border-right: 1px solid var(--border); }
+
+/* collapsed side panes: a 36px strip. Tasks keep their codes; the Inspector keeps only its edge */
+html.b2.b2-tasks-c .rail { padding: 42px 0 8px; overflow-x: hidden; } /* top room for the expand button */
+html.b2.b2-tasks-c .rail .lrow.need { display: none; } /* the task is listed once, in its lane */
+html.b2.b2-tasks-c .rail :is(.brand, .rail-foot, .nav-item, .more-nav, .rail-toggle, .left-tools, .lane-h, .empty) { display: none; }
+html.b2.b2-tasks-c .rail .lrow :not(.tid):not(.lmain) { display: none; }
+html.b2.b2-tasks-c .rail .lrow, html.b2.b2-tasks-c .rail .lrow .lmain { padding: 0; justify-content: center; }
+html.b2.b2-tasks-c .rail .lrow .tid { padding: 0 2px; font-size: .625rem; max-width: 34px; overflow: hidden; text-overflow: clip; }
+html.b2.b2-insp-c .ctx { padding: 0; overflow: hidden; }
+html.b2.b2-insp-c .ctx > * { display: none; }
+
+/* a docked reader can be narrow: the header's actions wrap under the title instead of pushing past the pane */
+html.b2 .reader { container: reader / inline-size; }
+@container reader (max-width: 780px) {
+  .reader-head { grid-template-columns: minmax(0, 1fr); padding: 10px 16px; }
+  .reader-actions { grid-column: 1; grid-row: auto; justify-content: flex-start; }
+  .reader-doc { padding: 20px 16px 64px; }
+}
+
+/* a preset reflows the column: keep the reader at the same scroll offset instead of letting scroll anchoring move it */
+html.b2 .reader-body { overflow-anchor: none; }
+
+/* a short window: the centre column is the one scroller (the stream grows inside it) instead of a scroller inside a scroller */
+@media (max-height: 700px) { html.b2 .stream-scroll { flex: none; overflow: visible; min-height: 0; } }
+
+/* a very narrow docked reader (Medium at ~950px leaves ~350px): a smaller title and tighter actions keep the header short */
+@container reader (max-width: 420px) {
+  .reader-head { padding: 8px 12px; gap: 2px 8px; }
+  .reader-head h1 { font-size: 1.0625rem; line-height: 1.25; }
+  .reader-actions { gap: 6px; }
+  .reader-actions .btn { padding-inline: 10px; }
+  .reader-doc { padding: 16px 12px 64px; }
+}

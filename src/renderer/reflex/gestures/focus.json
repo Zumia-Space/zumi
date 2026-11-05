@@ -1,0 +1,69 @@
+{
+  "trigger": "focus",
+  "labelVi": "You returned to the window",
+  "variants": [
+    {
+      "id": "wave", "labelVi": "Waves hello",
+      "selftest": { "peakMs": 900 },
+      "command": {
+        "id": "focus-wave", "priority": 6, "interrupt": true, "mirror": "random",
+        "reach": [{ "hand": "right", "target": "wave", "inMs": 300, "holdMs": 1300, "outMs": 500, "osc": { "hz": 2.4, "amp": [0.09, 0, 0] } }],
+        "hands": [{ "hand": "right", "shape": "open-flat", "weight": 1, "inMs": 300, "holdMs": 1300, "outMs": 500 }],
+        "bones": [
+          { "bone": "rightHand", "rot": [0, 0, 0], "inMs": 250, "holdMs": 1300, "outMs": 450, "osc": { "hz": 2.4, "amp": [0, 18, 0] } },
+          { "bone": "head", "rot": [0, 5, 8], "inMs": 200, "holdMs": 1400, "outMs": 500 }
+        ],
+        "expressions": [
+          { "name": "happy", "weight": 0.9, "inMs": 150, "holdMs": 1500, "outMs": 500 },
+          { "name": "aa", "weight": 0.35, "delayMs": 100, "inMs": 80, "holdMs": 250, "outMs": 250 }
+        ],
+        "lookAt": [{ "target": "camera", "weight": 1, "inMs": 100, "holdMs": 1600, "outMs": 400 }]
+      }
+    },
+    {
+      "id": "brighten", "labelVi": "Brightens, leans in",
+      "selftest": { "peakMs": 520 },
+      "command": {
+        "id": "focus-brighten", "priority": 6, "interrupt": true,
+        "expressions": [
+          { "name": "surprised", "weight": 0.75, "inMs": 60, "holdMs": 200, "outMs": 350 },
+          { "name": "happy", "weight": 0.9, "delayMs": 250, "inMs": 250, "holdMs": 800, "outMs": 500 }
+        ],
+        "bones": [
+          { "bone": "spine", "rot": [6, 0, 0], "inMs": 150, "holdMs": 250, "outMs": 500 },
+          { "bone": "head", "rot": [-6, 0, 0], "inMs": 120, "holdMs": 500, "outMs": 500 },
+          { "bone": "rightShoulder", "rot": [0, 0, -5], "inMs": 100, "holdMs": 200, "outMs": 300 },
+          { "bone": "leftShoulder", "rot": [0, 0, 5], "inMs": 100, "holdMs": 200, "outMs": 300 }
+        ],
+        "reach": [
+          { "hand": "right", "target": "chest", "weight": 0.5, "inMs": 200, "holdMs": 500, "outMs": 500 },
+          { "hand": "left", "target": "chest", "weight": 0.5, "inMs": 200, "holdMs": 500, "outMs": 500 }
+        ],
+        "hands": [
+          { "hand": "right", "shape": "loose", "weight": 1, "inMs": 200, "holdMs": 500, "outMs": 500 },
+          { "hand": "left", "shape": "loose", "weight": 1, "inMs": 200, "holdMs": 500, "outMs": 500 }
+        ],
+        "lookAt": [{ "target": "camera", "weight": 1, "inMs": 80, "holdMs": 1100, "outMs": 400 }]
+      }
+    },
+    {
+      "id": "peek-hi", "labelVi": "Leans over 'hi~'",
+      "selftest": { "peakMs": 800 },
+      "command": {
+        "id": "focus-peek-hi", "priority": 6, "interrupt": true, "mirror": "random",
+        "bones": [
+          { "bone": "head", "rot": [2, 6, 16], "inMs": 200, "holdMs": 1100, "outMs": 500 },
+          { "bone": "spine", "rot": [0, 0, 6], "inMs": 250, "holdMs": 1000, "outMs": 500 },
+          { "bone": "rightHand", "rot": [0, 0, 0], "inMs": 250, "holdMs": 1000, "outMs": 450, "osc": { "hz": 3, "amp": [0, 16, 0] } }
+        ],
+        "reach": [{ "hand": "right", "target": "wave-small", "inMs": 250, "holdMs": 1000, "outMs": 450, "osc": { "hz": 3, "amp": [0.06, 0, 0] } }],
+        "hands": [{ "hand": "right", "shape": "open-flat", "weight": 1, "inMs": 250, "holdMs": 1000, "outMs": 450 }],
+        "expressions": [
+          { "name": "happy", "weight": 0.75, "inMs": 150, "holdMs": 1100, "outMs": 450 },
+          { "name": "ih", "weight": 0.2, "inMs": 100, "holdMs": 300, "outMs": 300 }
+        ],
+        "lookAt": [{ "target": "camera", "weight": 1, "inMs": 100, "holdMs": 1200, "outMs": 400 }]
+      }
+    }
+  ]
+}

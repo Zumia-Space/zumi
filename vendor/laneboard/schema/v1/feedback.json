@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "feedback.json",
+  "title": "Feedback: owner notes on a task, coordinator replies, and merged lane reports",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "task_id",
+    "rev",
+    "attribution",
+    "kind",
+    "text",
+    "status"
+  ],
+  "properties": {
+    "id": {
+      "$ref": "common.json#/$defs/recordId"
+    },
+    "task_id": {
+      "anyOf": [
+        {
+          "$ref": "common.json#/$defs/taskId"
+        },
+        {
+          "const": "*"
+        }
+      ],
+      "description": "A task id, NEW (the board's thread of new-task requests), or * (the whole board: a sweep)."
+    },
+    "step_id": {
+      "$ref": "common.json#/$defs/stepId"
+    },
+    "rev": {
+      "$ref": "common.json#/$defs/revision"
+    },
+    "attribution": {
+      "$ref": "common.json#/$defs/attribution"
+    },
+    "kind": {
+      "enum": [
+        "note",
+        "approve",
+        "reject",
+        "newtask",
+        "choice",
+        "reply",
+        "report",
+        "goal-lock",
+        "rebrief",
+        "sweep"
+      ]
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 8000
+    },
+    "reply_to": {
+      "$ref": "common.json#/$defs/recordId"
+    },
+    "status": {
+      "enum": [
+        "open",
+        "resolved"
+      ]
+    },
+    "resolved": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "at",
+        "by"
+      ],
+      "properties": {
+        "at": {
+          "$ref": "common.json#/$defs/timestamp"
+        },
+        "by": {
+          "$ref": "common.json#/$defs/actor"
+        }
+      }
+    },
+    "goal_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "goal-lock: the goal version this lock created."
+    },
+    "mode": {
+      "enum": [
+        "strategy",
+        "qc",
+        "status"
+      ],
+      "description": "rebrief: what the owner asked for."
+    },
+    "auto": {
+      "const": true,
+      "description": "rebrief, mode status: filed by the board's freshness sweep, not by the owner."
+    },
+    "info": {
+      "const": true,
+      "description": "A notice of a change (the CoS route override): kept in the task stream, attributed to the actor who wrote it, but never an open feedback item — not counted, no 'mark handled'."
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 4000,
+      "description": "rebrief: the owner's optional note."
+    },
+    "plan_id": {
+      "type": "string",
+      "pattern": "^plan-[0-9]+(-[0-9]+)?$",
+      "description": "choice: the reviewer plan the owner picked."
+    },
+    "ask_id": {
+      "$ref": "common.json#/$defs/recordId",
+      "description": "The ask this owner answer belongs to (written by ask.answer)."
+    },
+    "choice": {
+      "type": "string",
+      "maxLength": 16,
+      "description": "The option key of an answer."
+    }
+  }
+}

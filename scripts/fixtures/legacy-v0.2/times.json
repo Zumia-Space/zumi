@@ -1,0 +1,61 @@
+{
+ "tasks": {
+  "VM-01": {
+   "firstSeenAt": "2026-09-30T13:34:46.237Z",
+   "startedAt": null,
+   "doneAt": null,
+   "steps": {
+    "s1": {
+     "firstSeenAt": "2026-09-30T13:34:46.237Z",
+     "startedAt": null,
+     "doneAt": null,
+     "waitingSince": null,
+     "waitingTotalMs": 0,
+     "lastState": "done",
+     "untracked": true,
+     "transitions": []
+    },
+    "s2": {
+     "firstSeenAt": "2026-09-30T13:34:46.237Z",
+     "startedAt": null,
+     "doneAt": null,
+     "waitingSince": null,
+     "waitingTotalMs": 0,
+     "lastState": "done",
+     "untracked": true,
+     "transitions": []
+    },
+    "s3": {
+     "firstSeenAt": "2026-09-30T13:34:46.237Z",
+     "startedAt": null,
+     "doneAt": null,
+     "waitingSince": "2026-09-30T13:34:46.237Z",
+     "waitingTotalMs": 0,
+     "lastState": "waiting",
+     "untracked": false,
+     "transitions": []
+    },
+    "s4": {
+     "firstSeenAt": "2026-09-30T13:34:46.237Z",
+     "startedAt": null,
+     "doneAt": null,
+     "waitingSince": null,
+     "waitingTotalMs": 0,
+     "lastState": "blocked",
+     "untracked": false,
+     "transitions": []
+    },
+    "s5": {
+     "firstSeenAt": "2026-09-30T13:34:46.237Z",
+     "startedAt": null,
+     "doneAt": null,
+     "waitingSince": null,
+     "waitingTotalMs": 0,
+     "lastState": "todo",
+     "untracked": false,
+     "transitions": []
+    }
+   }
+  }
+ }
+}

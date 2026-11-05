@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/feedback.resolve.json",
+  "title": "data for feedback.resolve",
+  "description": "Mark a feedback item handled.",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-target": "recordId",
+  "x-revision": "required",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

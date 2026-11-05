@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "step.json",
+  "title": "Step record (projection)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "task_id",
+    "rev",
+    "attribution",
+    "label",
+    "zone",
+    "state"
+  ],
+  "properties": {
+    "id": {
+      "$ref": "common.json#/$defs/stepKey"
+    },
+    "task_id": {
+      "$ref": "common.json#/$defs/taskId"
+    },
+    "rev": {
+      "$ref": "common.json#/$defs/revision"
+    },
+    "attribution": {
+      "$ref": "common.json#/$defs/attribution"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "sub": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "zone": {
+      "$ref": "common.json#/$defs/zone"
+    },
+    "state": {
+      "$ref": "common.json#/$defs/stepState"
+    },
+    "state_at": {
+      "$ref": "common.json#/$defs/timestamp",
+      "description": "When the step was created or its state last changed (server clock). Absent on steps written before the stamp existed."
+    },
+    "detail": {
+      "type": "string",
+      "maxLength": 16000
+    },
+    "recommend": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "options": {
+      "$ref": "common.json#/$defs/options"
+    },
+    "lane": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The lane that owns this record. Absent means the task's lane. s21: a step or ask of another lane on a shared task."
+    }
+  }
+}

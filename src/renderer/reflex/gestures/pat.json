@@ -1,0 +1,75 @@
+{
+  "trigger": "pat",
+  "labelVi": "Head pat",
+  "state": true,
+  "variants": [
+    {
+      "id": "blissful", "labelVi": "Basks happily into the hand",
+      "selftest": { "peakMs": 900 },
+      "command": {
+        "id": "pat-blissful", "priority": 5, "interrupt": false, "sustain": true, "mirror": "random",
+        "expressions": [
+          { "name": "relaxed", "weight": 0.9, "inMs": 300, "outMs": 400 },
+          { "name": "blink", "weight": 0.5, "inMs": 300, "outMs": 300 }
+        ],
+        "bones": [
+          { "bone": "head", "rot": [9, 4, 8], "inMs": 350, "outMs": 450, "osc": { "hz": 0.7, "amp": [0, 3, 3] } },
+          { "bone": "neck", "rot": [4, 0, 2], "inMs": 350, "outMs": 450 },
+          { "bone": "spine", "rot": [4, 0, 0], "inMs": 400, "outMs": 450, "osc": { "hz": 0.7, "amp": [0, 0, 1.2] } },
+          { "bone": "rightShoulder", "rot": [0, 0, 3], "inMs": 400, "outMs": 400 },
+          { "bone": "leftShoulder", "rot": [0, 0, -3], "inMs": 400, "outMs": 400 }
+        ],
+        "lookAt": [{ "target": { "x": 0, "y": 0.9 }, "weight": 0.4, "inMs": 300, "outMs": 300 }]
+      }
+    },
+    {
+      "id": "happy-wiggle", "labelVi": "Happy wiggle",
+      "selftest": { "peakMs": 900 },
+      "command": {
+        "id": "pat-happy-wiggle", "priority": 5, "interrupt": false, "sustain": true,
+        "expressions": [
+          { "name": "happy", "weight": 0.9, "inMs": 250, "outMs": 350 },
+          { "name": "ih", "weight": 0.2, "inMs": 250, "outMs": 300 }
+        ],
+        "bones": [
+          { "bone": "head", "rot": [4, 0, 0], "inMs": 250, "outMs": 350, "osc": { "hz": 1.6, "amp": [0, 6, 9] } },
+          { "bone": "spine", "rot": [0, 0, 0], "inMs": 250, "outMs": 350, "osc": { "hz": 1.6, "amp": [0, 3, 3], "phase": 0.25 } },
+          { "bone": "chest", "rot": [0, 0, 0], "inMs": 250, "outMs": 350, "osc": { "hz": 1.6, "amp": [0, 0, 2], "phase": 0.5 } }
+        ],
+        "reach": [
+          { "hand": "right", "target": "chest", "weight": 0.8, "inMs": 300, "outMs": 400 },
+          { "hand": "left", "target": "chest", "weight": 0.8, "inMs": 300, "outMs": 400 }
+        ],
+        "hands": [
+          { "hand": "right", "shape": "loose", "weight": 1, "inMs": 300, "outMs": 400 },
+          { "hand": "left", "shape": "loose", "weight": 1, "inMs": 300, "outMs": 400 }
+        ]
+      }
+    },
+    {
+      "id": "shy", "labelVi": "Shy, looks down",
+      "selftest": { "peakMs": 900 },
+      "command": {
+        "id": "pat-shy", "priority": 5, "interrupt": false, "sustain": true, "mirror": "random",
+        "expressions": [
+          { "name": "happy", "weight": 0.45, "inMs": 350, "outMs": 400 },
+          { "name": "relaxed", "weight": 0.25, "inMs": 350, "outMs": 400 }
+        ],
+        "bones": [
+          { "bone": "head", "rot": [13, -9, -6], "inMs": 400, "outMs": 450 },
+          { "bone": "neck", "rot": [4, -3, 0], "inMs": 400, "outMs": 450 },
+          { "bone": "spine", "rot": [2, 0, 0], "inMs": 400, "outMs": 450, "osc": { "hz": 0.9, "amp": [0, 2.5, 0] } }
+        ],
+        "lookAt": [{ "target": { "x": -0.5, "y": -0.9 }, "weight": 0.7, "inMs": 300, "outMs": 400 }],
+        "reach": [
+          { "hand": "right", "target": "clasp", "inMs": 400, "outMs": 450 },
+          { "hand": "left", "target": "clasp", "inMs": 400, "outMs": 450 }
+        ],
+        "hands": [
+          { "hand": "right", "shape": "loose", "weight": 1, "inMs": 400, "outMs": 450 },
+          { "hand": "left", "shape": "loose", "weight": 1, "inMs": 400, "outMs": 450 }
+        ]
+      }
+    }
+  ]
+}

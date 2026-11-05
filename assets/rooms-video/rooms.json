@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "_comment": "T-31 room picker (13-10). Looping room videos that replace the TALK view's painted plate (the default room's B-talk-plate.png) when the owner picks one; the room named by `default` is the start room when its video is installed, else 'current' (no video). Geometry is in the talk plate's own pixel space (plateSize). A video frame (videoSize) is first placed at `identity` (how the stills were made: the 16:9 centre crop y=60..1140 of the plate), then scaled by framing.scale about `pivot` (the talk camera's principal point = its horizon row, so a scale reads as a longer lens / a closer room, never as a tilt), then shifted by framing.offsetX/offsetY (plate px). The result must cover every crop window the talk view can show (scripts/check-room-picker.mjs). The plate's painted chair is drawn back over the video from `chair` (scripts/gen-scene-chair.py). Videos: packaged builds read <resources>/<packagedDir>/<file>; a dev run reads <localDir>/<file> when this manifest names one, else the owner's video folder (src/main/owner-values.json roomsVideoDir), or ZUMI_ROOMS_VIDEO_DIR. A missing or changed file (size/sha256) drops that room from the list.",
+  "view": "talk",
+  "plateSize": [1920, 1200],
+  "videoSize": [1920, 1080],
+  "identity": [0, 60],
+  "pivot": [960, 236.7],
+  "packagedDir": "rooms-video",
+  "default": "beach-cabin",
+  "chair": { "file": "chair-talk.png", "x": 555, "y": 435, "sha256": "8dedd74552d2362ff8c8bd8b43f2513baa6ad5ad2e62659a4a453bfe24f82b1e" },
+  "rooms": [
+    { "id": "cozy-study", "label": "Cozy study", "file": "01-cozy-study.mp4", "bytes": 3773697, "sha256": "a72863ba002224e834aee84685d083a16bdb18d7fdfcfb563d36c0f1a44d13c8", "seconds": 6.08, "framing": { "scale": 1.05, "offsetX": 0, "offsetY": -42 }, "status": "ok" },
+    { "id": "scifi-bridge", "label": "Sci-fi bridge", "file": "02-scifi-bridge.mp4", "bytes": 3366468, "sha256": "b0ccbd3caeb133dd4543ecb8eb64b9ddc1145d2c4100a9957eaeeba42ea42901", "seconds": 6.08, "framing": { "scale": 1.15, "offsetX": 0, "offsetY": -24 }, "status": "ok" },
+    { "id": "zen-garden", "label": "Zen garden room", "file": "03-zen-garden-room.mp4", "bytes": 1707504, "sha256": "198272c05ceac01cb308f45224dc738dd068d975aa00cfe75f543d9d298d884a", "seconds": 18.5, "framing": { "scale": 1.0, "offsetX": 0, "offsetY": -50 }, "status": "ok" },
+    { "id": "rooftop-night", "label": "Rooftop", "file": "04-rooftop-night-city.mp4", "bytes": 4606712, "sha256": "e1c4cec3e09e3e0cc822268f2ff9d1e29746db558038baa3d60422e103e9cbda", "seconds": 6.08, "framing": { "scale": 1.1, "offsetX": 0, "offsetY": -33 }, "status": "ok" },
+    { "id": "grand-library", "label": "Grand library", "file": "05-grand-library.mp4", "bytes": 1705468, "sha256": "5110764351df6bfcb29b03907e33f1d60503c0e141918bd59bdc7fd6875057ff", "seconds": 18.5, "framing": { "scale": 1.15, "offsetX": 0, "offsetY": -24 }, "status": "ok" },
+    { "id": "beach-cabin", "label": "Beach cabin", "file": "06-beach-cabin-studio-2710.mp4", "bytes": 10371176, "sha256": "df8eaf3ce82726cdce25578927e5cf93b82e6b79c26d2d52dcc5db53db05a8a0", "seconds": 15.92, "framing": { "scale": 1.1, "offsetX": 0, "offsetY": -33 }, "status": "ok" },
+    { "id": "space-station", "label": "Space station window", "file": "07-space-station-window.mp4", "bytes": 1498568, "sha256": "f7ca85c560c0dfd29d0ed108c8f998b204e746d16c317db55163ce13145c6624", "seconds": 18.5, "framing": { "scale": 1.1, "offsetX": 0, "offsetY": -33 }, "status": "ok" }
+  ]
+}

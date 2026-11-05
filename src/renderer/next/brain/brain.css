@@ -1,0 +1,232 @@
+/* T-31 slice 3: the Brain card (concept A-1: a card over the room, on the right like the Skills tree card). Created by next/boot.js,
+   filled by next/brain/brain.js. Tokens and the four decoration classes of theme-a.css only: no colour literal here (check:palette).
+   Linked by brain.js when the card is first built, copied by scripts/build-renderer.mjs only when ZUMI_NEXT_UI is on. */
+
+/* Layout by window class (CoS ruling 28-10: fix the layout, not the yield tuning; same zones as the Skills tree card, theme-a.css). Measured in
+   Electron on the default pose: the two floating octagons end at about 25% of the stage width from each side and the arm bones stay inside
+   64%, so the card takes the right zone: 25% minus the margin and a 12 px gap, at most 346 px. At a 916 px window that zone is about 180 px
+   wide, so up to 1000 px the card is 180 px. It then clears the right octagon and the "No model yet" panel and the arm-yield rule does not fade it. */
+.nx-brain { left: auto; right: 14px; width: clamp(250px, calc(25% - 26px), 346px); height: calc(100% - 28px); display: flex; flex-direction: column; }
+@media (max-width: 1000px) { .nx-brain { width: 180px; } }
+#stage.nx-brain-open .hud-left, #stage.nx-brain-open .hud-right, #stage.nx-brain-open .hud-below { visibility: hidden; }
+/* R2 (alpha.3, owner 29-10): an open task (brain.js sets nx-brain-full) fills the stage edge to edge, on the same panel fill, so the avatar stays
+   behind as background. Two columns: the task text left, the step flow, structure and plans right (detail.js .nb-col-l / .nb-col-r).
+   minmax(0, 1fr): a diagram wider than its column scrolls in its own box (.bd-scroll) instead of widening the grid. Wins over the
+   width-by-window-class rules above and below by specificity (two classes). */
+.nx-brain.nx-brain-full { left: 14px; right: 14px; width: auto; }
+.nx-brain-full .nb-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 24px; align-content: start; }
+.nx-brain-full .nb-dtop, .nx-brain-full .nb-dhead { grid-column: 1 / -1; }
+.nx-brain-full .nb-col-l, .nx-brain-full .nb-col-r { min-width: 0; }
+.nx-brain .head { flex: none; }
+.nx-brain .gline { flex: none; margin: 0 0 8px; }
+.nx-brain .sp, .nb-sp { flex: 1; }
+.nx-brain .meta { font-family: var(--mono); letter-spacing: .04em; text-transform: none; color: var(--muted-foreground); font-size: 10.5px; }
+.nb-body { scrollbar-width: thin; scrollbar-color: var(--line-dim) transparent; flex: 1; min-height: 0; overflow: auto; padding-right: 4px; font-size: 12.5px; line-height: 1.45; }
+
+/* tabs in the head: Memory · Tasks, the active one in the primary colour with the underline of the Settings tab bar */
+.nb-tabs { display: flex; gap: 2px; }
+.nb-tab { font: inherit; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted-foreground); background: none; border: 0; border-bottom: 2px solid transparent; padding: 1px 8px 3px; cursor: pointer; }
+.nb-tab:hover { color: var(--foreground); }
+.nb-tab.on { color: var(--primary); border-bottom-color: var(--primary); }
+.nb-tab:focus-visible, .nb-row:focus-visible, .nb-back:focus-visible, .nb-open:focus-visible, .nb-toggle:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
+
+/* shared bits */
+.nb-mono { font-family: var(--mono); }
+.nb-mute { color: var(--muted-foreground); font-size: 11.5px; }
+.nb-empty { color: var(--muted-foreground); font-size: 12px; text-align: center; padding: 14px 6px; border: 1px dashed var(--border); margin: 8px 0; }
+.nb-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.nb-chip { display: inline-block; padding: 0 6px; border: 1px solid var(--line-dim); color: var(--primary); font-family: var(--mono); font-size: 10px; letter-spacing: .06em; white-space: nowrap; line-height: 1.6; }
+.nb-chip.q { color: var(--question); border-color: var(--question); }
+.nb-chip.st-paused, .nb-chip.st-closed, .nb-chip.st-todo { color: var(--muted-foreground); border-color: var(--border); border-style: dashed; }
+.nb-chip.st-waiting { color: var(--question); border-color: var(--question); }
+.nb-chip.st-blocked { color: var(--danger); border-color: var(--danger); }
+.nb-chip.st-done { color: var(--success); border-color: var(--success); }
+.nb-health { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--muted-foreground); }
+.nb-health.green { background: var(--success); box-shadow: 0 0 6px var(--glow-soft); }
+.nb-health.yellow { background: var(--warn); }
+.nb-health.red { background: var(--danger); }
+.nb-id { font-family: var(--mono); font-size: 11px; color: var(--primary); flex: none; }
+.nb-when { font-family: var(--mono); font-size: 10.5px; color: var(--muted-foreground); white-space: nowrap; }
+.nb-note { border: 1px dashed var(--line-dim); padding: 12px 12px 14px; margin-top: 6px; }
+.nb-note-h { margin: 0 0 6px; font-size: 13px; color: var(--primary); letter-spacing: .04em; }
+.nb-note .nb-mute { margin: 8px 0 0; }
+.nb-reason { border-color: var(--question); }
+.nb-reason .nb-note-h { color: var(--question); }
+
+/* library */
+.nb-bar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.nb-filter { flex: 1 1 110px; min-width: 0; font: inherit; font-size: 12px; color: var(--foreground); background: var(--background); border: 1px solid var(--line-dim); padding: 4px 8px; border-radius: var(--radius); }
+.nb-filter::placeholder { color: var(--muted-foreground); }
+.nb-filter:focus-visible { outline: 1px solid var(--primary); }
+.nb-toggle { font: inherit; font-size: 11px; color: var(--muted-foreground); background: none; border: 1px solid var(--line-dim); padding: 3px 8px; cursor: pointer; border-radius: var(--radius); }
+.nb-toggle[aria-pressed="true"] { color: var(--primary); border-color: var(--primary); }
+.nb-toggle:hover { color: var(--foreground); }
+.nb-list { display: flex; flex-direction: column; }
+.nb-row { display: block; width: 100%; text-align: left; font: inherit; color: var(--foreground); background: none; border: 0; border-bottom: 1px dashed var(--line-faint); padding: 8px 4px; cursor: pointer; }
+.nb-row:hover { background: var(--line-faint); }
+.nb-row-top { display: flex; gap: 8px; align-items: baseline; }
+.nb-title { flex: 1; min-width: 0; font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+.nb-row-sub { display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+.nb-lane { font-size: 11px; color: var(--muted-foreground); }
+
+/* detail */
+.nb-dtop { display: flex; align-items: center; margin-bottom: 8px; }
+.nb-back, .nb-open { font: inherit; font-size: 11.5px; background: none; border: 1px solid var(--line-dim); padding: 3px 10px; cursor: pointer; border-radius: var(--radius); }
+.nb-back { color: var(--muted-foreground); }
+.nb-back:hover { color: var(--foreground); }
+.nb-open { color: var(--primary); border-color: var(--primary); }
+.nb-open:hover { background: var(--line-faint); }
+.nb-dtitle { margin: 0 0 6px; font-size: 16px; line-height: 1.25; overflow-wrap: anywhere; }
+.nb-sec { margin-top: 14px; }
+.nb-sec-h { margin: 0 0 6px; font-size: 10.5px; font-weight: 400; letter-spacing: .12em; text-transform: uppercase; color: var(--primary); padding-bottom: 4px; border-bottom: 1px solid var(--line-faint); }
+.nb-path { font-family: var(--mono); font-size: 11.5px; color: var(--muted-foreground); }
+.nb-steps, .nb-asks, .nb-media { list-style: none; margin: 0; padding: 0; }
+.nb-step, .nb-ask, .nb-att { padding: 6px 0 7px 8px; border-left: 2px solid var(--line-dim); margin-bottom: 6px; }
+.nb-step.current { border-left-color: var(--primary); }
+.nb-step.st-waiting, .nb-ask.open { border-left-color: var(--question); }
+.nb-step.st-blocked { border-left-color: var(--danger); }
+.nb-step.st-done { opacity: .8; }
+.nb-step-top { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.nb-step-label, .nb-ask-text, .nb-att-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.nb-att-name { font-family: var(--mono); font-size: 11.5px; }
+.nb-zone { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); }
+.nb-step-detail { color: var(--muted-foreground); font-size: 11.5px; margin-top: 3px; }
+.nb-opts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+.nb-hist { margin-top: 4px; font-size: 11px; color: var(--muted-foreground); }
+.nb-hist summary { cursor: pointer; }
+.nb-hist-line { font-family: var(--mono); font-size: 10.5px; padding-left: 10px; white-space: pre; }
+.nb-plan { border: 1px solid var(--line-faint); padding: 6px 8px; margin-bottom: 6px; }
+.nb-plan summary { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; cursor: pointer; }
+.nb-plan .nb-text { margin-top: 6px; font-size: 12px; }
+/* cited links and files, image thumbnails and the lightbox (3a-3): tokens only */
+.nb-ref { padding: 6px 0 7px 8px; border-left: 2px solid var(--line-dim); margin-bottom: 6px; }
+.nb-ref-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.nb-ref-open { font: inherit; font-size: 11px; color: var(--primary); background: none; border: 1px solid var(--primary); padding: 1px 9px; cursor: pointer; border-radius: var(--radius); }
+.nb-ref-open:hover { background: var(--line-faint); }
+.nb-ref-open:disabled { color: var(--muted-foreground); border-color: var(--line-dim); cursor: default; }
+.nb-ref-open:focus-visible, .nb-thumb-btn:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
+.nb-ref-msg:empty { display: none; }
+.nb-ref .nb-path { margin-top: 3px; }
+.nb-thumb-slot { margin-top: 5px; }
+.nb-thumb-btn { display: block; padding: 0; background: none; border: 1px solid var(--line-dim); cursor: zoom-in; max-width: 100%; }
+.nb-thumb { display: block; max-width: 100%; max-height: 150px; object-fit: contain; }
+.nb-lightbox { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; gap: 8px; padding: 10px; background: var(--background); border: 1px solid var(--line-dim); }
+.nb-lb-bar { display: flex; align-items: center; gap: 8px; flex: none; }
+.nb-lb-stage { flex: 1; min-height: 0; overflow: auto; display: flex; align-items: flex-start; justify-content: center; }
+.nb-lb-img { display: block; max-width: 100%; height: auto; }
+
+/* diagrams (3a-2): SVG drawn from the vendored layout; tokens only. Fit to the card width; a very wide one scrolls inside its box. */
+.bd-scroll { overflow-x: auto; margin-bottom: 4px; }
+.bd { display: block; max-width: none; }
+.bd-bar { display: flex; margin-bottom: 4px; }
+.bd-full-btn { font-size: 10.5px; padding: 1px 8px; }
+/* Fullscreen (alpha.7): a child of body that fills the app window on the theme background; the drawing scales to the stage (diagram.js). */
+.bd-full { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; gap: 8px; padding: 14px; background: var(--background); color: var(--foreground); }
+.bd-full-bar { display: flex; align-items: center; gap: 8px; flex: none; }
+.bd-full-title { margin: 0; flex: none; }
+.bd-full-stage { flex: 1; min-height: 0; display: flex; }
+.bd-scroll-full { flex: 1; min-width: 0; overflow: hidden; margin: 0; cursor: grab; touch-action: none; user-select: none; }
+.bd-scroll-full.dragging { cursor: grabbing; }
+.bd-full-tool { min-width: 28px; }
+.bd-full-pct { margin: 0; min-width: 40px; text-align: right; }
+.bd-lane { fill: var(--line-faint); stroke: var(--line-dim); stroke-width: 1; stroke-dasharray: 3 3; }
+.bd-lane-tag { fill: var(--foreground); font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; }
+.bd-edge { fill: none; stroke: var(--primary); stroke-width: 1.4; opacity: .75; }
+.bd-edge.dashed { stroke-dasharray: 5 4; }
+.bd-head { fill: var(--primary); }
+.bd-edge-label { fill: var(--muted-foreground); font-size: 10px; paint-order: stroke; stroke: var(--card); stroke-width: 3px; }
+.bd-box rect { fill: var(--card); stroke: var(--line-dim); stroke-width: 1.2; }
+.bd-label { fill: var(--foreground); font-size: 12px; font-weight: 600; }
+.bd-sub { fill: var(--muted-foreground); font-size: 10.5px; }
+.bd-idx, .bd-state { fill: var(--muted-foreground); font-family: var(--mono); font-size: 10px; }
+.bd-box.active rect { stroke: var(--primary); }
+.bd-box.current rect { stroke: var(--primary); stroke-width: 2; }
+.bd-box.waiting rect, .bd-box.owner-wait rect { stroke: var(--question); }
+.bd-box.waiting .bd-state { fill: var(--question); }
+.bd-box.blocked rect { stroke: var(--danger); }
+.bd-box.blocked .bd-state { fill: var(--danger); }
+.bd-box.done rect { stroke: var(--success); stroke-dasharray: none; opacity: .85; }
+.bd-box.done .bd-state { fill: var(--success); }
+.bd-box.node rect { stroke: var(--line); }
+
+/* memory list (3b) */
+.nb-mem-privacy { margin: 0 0 8px; }
+.nb-switch { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; font-size: 12px; cursor: pointer; }
+.nb-switch input { accent-color: var(--primary); }
+.nb-kinds { display: flex; gap: 4px; }
+.nb-kinds[hidden] { display: none; }
+.nb-mem { padding: 7px 4px 8px; border-bottom: 1px dashed var(--line-faint); }
+.nb-mem .nb-text { margin-top: 4px; }
+.nb-toggle.danger { color: var(--question); border-color: var(--question); }
+.nb-toggle.danger:hover { background: var(--line-faint); }
+.nb-more { display: block; margin: 8px auto 0; }
+.nb-mem-foot { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.nb-mem-add { display: flex; gap: 6px; align-items: flex-end; margin-bottom: 10px; }
+.nb-mem-add[hidden], .nb-switch[hidden], .nb-mem-foot[hidden] { display: none; }
+.nb-mem-draft { resize: vertical; min-height: 2.6em; }
+.nb-confirm { margin-top: 10px; padding: 8px; border: 1px solid var(--question); }
+.nb-confirm .nb-bar { margin: 8px 0 0; }
+.nb-mem-status { margin: 8px 0 0; min-height: 1em; overflow-wrap: anywhere; }
+
+/* the card collapses to its head strip while it would cover the "No model yet" panel (boot.js collapseOverEmpty, as the Skills tree card) */
+.nx-brain.nx-collapsed > :not(.head) { display: none; }
+.nx-brain.nx-collapsed { height: auto; padding-bottom: calc(var(--tick) + 4px); overflow: hidden; }
+
+/* compact by window class, as the Skills tree card (theme-a.css): below 1440 px the zone is 250 to 346 px, up to 1000 px it is 180 px */
+@media (max-width: 1439px) {
+  .nx-brain { padding: 9px 9px calc(var(--tick) + 8px); }
+  .nx-brain .head { gap: 6px; padding-bottom: 5px; margin-bottom: 6px; }
+  .nb-tab { font-size: 10px; letter-spacing: .08em; padding: 1px 5px 3px; }
+  .nb-body { font-size: 12px; padding-right: 2px; }
+  .nb-title { font-size: 12px; }
+  .nb-row { padding: 6px 2px; }
+  .nb-row-top { flex-wrap: wrap; gap: 2px 6px; }
+  .nb-dtitle { font-size: 14px; }
+  .nb-sec { margin-top: 10px; }
+  .nb-back, .nb-open { font-size: 11px; padding: 2px 8px; }
+  .nb-hist-line { white-space: pre-wrap; }
+  .nb-path { overflow-wrap: anywhere; }
+}
+@media (max-width: 1000px) {
+  .nx-brain { padding: 8px 8px calc(var(--tick) + 6px); }
+  .nx-brain .head .tag, .nx-brain .head .meta { display: none; } /* the tabs need the whole head row at 180 px */
+  .nb-tab { font-size: 9.5px; letter-spacing: .04em; padding: 1px 4px 3px; }
+  .nb-body { font-size: 11.5px; }
+  .nb-filter { flex-basis: 100%; }
+  .nb-row-top .nb-title { order: 3; flex: 1 1 100%; } /* id and chip share the first line, the title gets the full 160 px under them */
+  .nb-toggle { font-size: 10.5px; padding: 2px 6px; }
+  .nb-dtop { flex-wrap: wrap; gap: 4px; }
+  .nb-back, .nb-open { font-size: 10.5px; padding: 2px 6px; }
+  .nb-dtitle { font-size: 13px; }
+  .nb-chip { font-size: 9.5px; padding: 0 4px; }
+  .nb-step, .nb-ask, .nb-att { padding-left: 6px; }
+  .nb-sec-h { font-size: 10px; letter-spacing: .08em; }
+}
+
+/* T-31 alpha.12: Brain > Soul (soul.js) -- read-only form with Edit, templates, history, the warning modal; and the first-run cards. */
+.nb-soul { display: flex; flex-direction: column; gap: 8px; }
+.nb-soul-form { display: grid; gap: 6px; }
+.nb-soul-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; } /* label over value: the Brain card is ~290 px at 1366 */
+.nb-soul-k { font-size: 11.5px; color: var(--muted-foreground); }
+.nb-soul-v { width: 100%; box-sizing: border-box; resize: vertical; font-family: inherit; }
+.nb-soul-v[readonly], .nb-soul-v:disabled { opacity: .85; border-style: dashed; }
+.nb-soul-btns { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.nb-soul-btns button:disabled { opacity: .45; cursor: default; }
+.nb-soul-sub { margin-top: 8px; }
+.nb-soul-status { min-height: 1.2em; margin: 0; }
+.nb-soul-tpls { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.nb-soul-tpl { display: flex; flex-direction: column; gap: 6px; text-align: left; font: inherit; color: var(--foreground); background: none; border: 1px solid var(--line-dim); border-radius: var(--radius); padding: 8px 10px; }
+button.nb-soul-tpl { cursor: pointer; }
+.nb-soul-tpl.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary) inset; }
+.nb-soul-tpl-h { color: var(--primary); font-size: 12px; letter-spacing: .04em; }
+.nb-soul-tpl-p { font-size: 12px; color: var(--muted-foreground); }
+.nb-soul-tpl .nb-toggle { align-self: flex-start; }
+.nb-soul-hist { margin: 0; padding-left: 18px; }
+.nb-soul-preview summary { cursor: pointer; }
+.nb-soul-preview .nb-text { font-size: 11px; margin-top: 6px; }
+.nb-soul-sp { flex: 1; }
+.nb-soul-modal, .nb-onboard { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--background) 72%, transparent); }
+.nb-soul-modal-box, .nb-onboard-card { width: min(560px, calc(100vw - 48px)); max-height: calc(100vh - 64px); overflow: auto; background: var(--card, var(--background)); color: var(--foreground); border: 1px solid var(--primary); border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; }
+.nb-onboard-card { width: min(720px, calc(100vw - 48px)); }
+.nb-onboard-top { display: flex; align-items: center; gap: 8px; }
+.nb-onboard-h { margin: 0; font-size: 16px; color: var(--primary); letter-spacing: .03em; }

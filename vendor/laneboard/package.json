@@ -1,0 +1,24 @@
+{
+  "name": "laneboard",
+  "version": "0.1.0",
+  "description": "A self-hosted task board where one coordinator agent writes state, other agents report through an append-only inbox, and the owner sees every open ask.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "bin": {
+    "laneboard": "src/server.mjs",
+    "board": "bin/board.mjs"
+  },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "demo": "node scripts/demo.mjs",
+    "test": "node --test \"test/*.test.mjs\"",
+    "smoke": "node scripts/smoke-shots.mjs",
+    "check:board-read": "node scripts/check-board-read.mjs",
+    "check:ask-context-jump": "node scripts/check-ask-context-jump.mjs",
+    "check:step-click": "node scripts/check-step-click.mjs",
+    "check:step-overlap": "node scripts/check-step-overlap.mjs",
+    "check:steps-many": "node scripts/check-steps-many.mjs"
+  },
+  "files": ["src", "bin", "public", "schema", "fixtures", "scripts", "AGENTS.md", "README.md", "LICENSE", "NOTICE"]
+}

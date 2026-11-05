@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/times.import.json",
+  "title": "data for times.import",
+  "description": "Owner imports one task's timing history measured by a predecessor server's clock, once per task (a second import is 409 already_imported). Step records replace the ones task.create started; a step whose state changed since the history was taken gets one transition at the import time. Keys of steps are step ids; the task may no longer be on the board, in which case the history is kept as an archive. For a task on the board it also carries the predecessor's ages, so waiting and idle times do not restart at the migration: last_activity_at becomes the task's last-activity clock (the stalled block; later events move it as usual) and asks[<ask id>].waiting_since becomes the owner-attention age of an ask of this task. Send it after every other import write for the task.",
+  "x-roles": [
+    "owner"
+  ],
+  "x-target": "taskId",
+  "x-revision": "none",
+  "x-device": false,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "steps"
+  ],
+  "properties": {
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["first_seen_at"],
+      "properties": {
+        "first_seen_at": { "$ref": "../common.json#/$defs/timestamp" },
+        "started_at": { "$ref": "../common.json#/$defs/timestamp" },
+        "done_at": { "$ref": "../common.json#/$defs/timestamp" }
+      }
+    },
+    "steps": {
+      "type": "object",
+      "additionalProperties": { "$ref": "../time.json" }
+    },
+    "last_activity_at": { "$ref": "../common.json#/$defs/timestamp" },
+    "asks": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["waiting_since"],
+        "properties": { "waiting_since": { "$ref": "../common.json#/$defs/timestamp" } }
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/turn.report.json",
+  "title": "data for turn.report",
+  "description": "A lane finished a turn. detail is its full report (markdown); the server computes the quick report from the board at that moment (the lane's open asks, the tasks the lane's own token wrote since its previous report) and stores it with the event, so a client cannot send one. target_id is the lane. The same turn_id from the same lane is a duplicate: 409 duplicate_turn carrying the original seq and quick. A lane token (a reporter with a lane and scope *) reports and reads only its own lane; a scoped reporter is refused.",
+  "x-roles": [
+    "owner",
+    "coordinator",
+    "reporter"
+  ],
+  "x-target": "laneName",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "turn_id",
+    "detail"
+  ],
+  "properties": {
+    "turn_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "description": "The client's idempotence key for this turn, unique per lane."
+    },
+    "detail": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000,
+      "description": "The report, markdown, at most 8000 Unicode characters."
+    }
+  }
+}

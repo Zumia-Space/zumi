@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "write-request.json",
+  "title": "Body of POST /api/v1/write — the only way to change board state",
+  "description": "The envelope is validated first, then `data` is validated against ops/<op>.json. Identity comes from the Authorization header, never from the body.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "request_id",
+    "op",
+    "target_id",
+    "data"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$",
+      "description": "Client-chosen unique id. Retrying with the same id and the same body returns the original result instead of writing twice."
+    },
+    "op": {
+      "enum": [
+        "task.create",
+        "task.update",
+        "step.create",
+        "step.update",
+        "steps.compact",
+        "ask.raise",
+        "ask.update",
+        "ask.clear",
+        "ask.answer",
+        "inbox.submit",
+        "inbox.merge",
+        "feedback.add",
+        "feedback.resolve",
+        "routing.set",
+        "routing.reset",
+        "roles.set",
+        "roles.reset",
+        "roles.escalate",
+        "roles.override",
+        "attachment.add",
+        "token.issue",
+        "token.revoke",
+        "prefs.set",
+        "notify.set",
+        "freshness.set",
+        "times.import",
+        "summary.set",
+        "registry.set",
+        "task.delete",
+        "step.delete",
+        "goal.lock",
+        "goals.import",
+        "rebrief.request",
+        "plan.add",
+        "plans.import",
+        "ping.send",
+        "ping.seen",
+        "pings.import",
+        "turn.report"
+      ]
+    },
+    "target_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "expected_revision": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Required when ops/<op>.json says x-revision=required. Stale values are rejected with 409."
+    },
+    "data": {
+      "type": "object"
+    },
+    "origin": {
+      "type": "string",
+      "maxLength": 120,
+      "description": "Declared origin when the token holder relays for another model (e.g. a text-only chat model). Recorded as unverified metadata next to the authenticated executor."
+    }
+  },
+  "examples": [
+    {
+      "version": 1,
+      "request_id": "lane-alpha-0001",
+      "op": "step.update",
+      "target_id": "WEB-3/s2",
+      "expected_revision": 4,
+      "data": {
+        "state": "waiting"
+      }
+    }
+  ]
+}

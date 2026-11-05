@@ -1,0 +1,117 @@
+{
+ "note": "Demo fixture (P9 owner QC 01-10): recorded answers for the 9 demo lines in zumi-selftestdemolines.json. No network: the reply audio is the offline Windows vi-VN voice pre-rendered to WAV (--demo-audio), else a tone. analysis is null on purpose: the app hides the analysis panel in this mode.",
+ "speechCharsPerSec": 13,
+ "defaultTurn": {
+  "delayMs": 400,
+  "reply": "Dạ, em nghe rồi ạ. Đây là bản xem phản xạ, câu trả lời được soạn sẵn.",
+  "analysis": null,
+  "gesture": {
+   "intent": "none",
+   "brief": "",
+   "energy": "low",
+   "deixis": "none"
+  }
+ },
+ "turns": {
+  "Chào Zumi, hôm nay em thế nào?": {
+   "delayMs": 450,
+   "reply": "Chào anh! Hôm nay em khỏe lắm, sẵn sàng làm việc cùng anh rồi.",
+   "analysis": null,
+   "gesture": {
+    "intent": "greet",
+    "brief": "wave hello",
+    "energy": "mid",
+    "deixis": "none"
+   }
+  },
+  "Mình làm bản thử trước rồi mới làm bản đầy đủ, em thấy được không?": {
+   "delayMs": 450,
+   "reply": "Được ạ, làm bản thử trước là hợp lý. Em dựng bản thử, kiểm trên máy phụ rồi mới làm bản đầy đủ.",
+   "analysis": null,
+   "gesture": {
+    "intent": "agree",
+    "brief": "nod twice",
+    "energy": "mid",
+    "deixis": "none"
+   }
+  },
+  "Bỏ luôn bước kiểm thử cho nhanh nhé.": {
+   "delayMs": 450,
+   "reply": "Không nên bỏ đâu anh. Bỏ kiểm thử thì lỗi sẽ lọt tới tay người dùng.",
+   "analysis": null,
+   "gesture": {
+    "intent": "disagree",
+    "brief": "firm head shake",
+    "energy": "high",
+    "deixis": "none"
+   }
+  },
+  "Phần này ai nên quyết?": {
+   "delayMs": 450,
+   "reply": "Phần này anh quyết nhé. Em chuẩn bị sẵn hai phương án để anh chọn.",
+   "analysis": null,
+   "gesture": {
+    "intent": "explain",
+    "brief": "present two options",
+    "energy": "mid",
+    "deixis": "none"
+   }
+  },
+  "Việc nào đang chờ anh trên bảng?": {
+   "delayMs": 450,
+   "reply": "Trên bảng đang có một việc chờ anh quyết, em chỉ cho anh nhé.",
+   "analysis": null,
+   "gesture": {
+    "intent": "point-screen",
+    "brief": "point to the board",
+    "energy": "mid",
+    "deixis": "board"
+   }
+  },
+  "Em tính xem tuần này nên làm gì trước.": {
+   "delayMs": 450,
+   "reply": "Để em nghĩ một chút. Tuần này nên làm phần phản xạ trước, rồi tới bảng việc.",
+   "analysis": null,
+   "gesture": {
+    "intent": "think",
+    "brief": "hand to chin",
+    "energy": "low",
+    "deixis": "none"
+   }
+  },
+  "Bản cài chạy được rồi!": {
+   "delayMs": 450,
+   "reply": "Tuyệt quá! Bản cài chạy được rồi, mình ăn mừng một chút nhé!",
+   "analysis": null,
+   "gesture": {
+    "intent": "celebrate",
+    "brief": "small jump",
+    "energy": "high",
+    "deixis": "none"
+   }
+  },
+  "Sao hôm qua máy chậm thế nhỉ?": {
+   "delayMs": 450,
+   "reply": "Em chưa chắc lắm, có thể máy đang chạy nhiều việc cùng lúc. Em sẽ xem lại nhật ký.",
+   "analysis": null,
+   "gesture": {
+    "intent": "think",
+    "brief": "hand to chin",
+    "energy": "low",
+    "deixis": "none"
+   }
+  },
+  "Giải thích giúp anh bộ nhớ cử chỉ hoạt động thế nào.": {
+   "delayMs": 450,
+   "reply": "Bộ nhớ cử chỉ giữ lại những cử chỉ AI đã soạn và đã kiểm, lần sau gặp câu tương tự thì Zumi dùng lại ngay.",
+   "analysis": null,
+   "gesture": {
+    "intent": "explain",
+    "brief": "explain with both hands",
+    "energy": "mid",
+    "deixis": "none"
+   }
+  }
+ },
+ "gestures": {}
+}

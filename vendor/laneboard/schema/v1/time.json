@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "time.json",
+  "title": "Server-measured timing for one step. Stamped from the server clock on accepted state changes only.",
+  "type": "object", "additionalProperties": false,
+  "required": ["first_seen_at", "last_state", "waiting_total_ms", "transitions"],
+  "properties": {
+    "first_seen_at": { "$ref": "common.json#/$defs/timestamp" },
+    "started_at": { "$ref": "common.json#/$defs/timestamp" },
+    "done_at": { "$ref": "common.json#/$defs/timestamp" },
+    "waiting_since": { "$ref": "common.json#/$defs/timestamp" },
+    "waiting_total_ms": { "type": "integer", "minimum": 0 },
+    "untracked": { "type": "boolean", "description": "Step was already done when first seen; its duration is unknown and is not invented." },
+    "last_state": { "$ref": "common.json#/$defs/stepState" },
+    "transitions": {
+      "type": "array", "maxItems": 100,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["at", "from", "to"],
+        "properties": { "at": { "$ref": "common.json#/$defs/timestamp" }, "from": { "$ref": "common.json#/$defs/stepState" }, "to": { "$ref": "common.json#/$defs/stepState" } }
+      }
+    }
+  }
+}

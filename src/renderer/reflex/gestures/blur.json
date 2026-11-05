@@ -1,0 +1,48 @@
+{
+  "trigger": "blur",
+  "labelVi": "You left the window",
+  "state": true,
+  "variants": [
+    {
+      "id": "sad-lookaway", "labelVi": "Looks away, a little down",
+      "selftest": { "peakMs": 1000 },
+      "command": {
+        "id": "blur-sad-lookaway", "priority": 2, "interrupt": false, "sustain": true, "mirror": "random",
+        "expressions": [{ "name": "sad", "weight": 0.45, "inMs": 500, "outMs": 500 }],
+        "lookAt": [{ "target": { "x": -0.9, "y": -0.6 }, "weight": 0.85, "inMs": 500, "outMs": 500 }],
+        "bones": [
+          { "bone": "head", "rot": [6, -13, -3], "inMs": 600, "outMs": 500 },
+          { "bone": "spine", "rot": [2, 0, 0], "inMs": 600, "outMs": 500 }
+        ]
+      }
+    },
+    {
+      "id": "relaxed-sigh", "labelVi": "Relaxed sigh",
+      "selftest": { "peakMs": 1400 },
+      "command": {
+        "id": "blur-relaxed-sigh", "priority": 2, "interrupt": false, "sustain": true,
+        "expressions": [
+          { "name": "relaxed", "weight": 0.55, "inMs": 600, "outMs": 500 },
+          { "name": "blink", "weight": 0.25, "inMs": 600, "outMs": 400 }
+        ],
+        "bones": [
+          { "bone": "chest", "rot": [-4, 0, 0], "inMs": 400, "holdMs": 300, "outMs": 700 },
+          { "bone": "rightShoulder", "rot": [0, 0, -6], "inMs": 400, "holdMs": 300, "outMs": 600 },
+          { "bone": "leftShoulder", "rot": [0, 0, 6], "inMs": 400, "holdMs": 300, "outMs": 600 },
+          { "bone": "head", "rot": [9, 0, 0], "delayMs": 500, "inMs": 600, "outMs": 500 }
+        ],
+        "lookAt": [{ "target": { "x": 0.2, "y": -0.7 }, "weight": 0.7, "inMs": 500, "outMs": 500 }]
+      }
+    },
+    {
+      "id": "glance-back", "labelVi": "Gazes into the distance, glances back now and then",
+      "selftest": { "peakMs": 1000 },
+      "command": {
+        "id": "blur-glance-back", "priority": 2, "interrupt": false, "sustain": true, "mirror": "random",
+        "expressions": [{ "name": "sad", "weight": 0.25, "inMs": 500, "outMs": 400 }],
+        "lookAt": [{ "target": { "x": 1.1, "y": 0.1 }, "weight": 0.85, "inMs": 400, "outMs": 400, "osc": { "hz": 0.28, "amp": -0.85, "wave": "pulse", "phase": 0.5 } }],
+        "bones": [{ "bone": "head", "rot": [2, 14, 0], "inMs": 450, "outMs": 400, "osc": { "hz": 0.28, "amp": [0, -14, 0], "wave": "pulse", "phase": 0.5 } }]
+      }
+    }
+  ]
+}
