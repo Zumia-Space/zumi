@@ -192,9 +192,10 @@ ok(requestedUrls.every((u) => u.startsWith(ALLOWED_ORIGIN + '/')), 'origin sweep
   ok(JSON.stringify(parseReplyIntent('[agree][joy] Sure', '')) === JSON.stringify({ reply: 'Sure', intent: 'agree', by: 'tag', emotion: 'happy' }), 'emotion tag: gesture then emotion are both honoured', JSON.stringify(parseReplyIntent('[agree][joy] Sure', '')));
   ok(parseReplyIntent('[joy] [agree] Sure', '').intent === 'agree' && parseReplyIntent('[joy] [agree] Sure', '').emotion === 'happy', 'emotion tag: emotion then gesture (either order) also honoured', JSON.stringify(parseReplyIntent('[joy] [agree] Sure', '')));
   ok(parseReplyIntent('[joy] [agree] Sure', '').by === 'tag' && parseReplyIntent('[joy] [agree] Sure', '').reply === 'Sure', 'emotion tag: space-separated tags are both consumed as the model\'s choice', JSON.stringify(parseReplyIntent('[joy] [agree] Sure', '')));
-  // unknown and inline tags are stripped, and never set an emotion
+  // an unknown tag never sets an emotion; since 4b200967 (alpha.13: "the screen shows what the model wrote minus known
+  // tags") only KNOWN tags are stripped, so an unknown leading one stays on screen
   const unk = parseReplyIntent('[banana] hello there', '');
-  ok(unk.reply === 'hello there' && unk.emotion === null && unk.by === 'rules', 'emotion tag: an unknown leading tag is stripped, no emotion, rule intent decides', JSON.stringify(unk));
+  ok(unk.reply === '[banana] hello there' && unk.emotion === null && unk.by === 'rules', 'emotion tag: an unknown leading tag sets no emotion, is kept as text, rule intent decides', JSON.stringify(unk));
   ok(parseReplyIntent('hello [joy] world', '').reply === 'hello world' && parseReplyIntent('hello [joy] world', '').emotion === null, 'emotion tag: an inline (non-leading) tag is stripped and ignored', JSON.stringify(parseReplyIntent('hello [joy] world', '')));
 
   // streaming twin: a leading emotion tag split across deltas is decided, and text stays tag-free
@@ -231,9 +232,10 @@ ok(requestedUrls.every((u) => u.startsWith(ALLOWED_ORIGIN + '/')), 'origin sweep
   // a KNOWN gesture/emotion tag is still stripped wherever it sits
   ok(parseReplyIntent('hello [joy] world', '').reply === 'hello world', 'tag scope: a known emotion tag mid-reply is still stripped');
   ok(parseReplyIntent('hi [think] there', '').reply === 'hi there', 'tag scope: a known gesture tag mid-reply is still stripped');
-  // an unknown LEADING tag is still stripped (the model opened with a tag we do not know)
+  // an unknown LEADING tag is the model's text too (4b200967): kept, the same in the streamed and non-streamed paths
   const lead = parseReplyIntent('[banana] hello there', '');
-  ok(lead.reply === 'hello there' && lead.by === 'rules' && lead.emotion === null, 'tag scope: an unknown LEADING tag is stripped', JSON.stringify(lead));
+  const leadP = createReplyParser(); let leadOut = ''; for (const d of ['[banana] ', 'hello there']) leadOut += leadP.push(d); leadOut += leadP.end();
+  ok(lead.reply === '[banana] hello there' && lead.by === 'rules' && lead.emotion === null && leadOut === lead.reply, 'tag scope: an unknown LEADING tag is kept, streamed and non-streamed alike', JSON.stringify({ lead, leadOut }));
   // the streaming twin keeps the owner's brackets too, and still drops the leading tag
   const p = createReplyParser();
   let out = '';

@@ -89,6 +89,8 @@ process.on('exit', () => { for (const d of tmpDirs) { try { fs.rmSync(d, { recur
 const FAKE = {
   gemini: `AIza${crypto.randomBytes(20).toString('hex').slice(0, 35)}`, // the strict shape: AIza + exactly 35 (39 total)
   groq: `gsk_${crypto.randomBytes(24).toString('hex')}`,
+  nvidia: `nvapi-${crypto.randomBytes(24).toString('hex')}`,
+  cerebras: `csk-${crypto.randomBytes(24).toString('hex')}`,
   openrouter: `sk-or-v1-${crypto.randomBytes(24).toString('hex')}`,
   opencode: `oc_sk_${crypto.randomBytes(24).toString('hex')}`,
 };
@@ -109,7 +111,7 @@ function stubFetch({ status = 200, capture, body = '{}' } = {}) {
 try {
   // ---------- 1. the provider table ----------
   {
-    ok(JSON.stringify(PROVIDER_IDS) === '["gemini","groq","openrouter","opencode"]', 'table: the four provider ids, in order', JSON.stringify(PROVIDER_IDS));
+    ok(JSON.stringify(PROVIDER_IDS) === '["gemini","groq","nvidia","cerebras","openrouter","opencode"]', 'table: the six provider ids, in order', JSON.stringify(PROVIDER_IDS));
     ok(DEFAULT_PROVIDER === 'gemini' && isProviderId(DEFAULT_PROVIDER), 'table: DEFAULT_PROVIDER is the single constant "gemini"', DEFAULT_PROVIDER);
     const ROLES = ['plan', 'do', 'check', 'lookup'];
     let shapeOk = true, guideOk = true, testCfgOk = true;
@@ -118,13 +120,13 @@ try {
       if (p.id !== id || !p.label || !/^https:\/\//.test(p.baseURL) || typeof p.keyPrefix !== 'string' || !p.keyName || !(p.keyShape instanceof RegExp) || !p.keyPageURL) shapeOk = false;
       if (!p.models || !ROLES.every((r) => typeof p.models[r] === 'string')) shapeOk = false;
       if (!p.guide || !['en', 'vi', 'zh'].every((l) => Array.isArray(p.guide[l]) && p.guide[l].length >= 3)) guideOk = false;
-      if (!p.keyTest || p.keyTest.method !== 'GET' || !/^https:\/\//.test(p.keyTest.url) || !['bearer', 'header'].includes(p.keyTest.auth)) testCfgOk = false;
+      if (id === 'nvidia') { if (p.keyTest !== null) testCfgOk = false; } else if (!p.keyTest || p.keyTest.method !== 'GET' || !/^https:\/\//.test(p.keyTest.url) || !['bearer', 'header'].includes(p.keyTest.auth)) testCfgOk = false;
       if (p.keyTest && p.keyTest.auth === 'header' && typeof p.keyTest.header !== 'string') testCfgOk = false;
     }
     ok(shapeOk, 'table: every provider has id/label/https baseURL/keyPrefix/keyName/keyShape/keyPageURL + 4 role models');
     ok(guideOk, 'table: every provider has >= 3 numbered guide steps in en/vi/zh');
-    ok(testCfgOk, 'table: every provider has a GET key-test route with a bearer or header auth style');
-    ok(PROVIDER_IDS.every((id) => !/[?=]/.test(PROVIDERS[id].keyTest.url)), 'table: no key-test URL carries a query string (the key is never in a URL)', JSON.stringify(PROVIDER_IDS.map((id) => PROVIDERS[id].keyTest.url)));
+    ok(testCfgOk, 'table: every provider has a GET key-test route with a bearer or header auth style (NVIDIA: none, its /v1/models answers 200 without a key)');
+    ok(PROVIDER_IDS.every((id) => !PROVIDERS[id].keyTest || !/[?=]/.test(PROVIDERS[id].keyTest.url)), 'table: no key-test URL carries a query string (the key is never in a URL)', JSON.stringify(PROVIDER_IDS.map((id) => PROVIDERS[id].keyTest && PROVIDERS[id].keyTest.url)));
     ok(PROVIDER_IDS.every((id) => new Set(PROVIDERS[id].guide.en.map((_, i) => i)).size === PROVIDERS[id].guide.en.length
       && PROVIDERS[id].guide.vi.length === PROVIDERS[id].guide.en.length && PROVIDERS[id].guide.zh.length === PROVIDERS[id].guide.en.length),
       'table: guide steps are the same count across the three languages', '');
@@ -141,6 +143,9 @@ try {
       // OpenCode PAID ids (CORRECTION 17-10): all four roles send deepseek-v4.1-flash. The *-free ids 403 outside the
       // OpenCode app, and the paid GLM twin is unmeasured, so no guess.
       opencode: { do: OPENCODE_PAID_MODEL, lookup: OPENCODE_PAID_MODEL, plan: OPENCODE_PAID_MODEL, check: OPENCODE_PAID_MODEL },
+      // T-31 guide 05-11: NVIDIA NIM serves deepseek-ai/deepseek-v4.1-flash (build.nvidia.com sample code); Cerebras free-tier id gpt-oss-120b.
+      nvidia: { do: 'deepseek-ai/deepseek-v4.1-flash', lookup: 'deepseek-ai/deepseek-v4.1-flash', plan: 'deepseek-ai/deepseek-v4.1-flash', check: 'deepseek-ai/deepseek-v4.1-flash' },
+      cerebras: { do: 'gpt-oss-120b', lookup: 'gpt-oss-120b', plan: 'gpt-oss-120b', check: 'gpt-oss-120b' },
     };
     ok(PROVIDER_IDS.every((id) => ROLES.every((r) => PROVIDERS[id].models[r] === EXPECT[id][r])),
       'table: per-role model ids match the REPORT tables (chat->do, summarise->plan/check, quick reflex->lookup)',
@@ -183,6 +188,8 @@ try {
       groq: `gsk_${'b'.repeat(48)}`,         // starts with gsk_
       openrouter: `sk-or-${'c'.repeat(48)}`, // starts with sk-or-
       opencode: `oc_sk_${'d'.repeat(48)}`,   // Console key, no documented prefix
+      nvidia: `nvapi-${'e'.repeat(48)}`,
+      cerebras: `csk-${'f'.repeat(48)}`,
     };
     // 1. a well-formed key of each vendor is accepted by its OWN shape.
     ok(PROVIDER_IDS.every((id) => PROVIDERS[id].keyShape.test(WELL_FORMED[id])),
@@ -252,6 +259,8 @@ try {
       groq: 'https://api.groq.com/openai/v1/chat/completions',
       openrouter: 'https://openrouter.ai/api/v1/chat/completions',
       opencode: 'https://opencode.ai/inference/openai/v1/chat/completions',
+      nvidia: 'https://integrate.api.nvidia.com/v1/chat/completions',
+      cerebras: 'https://api.cerebras.ai/v1/chat/completions',
     };
     for (const id of PROVIDER_IDS) {
       const dir = tmpDir();
@@ -479,7 +488,7 @@ try {
   // ---------- T-31 OpenCode BYOK: the two-choice header (Dùng miễn phí / Tự nhập khoá) + OpenCode wiring ----------
   {
     // 1. the free list (CORRECTION 17-10: OpenCode is paid, so it is NOT here) and the free annotations the picker shows.
-    ok(JSON.stringify(FREE_PROVIDER_IDS) === '["gemini","groq","openrouter"]', 'two-choice: the free list is Gemini, Groq, OpenRouter, in that order', JSON.stringify(FREE_PROVIDER_IDS));
+    ok(JSON.stringify(FREE_PROVIDER_IDS) === '["gemini","groq","nvidia","cerebras","openrouter"]', 'two-choice: the free list is Gemini, Groq, NVIDIA NIM, Cerebras, OpenRouter, in that order', JSON.stringify(FREE_PROVIDER_IDS));
     ok(FREE_PROVIDER_IDS.every(isProviderId) && new Set(FREE_PROVIDER_IDS).size === FREE_PROVIDER_IDS.length
       && !FREE_PROVIDER_IDS.includes('opencode') && PROVIDER_IDS.includes('opencode'),
       'two-choice: every free id is a real provider, and paid OpenCode is BYOK-only (not in the free list)',
@@ -544,6 +553,8 @@ try {
       const dead = () => Promise.reject(new Error('offline'));
       const bk = createBrainKey({ safeStorage: stubSafeStorage(), dir, getProvider: () => id, fetchImpl: dead });
       const r1 = await bk.save(FAKE[id]);
+      // A provider with no key test (NVIDIA: /v1/models answers 200 without a key) never reaches the network on save: it saves as 'unverified'.
+      if (!PROVIDERS[id].keyTest) { ok(r1.ok && r1.check === 'unverified' && bk.status().saved, `behaviour: ${id} -- no key test: saved unverified, no network`); continue; }
       const notSaved = !r1.ok && r1.error === 'unreachable' && r1.needsConfirm === true && !bk.status().saved;
       const r2 = await bk.save(FAKE[id], { confirmUnreachable: true });
       const confirmed = r2.ok && r2.check === 'unreachable' && bk.status().saved;

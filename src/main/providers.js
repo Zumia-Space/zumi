@@ -127,6 +127,82 @@ const PROVIDERS = {
       ],
     },
   },
+  // NVIDIA NIM hosted trial endpoints (build.nvidia.com): OpenAI-compatible, free API trial for developers (T-31 guide, 05-11).
+  // Facts, checked 2026-11-05: sample code on https://build.nvidia.com/deepseek-ai/deepseek-v4.1-flash uses base_url
+  // https://integrate.api.nvidia.com/v1 and model "deepseek-ai/deepseek-v4.1-flash"; the page calls it a trial under the "NVIDIA API Trial
+  // Terms of Service". GET /v1/models answers 200 WITHOUT a key (measured), so it proves nothing about a key: keyTest is null on purpose
+  // (like OpenCode Go) and only a real chat reply marks the key as working. The `nvapi-` key prefix is NVIDIA's documented key shape.
+  nvidia: {
+    id: 'nvidia',
+    label: 'NVIDIA NIM',
+    baseURL: 'https://integrate.api.nvidia.com/v1',
+    chatPath: 'chat/completions',
+    modelIdRe: MODEL_OR_ID,
+    keyName: 'nvidia',
+    keyPrefix: 'nvapi-',
+    keyShape: /^nvapi-[A-Za-z0-9_-]{20,200}$/,
+    keyTest: null,
+    keyPageURL: 'https://build.nvidia.com/',
+    notice: null,
+    models: { plan: 'deepseek-ai/deepseek-v4.1-flash', do: 'deepseek-ai/deepseek-v4.1-flash', check: 'deepseek-ai/deepseek-v4.1-flash', lookup: 'deepseek-ai/deepseek-v4.1-flash' },
+    guide: {
+      en: [
+        'Open build.nvidia.com and sign in (a free NVIDIA account is needed).',
+        'Open a model page, click "Get API Key" and copy the key (it starts with nvapi-).',
+        'Paste it into the field below and press Save.',
+        'The key cannot be checked in advance: send one chat message. A reply means the key works.',
+      ],
+      vi: [
+        'Mở build.nvidia.com và đăng nhập (cần tài khoản NVIDIA miễn phí).',
+        'Mở trang một model, bấm "Get API Key" rồi sao chép khoá (bắt đầu bằng nvapi-).',
+        'Dán khoá vào ô bên dưới rồi bấm Lưu.',
+        'Khoá này không kiểm trước được: gửi một câu chat, có trả lời là khoá dùng được.',
+      ],
+      zh: [
+        '打开 build.nvidia.com 并登录（需要免费的 NVIDIA 账号）。',
+        '打开任一模型页面，点击 "Get API Key" 并复制密钥（以 nvapi- 开头）。',
+        '粘贴到下面的输入框，然后点击保存。',
+        '此密钥无法提前检查：发送一条聊天消息，收到回复即表示密钥可用。',
+      ],
+    },
+  },
+  // Cerebras Inference (cloud.cerebras.ai): OpenAI-compatible, free tier. https://api.cerebras.ai/v1/models answers 403 "Not authenticated"
+  // without a key (measured 2026-11-05), so the model list is a real key test. Free-tier model ids per
+  // https://inference-docs.cerebras.ai/support/rate-limits: gpt-oss-120b, qwen-3.8-27b. Key prefix `csk-`.
+  cerebras: {
+    id: 'cerebras',
+    label: 'Cerebras',
+    baseURL: 'https://api.cerebras.ai/v1',
+    chatPath: 'chat/completions',
+    modelIdRe: MODEL_PLAIN_ID,
+    keyName: 'cerebras',
+    keyPrefix: 'csk-',
+    keyShape: /^csk-[A-Za-z0-9_-]{20,200}$/,
+    keyTest: { method: 'GET', url: 'https://api.cerebras.ai/v1/models', auth: 'bearer' },
+    keyPageURL: 'https://cloud.cerebras.ai/platform/',
+    notice: null,
+    models: { plan: 'gpt-oss-120b', do: 'gpt-oss-120b', check: 'gpt-oss-120b', lookup: 'gpt-oss-120b' },
+    guide: {
+      en: [
+        'Open cloud.cerebras.ai and sign in or sign up.',
+        'Open the API keys page and create a key, then copy it (it starts with csk-).',
+        'Paste it into the field below and press Save.',
+        'Press "Test key" — a green OK means chat is on.',
+      ],
+      vi: [
+        'Mở cloud.cerebras.ai và đăng nhập hoặc đăng ký.',
+        'Mở trang API keys, tạo khoá rồi sao chép (bắt đầu bằng csk-).',
+        'Dán khoá vào ô bên dưới rồi bấm Lưu.',
+        'Bấm "Thử khoá" — hiện OK xanh là chat đã bật.',
+      ],
+      zh: [
+        '打开 cloud.cerebras.ai 并登录或注册。',
+        '打开 API keys 页面创建密钥并复制（以 csk- 开头）。',
+        '粘贴到下面的输入框，然后点击保存。',
+        '点击"测试密钥"——显示绿色 OK 即表示聊天已开启。',
+      ],
+    },
+  },
   openrouter: {
     id: 'openrouter',
     label: 'OpenRouter',
@@ -182,7 +258,7 @@ const PROVIDERS = {
     // `sk-or-`, Groq `gsk_`). Without this, a wrong-vendor key passes the shape, and if the key test is unreachable
     // (429/5xx/offline) a Gemini/OpenRouter/Groq key could be stored under OpenCode and then 401 in chat.
     keyPrefix: '',
-    keyShape: /^(?!AIza|sk-or-|gsk_)[A-Za-z0-9_-]{16,240}$/,
+    keyShape: /^(?!AIza|sk-or-|gsk_|nvapi-|csk-)[A-Za-z0-9_-]{16,240}$/,
     // The minimal validation call (opencode-free-1610 REPORT section 2b): GET the model list with the bearer. Measured
     // 17-10: it still returns 200 with zero balance, so it validates the key only -- never that chat is payable.
     keyTest: { method: 'GET', url: 'https://opencode.ai/inference/v1/models', auth: 'bearer' },
@@ -229,7 +305,7 @@ const PROVIDERS = {
     modelIdRe: MODEL_PLAIN_ID,
     keyName: 'opencode-go', // key file base: <userData>/opencode-go-key.bin
     keyPrefix: '',
-    keyShape: /^(?!AIza|sk-or-|gsk_)[A-Za-z0-9_-]{16,240}$/,
+    keyShape: /^(?!AIza|sk-or-|gsk_|nvapi-|csk-)[A-Za-z0-9_-]{16,240}$/,
     keyTest: null,
     keyPageURL: 'https://opencode.ai/console',
     notice: 'settings.opencodeGoNotice',
@@ -258,11 +334,11 @@ const PROVIDERS = {
 };
 
 const DEFAULT_PROVIDER = 'gemini';
-const PROVIDER_IDS = ['gemini', 'groq', 'openrouter', 'opencode']; // "Tự nhập khoá": every provider, today's order + OpenCode (ownerOnly ones are added by selectableProvider's callers)
+const PROVIDER_IDS = ['gemini', 'groq', 'nvidia', 'cerebras', 'openrouter', 'opencode']; // "Tự nhập khoá": every provider, today's order + OpenCode (ownerOnly ones are added by selectableProvider's callers)
 // "Dùng miễn phí" is the same table shown as a free-model list: Gemini ("no card"), Groq, OpenRouter free. OpenCode
 // is PAID (CORRECTION 17-10: its *-free ids are 403 outside the OpenCode app), so it appears only in "Tự nhập khoá".
 // The list only reorders/annotates the picker; it never changes the active provider or how a request is sent.
-const FREE_PROVIDER_IDS = ['gemini', 'groq', 'openrouter'];
+const FREE_PROVIDER_IDS = ['gemini', 'groq', 'nvidia', 'cerebras', 'openrouter'];
 // The two-choice header in Settings > AI & Usage (owner 16-10). Stored in settings.json `aiMode`; a NEW user starts on
 // "free", a pinned legacy (pre-BYOK) user keeps "byok" (main.js aiMode()).
 const MODES = ['free', 'byok'];

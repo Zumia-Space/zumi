@@ -33,6 +33,8 @@ ok(!/kokoro[^\n]*(recommended|khuyên)/i.test(notes), 'notes do not recommend Ko
 // ---------- the Kokoro pack ----------
 const kokoro = CATALOG.find((c) => c.id === 'voice.kokoro-82m');
 ok(kokoro.download.sha256 !== ARCHIVED_ZIP_SHA, 'the catalog does not pin the archived zip');
+// The Marketplace lists only what installs: an item without a pinned download is a dead card in a new user's store.
+ok(CATALOG.every((c) => c.download && /^[0-9a-f]{64}$/.test(c.download.sha256) && c.download.bytes > 0), 'every catalog item has a pinned download', CATALOG.filter((c) => !c.download).map((c) => c.id).join());
 ok(/market-pack-kokoro\.mjs --out \S+ --check/.test(read('docs/RELEASING.md')), 'the pack is rebuilt and checked before upload, never taken from an archive');
 if (args.includes('--kokoro')) {
   const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'zumi-gate-')), 'pack.zip');
@@ -53,7 +55,13 @@ if (args.includes('--live')) {
   const latest = (r.stdout || '').trim();
   const none = r.status !== 0 && /404/.test(r.stderr || '');
   ok(none || /^v\d/.test(latest), 'GitHub\'s Latest release is an app release, or none exists yet', latest || r.stderr);
+  // A stranger's download: no gh, no token. A private repo or a missing packs-v1 asset answers 404 here, as it did in 0.3.0.
+  for (const c of CATALOG.filter((x) => x.download)) {
+    let status = 'network';
+    try { status = (await fetch(c.download.url, { method: 'HEAD', redirect: 'follow' })).status; } catch { /* stays 'network' */ }
+    ok(status === 200, `${c.id}: anyone can download ${c.download.url}`, String(status));
+  }
 }
 
 console.log(`\ncheck-release-gate: ${pass} passed, ${fail} failed`);
-if (fail) process.exit(1);
+if (fail) process.exitCode = 1; // not exit(): a live run still holds fetch sockets, and exit() under them aborts libuv on Windows

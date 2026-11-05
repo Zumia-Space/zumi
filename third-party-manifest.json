@@ -361,8 +361,8 @@
     {
       "glob": "src/main/*.js",
       "id": "zumia-own-code",
-      "count": 31,
-      "listSha256": "8c19ab507cfd2591f3281fc61946ea0337ea872b472c8a0546c200d5788b01d0"
+      "count": 32,
+      "listSha256": "0270eed69bec416c894765b8417b919534a46eab32ad4069ae535d6568ffe53f"
     },
     {
       "glob": "src/main/*.mjs",

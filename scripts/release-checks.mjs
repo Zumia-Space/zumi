@@ -27,6 +27,7 @@ export const RELEASE_CHECKS = [
   ['check-memory-notes'],
   ['check-public-text'],
   ['check-first-run-setup'],
+  ['check-free-key-guide'],
   dry ? ['check-release-gate', '--kokoro'] : ['check-release-gate', '--kokoro', '--live'],
 ];
 if (args.includes('--also')) RELEASE_CHECKS.push([args[args.indexOf('--also') + 1]]);

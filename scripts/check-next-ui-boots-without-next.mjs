@@ -57,6 +57,7 @@ function makeScratch(tag, withNext) {
   fs.cpSync(path.join(ROOT, 'src', 'renderer'), path.join(dir, 'src', 'renderer'), { recursive: true });
   fs.mkdirSync(path.join(dir, 'src', 'main'), { recursive: true });
   fs.copyFileSync(path.join(ROOT, 'src', 'main', 'providers.js'), path.join(dir, 'src', 'main', 'providers.js')); // brain-key-card.js imports it
+  fs.copyFileSync(path.join(ROOT, 'src', 'main', 'free-key-routes.js'), path.join(dir, 'src', 'main', 'free-key-routes.js')); // free-key-guide.js imports it
   fs.cpSync(path.join(ROOT, 'src', 'next-tokens'), path.join(dir, 'src', 'next-tokens'), { recursive: true });
   if (withNext && fs.existsSync(path.join(ROOT, 'assets', 'pricing'))) fs.cpSync(path.join(ROOT, 'assets', 'pricing'), path.join(dir, 'assets', 'pricing'), { recursive: true }); // the Pricing hero image (alpha.12)
   fs.symlinkSync(path.join(ROOT, 'node_modules'), path.join(dir, 'node_modules'), 'junction');

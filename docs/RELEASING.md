@@ -15,4 +15,6 @@ node scripts/market-pack-kokoro.mjs --out voice.kokoro-82m-1.2.1.zip --check
 gh release create packs-v1 voice.kokoro-82m-1.2.1.zip --repo Zumia-Space/zumi --title "Voice packs" --notes "Optional voice packs for Zumi. Not an app release." --prerelease --latest=false
 ```
 
+The app downloads with no account, so the asset must answer an anonymous request: while `Zumia-Space/zumi` is private, GitHub answers 404 and every install shows "Not available yet" (0.3.0, measured 05-11). `node scripts/check-release-gate.mjs --live` fails until each catalog URL answers 200 to a request without a token. `npm run check:market-e2e` installs every catalog item from its real zip through the app's own path before you upload it.
+
 `packs-v1` must never become Latest: every install would then look for `latest.json` in it and fail to update. If it ever does, publish the newest app release again with `gh release edit <tag> --repo Zumia-Space/zumi --latest`.

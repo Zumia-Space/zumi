@@ -127,7 +127,7 @@ await attempt('B1 market', async () => {
   const off = createMarketHost({ dataDir: dir, catalog: [item], model, fetchImpl: async () => { throw new Error('offline'); } });
   off.handlers['market.list']();
   await settle();
-  ok(off.handlers['market.list']().items[0].state === 'unpublished', 'B1 offline: not offered');
+  ok(off.handlers['market.list']().items[0].state === 'offline', 'B1 offline: not offered, and said as offline (05-11), not as Coming soon');
   // One hop, on the allowed list, then bytes; a second redirect is a failed download.
   const hops = [];
   const twice = createMarketHost({ dataDir: dir, catalog: [{ ...item, download: { ...item.download, releaseAsset: false } }], model, fetchImpl: async (u) => { hops.push(u); return { status: 302, ok: false, headers: new Headers({ location: `https://release-assets.githubusercontent.com/${hops.length}` }) }; } });
@@ -136,12 +136,11 @@ await attempt('B1 market', async () => {
   fs.rmSync(dir, { recursive: true, force: true });
 
   const ui = read('src/renderer/market.js'), i18n = read('src/renderer/i18n.js');
-  ok(/unpublished: \['soon', 'market\.pill\.soon'\]/.test(ui), 'B1 the pill says Coming soon');
-  ok(/if \(r\.recommended && r\.state !== 'unpublished'\)/.test(ui), 'B1 what cannot be installed is not Recommended');
-  ok(/r\.state === 'unpublished'\) box\.appendChild\(el\('span', 'market-why', t\('market\.why\.unpublished'\)\)\)/.test(ui), 'B1 it says why, with no Install button');
+  ok(/if \(r\.recommended && r\.state !== 'unpublished' && r\.state !== 'unpackaged'\)/.test(ui), 'B1 what cannot be installed is not Recommended');
+  ok(/else status\('market\.status\.unavailable'\); \/\/ unpublished/.test(ui), 'B1 it says Not available yet, with no Install button');
   ok(/if \(p\.phase === 'done'\) \{ progress\.delete\(p\.id\); if \(!busyHere\(\)\) refresh\(\); \}/.test(ui) || /progress\.delete\(p\.id\); refresh\(\);/.test(ui), 'B1 the page re-reads the list when told');
   ok(!/from zumia\.space|từ zumia\.space|从 zumia\.space/.test(i18n), 'B1 no string names zumia.space as the source');
-  ok((i18n.match(/'market\.why\.unpublished':/g) || []).length === 3 && (i18n.match(/'market\.err\.not_published':/g) || []).length === 3, 'B1 three languages');
+  ok((i18n.match(/'market\.status\.unavailable':/g) || []).length === 3 && (i18n.match(/'market\.err\.not_published':/g) || []).length === 3, 'B1 three languages');
 });
 
 // ---------- B2: Node is asked for honestly in two languages; No is a screen, not a stack trace ----------
@@ -310,7 +309,7 @@ await attempt('rerun 1', async () => {
 // ---------- what the second rerun found ----------
 {
   const guide = read('src/renderer/key-guide.js'), app = read('src/renderer/app.js'), src = read('src/renderer/profile-import.js');
-  ok(/initKeyGuide\(\{ zumi, \$ \}\)/.test(app) && /let onboarded = false, enabled = !\$\('talk'\)\.hidden/.test(guide), 'C1 a key saved earlier: no card on the next start (the first event fires before the card listens, and talk.enabled still waits for the model)');
+  ok(/initKeyGuide\(\{ zumi, \$(, openGuide: [\w.]+)? \}\)/.test(app) && /let onboarded = false, enabled = !\$\('talk'\)\.hidden/.test(guide), 'C1 a key saved earlier: no card on the next start (the first event fires before the card listens, and talk.enabled still waits for the model)');
   ok(/if \(isPublicText\(\) && !hasSomethingToImport\(plan\)\) \{ await api\.importDismiss\(\); return; \}/.test(src), 'C7 nothing to import is an answer: the offer does not come back when a later start has settings of its own');
 }
 

@@ -114,6 +114,28 @@ select, .ghost, .primary, #msg { border-radius: var(--radius); }
 .key-guide h3 { margin: 0 0 6px; }
 .key-guide p { margin: 0 0 12px; }
 .key-guide-row { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Guide panel (free-key-guide.js): a scrollable sheet over the app with the three route cards. */
+.fk-panel { position: fixed; inset: 0; z-index: 60; overflow-y: auto; background: color-mix(in srgb, var(--background) 60%, transparent); padding: 24px 16px; }
+.fk-panel[hidden] { display: none; }
+.fk-sheet { max-width: 980px; margin: 0 auto; padding: 18px 20px; }
+.fk-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.fk-cards { margin-top: 12px; }
+.fk-group { margin: 14px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; opacity: .75; }
+.fk-group-list { display: flex; flex-direction: column; gap: 8px; }
+.fk-toggle { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; text-align: left; background: transparent; border: 0; padding: 4px 0; cursor: pointer; color: inherit; }
+.fk-name { font-weight: 600; font-size: 15px; }
+.fk-body { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; }
+.fk-body[hidden] { display: none; }
+.fk-card { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; }
+.fk-card.fk-recommended { border-color: color-mix(in srgb, var(--success) 80%, transparent); }
+.fk-card h4, .fk-card p { margin: 0; }
+.fk-badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; margin-left: 4px; }
+.fk-badge-free, .fk-badge-rec { color: var(--success); }
+.fk-badge-paid { color: var(--warn); }
+.fk-model, .fk-url { font-family: ui-monospace, monospace; font-size: 12px; word-break: break-all; }
+.fk-why { font-style: italic; }
+.fk-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fk-key { flex: 1 1 140px; min-width: 0; }
 .nx-card.nx-yield { opacity: 0; pointer-events: none; transition: none; }
 #stage.nx-devices-open .hud-left, #stage.nx-devices-open .hud-below[data-place="below-left"] { visibility: hidden; }
 .frame .head .sp { flex: 1; }
@@ -246,6 +268,36 @@ select, .ghost, .primary, #msg { border-radius: var(--radius); }
 .sk-detail .sk-dhead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
 .sk-how { font-size: 11.5px; color: var(--muted-foreground); margin: 6px 0 0; line-height: 1.4; }
 .sk-detail .scan { margin-top: 9px; }
+
+/* ---------- Marketplace (store grid, 05-11): cards and the detail panel are .frame panels; idle lines dim, the picked one lit ---------- */
+#tab-market {
+  background:
+    linear-gradient(var(--line-faint) 1px, transparent 1px) 0 0 / 100% 36px,
+    linear-gradient(90deg, var(--line-faint) 1px, transparent 1px) 0 0 / 36px 100%,
+    radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--primary) 6%, var(--background)), var(--background) 75%);
+}
+#tab-market .toolbar { background: var(--rail-bg); border-bottom: 1px solid var(--line-dim); }
+.market-search { border-radius: var(--radius); border-color: var(--line-dim); background: var(--card); }
+.market-card.frame { padding: 13px 15px calc(var(--tick) + 9px); gap: 10px; }
+.market-card.frame::before { background: var(--line-dim); }
+.market-card.frame:hover::before { background: var(--line); }
+.market-card.frame.sel { box-shadow: none; filter: drop-shadow(0 0 7px var(--glow-soft)); }
+.market-card.frame.sel::before { background: var(--primary); }
+.market-card.frame.sel .k { color: var(--primary); }
+.market-card.frame:focus-visible { box-shadow: none; outline: 1px solid var(--primary); outline-offset: 2px; }
+.market-icon { border-radius: 0; background: var(--line-faint); border-color: var(--line-dim); clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+.market-icon svg { filter: drop-shadow(0 0 3px var(--glow-soft)); }
+.market-chip { border-radius: 0; color: var(--primary); background: var(--line-faint); border-color: var(--line-dim); clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%, 0 6px); }
+.market-chip.rec { color: var(--success); }
+.market-go { border-radius: var(--radius); box-shadow: 0 0 10px var(--glow-soft); letter-spacing: .02em; }
+.market-bar { border-radius: 0; height: 7px; background: var(--line-faint); border: 1px solid var(--line-dim); }
+.market-bar i { box-shadow: 0 0 6px var(--glow); }
+.market-sect { color: var(--primary); letter-spacing: .14em; display: flex; align-items: center; gap: 10px; }
+.market-sect::after { content: ""; flex: 1; height: 1px; background: var(--line-dim); }
+.market-side.frame { padding: 0 0 calc(var(--tick) + 6px); }
+.market-dact { border-color: var(--line-faint); }
+.market-note { border-radius: 0; background: var(--line-faint); border-left: 2px solid var(--line-dim); }
+.market-detail h4 { color: var(--primary); letter-spacing: .14em; }
 
 /* ---------- reduced motion: no glow pulse, no scan sweep (the still shapes stay) ---------- */
 @media (prefers-reduced-motion: reduce) {

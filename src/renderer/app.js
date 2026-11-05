@@ -27,6 +27,7 @@ import { initProfileImport } from './profile-import.js';
 import { isPublicBuild, applyPublicShell } from './public-build.js';
 import { initNodeSetup, nodeSetupOpen } from './node-setup.js';
 import { initKeyGuide } from './key-guide.js';
+import { initFreeKeyGuide } from './free-key-guide.js';
 import { initSidecarStatus } from './sidecar-status.js';
 import { prepareVrm } from './model-facing.js';
 import { loadRoom } from './room/room-loader.js';
@@ -1121,7 +1122,9 @@ async function main() {
   }
   // Next-version UI (ADR 2026-10-27-next-version-path-flag): __ZUMI_NEXT_UI__ is a build constant (scripts/build-renderer.mjs, default off);
   // off, esbuild drops this line and the build carries no src/renderer/next/**. Runs after the tab handlers above, so it can add its own sidebar item.
-  if (isPublicBuild(info)) initKeyGuide({ zumi, $ }); // listens before the next UI can announce the end of onboarding
+  const freeKeyGuide = initFreeKeyGuide({ zumi, $ }); // the Guide panel: three key routes; opened from the first-run card and Settings > AI
+  if ($('free-key-open')) $('free-key-open').addEventListener('click', () => freeKeyGuide.open());
+  if (isPublicBuild(info)) initKeyGuide({ zumi, $, openGuide: freeKeyGuide.open }); // listens before the next UI can announce the end of onboarding
   if (__ZUMI_NEXT_UI__) import('./next/boot.js').then((m) => m.initNextUi({ $, engine, info })).catch((e) => console.error('next-ui: init failed', e));
   // Settings > the six inner tabs (T-31 settings P1): one tab bar over one scroll box, arrow keys + last tab remembered.
   initSettingsTabs();

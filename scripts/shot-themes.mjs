@@ -58,6 +58,7 @@ function makeScratch() {
   fs.cpSync(path.join(ROOT, 'src', 'renderer'), path.join(SCRATCH, 'src', 'renderer'), { recursive: true });
   fs.mkdirSync(path.join(SCRATCH, 'src', 'main'), { recursive: true });
   fs.copyFileSync(path.join(ROOT, 'src', 'main', 'providers.js'), path.join(SCRATCH, 'src', 'main', 'providers.js'));
+  fs.copyFileSync(path.join(ROOT, 'src', 'main', 'free-key-routes.js'), path.join(SCRATCH, 'src', 'main', 'free-key-routes.js')); // free-key-guide.js imports it
   fs.cpSync(path.join(ROOT, 'src', 'next-tokens'), path.join(SCRATCH, 'src', 'next-tokens'), { recursive: true });
   fs.cpSync(path.join(ROOT, 'vendor', 'laneboard', 'public'), path.join(SCRATCH, 'vendor', 'laneboard', 'public'), { recursive: true });
   fs.symlinkSync(path.join(ROOT, 'node_modules'), path.join(SCRATCH, 'node_modules'), 'junction');

@@ -72,7 +72,37 @@ await refusal('not published yet', 'download_failed', goodZip, catalogFor(goodZi
   const d = dataDir();
   const net = createMarketHost({ dataDir: d, catalog: catalogFor(goodZip), fetchImpl: async () => { throw new Error('offline'); }, model: fakeModel() });
   const r = await net.handlers['market.install']('voice.kokoro-82m');
-  ok(!r.ok && r.code === 'download_failed' && r.detail === 'network', 'offline: a plain failure', JSON.stringify(r));
+  ok(!r.ok && r.code === 'offline', 'offline: its own code, so the page can say "you are offline"', JSON.stringify(r));
+}
+// ---------- a Release asset: offered once a HEAD finds it; offline and not-published are told apart ----------
+{
+  const rel = (fetchImpl) => createMarketHost({ dataDir: dataDir(), catalog: catalogFor(goodZip, { download: { url: 'https://github.com/x/k.zip', sha256: sha256(goodZip), bytes: goodZip.length, releaseAsset: true } }), fetchImpl, model: fakeModel() });
+  const settle = () => new Promise((r) => setTimeout(r, 20));
+  const off = rel(async () => { throw new TypeError('fetch failed'); });
+  off.handlers['market.list'](); await settle();
+  ok(off.handlers['market.list']().items[0].state === 'offline', 'no network: the item reads offline, not coming soon');
+  ok((await off.handlers['market.install']('voice.kokoro-82m')).code === 'offline', 'no network: Retry answers offline');
+  const gone = rel(async () => ({ ok: false, status: 404, headers: new Headers() }));
+  gone.handlers['market.list'](); await settle();
+  ok(gone.handlers['market.list']().items[0].state === 'unpublished', 'a 404: the item reads not published');
+  ok((await gone.handlers['market.install']('voice.kokoro-82m')).code === 'not_published', 'a 404: install says not published');
+  const there = rel(async (u, i) => (i && i.method === 'HEAD' ? { ok: true, status: 200, headers: new Headers() } : serve(goodZip)()));
+  there.handlers['market.list'](); await settle();
+  ok(there.handlers['market.list']().items[0].state === 'available', 'found: the item can be installed');
+  ok((await there.handlers['market.install']('voice.kokoro-82m')).ok, 'found: it installs');
+}
+// ---------- a newer version in the catalog reads Update, and Update replaces the pack ----------
+{
+  const d = dataDir(); const m = fakeModel();
+  await createMarketHost({ dataDir: d, catalog: catalogFor(goodZip), fetchImpl: serve(goodZip), model: m }).handlers['market.install']('voice.kokoro-82m');
+  const newer = packZip({ ...manifest, version: '1.2.2' }, RUNTIME);
+  const host = createMarketHost({ dataDir: d, catalog: catalogFor(newer, { version: '1.2.2' }), fetchImpl: serve(newer), model: m });
+  const before = host.handlers['market.list']().items[0];
+  ok(before.state === 'update' && before.installedVersion === '1.2.1', 'an older pack reads Update', JSON.stringify(before));
+  ok((await host.handlers['market.install']('voice.kokoro-82m')).ok, 'Update installs the new pack');
+  const after = host.handlers['market.list']().items[0];
+  ok(after.state === 'installed' && after.installedVersion === '1.2.2', 'then it reads Installed at the new version', JSON.stringify(after));
+  ok(JSON.parse(fs.readFileSync(path.join(d, 'packs', 'voice.kokoro-82m', 'zumi-pack.json'), 'utf8')).version === '1.2.2', 'the new pack is the one on disk');
 }
 {
   const m = fakeModel(); m.download = () => Promise.resolve(false);
@@ -140,7 +170,10 @@ await refusal('not published yet', 'download_failed', goodZip, catalogFor(goodZi
   const kokoro = CATALOG.find((c) => c.id === 'voice.kokoro-82m'); const vieneu = CATALOG.find((c) => c.id === 'voice.vieneu-tts');
   ok(/^[0-9a-f]{64}$/.test(kokoro.download.sha256) && kokoro.download.bytes > 1e6, 'the Kokoro pack is pinned by sha256 and size');
   ok(new URL(kokoro.download.url).origin === MARKET_ORIGINS[0], 'the Kokoro pack comes from the Marketplace origin');
-  ok(vieneu && vieneu.download === null, 'VieNeu is listed with no download until a package exists');
+  ok(!vieneu, 'VieNeu is not listed: no package exists, so it could not install');
+  ok(CATALOG.every((c) => c.download && /^[0-9a-f]{64}$/.test(c.download.sha256) && c.download.bytes > 0), 'every shipped item has a download pinned by sha256 and size');
+  const listed = createMarketHost({ dataDir: dataDir(), fetchImpl: async () => { throw new TypeError('offline'); }, model: fakeModel() }).handlers['market.list']();
+  ok(listed.items.length === CATALOG.length && listed.items.every((i) => i.source === 'github.com' && Array.isArray(i.needs)), 'the list names the source and needs of each item', JSON.stringify(listed.items.map((i) => [i.id, i.source, i.needs])));
   ok(CATALOG.every((c) => c.licence && c.author), 'every item names a licence and an author');
   ok(!CATALOG.some((c) => 'price' in c || 'seller' in c), 'no paid item, no seller');
 }

@@ -218,15 +218,15 @@
       <section id="tab-market" class="panel">
         <header class="toolbar">
           <span class="title" data-i18n="market.title">Marketplace</span>
-          <span class="muted market-sub" data-i18n="market.sub">Add voices, rooms and models to Zumi.</span>
+          <span class="muted market-sub" data-i18n="market.sub">Free voices, rooms and models for Zumi.</span>
           <input id="market-search" type="search" class="market-search" placeholder="Search" data-i18n-placeholder="market.search" aria-label="Search" data-i18n-aria="market.search">
         </header>
         <div class="stabbar" id="market-cats" role="group" aria-label="Marketplace categories" data-i18n-aria="market.catsAria"></div>
         <div class="market-body">
           <div class="market-list" id="market-list"></div>
-          <aside class="market-detail" id="market-detail"></aside>
+          <aside class="market-side frame"><div class="market-detail" id="market-detail"></div></aside>
         </div>
-        <p class="market-foot" data-i18n="market.foot">Everything here is free and packaged by Zumia.</p>
+        <p class="market-foot" data-i18n="market.foot">Everything here is free.</p>
       </section>
 
       <section id="tab-settings" class="panel">
@@ -349,7 +349,7 @@
               <div class="srow stack" id="brain-guide-row">
                 <div class="lbl"><div class="k" data-i18n="settings.getKey">Get your key</div></div>
                 <ol id="brain-guide" class="guide"></ol>
-                <div class="line"><button id="brain-guide-open" class="ghost" type="button" data-i18n="settings.openKeyPage">Open the key page</button></div>
+                <div class="line"><button id="brain-guide-open" class="ghost" type="button" data-i18n="settings.openKeyPage">Open the key page</button> <button id="free-key-open" class="ghost" type="button" data-i18n="freeKey.settingsOpen">Guide: ways to get a key</button></div>
               </div>
               <p id="brain-notice" class="note" hidden></p>
               <!-- "Your own key" (KEY-HANDLING.md): saved -> a masked line (dots + last 4) with Change / Clear; no key or

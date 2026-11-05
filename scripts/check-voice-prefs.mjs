@@ -38,7 +38,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const speak = sent.find((m) => m.cmd === 'speak');
   ok(speak && speak.speed === 1.25, 'kokoro: a spoken reply carries the current speed', JSON.stringify(speak && speak.speed));
   kk.setSpeed(0.75);
-  const live = { text: () => 'Hi.', onText: () => () => {}, final: new Promise(() => {}) };
+  // Since 4b200967 the worker hears of a live turn at its first chunk ('open' is lazy), and the chunker holds an
+  // unfinished sentence until more text or the end: the reply must finish for 'Hi.' to become a chunk.
+  const live = { text: () => 'Hi.', onText: () => () => {}, final: Promise.resolve() };
   kk.speakLive('t2'.padEnd(32, '0'), live, () => {});
   await sleep(5);
   const open = sent.find((m) => m.cmd === 'open');

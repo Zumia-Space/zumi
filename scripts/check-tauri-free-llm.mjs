@@ -156,7 +156,7 @@ const codeOf = async (p) => { try { await p(); return null; } catch (e) { return
 // ---- 7. egress: exactly the new hosts join the derived allow-list ----
 {
   const expected = [
-    'https://generativelanguage.googleapis.com', 'https://api.groq.com', 'https://openrouter.ai', 'https://opencode.ai',
+    'https://generativelanguage.googleapis.com', 'https://api.groq.com', 'https://integrate.api.nvidia.com', 'https://api.cerebras.ai', 'https://openrouter.ai', 'https://opencode.ai',
     'https://api.cloudflare.com', 'https://api.mistral.ai',
   ];
   ok(same([...PROVIDER_ORIGINS].sort(), [...expected].sort()), 'the allow-list is the four frozen provider origins plus api.cloudflare.com and api.mistral.ai', JSON.stringify(PROVIDER_ORIGINS));

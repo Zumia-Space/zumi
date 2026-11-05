@@ -24,6 +24,8 @@ const ok = (cond, name, detail = '') => { if (cond) { pass++; console.log(`PASS 
 const FOUR = [
   'https://generativelanguage.googleapis.com',
   'https://api.groq.com',
+  'https://integrate.api.nvidia.com',
+  'https://api.cerebras.ai',
   'https://openrouter.ai',
   'https://opencode.ai',
 ];
@@ -78,7 +80,7 @@ const codeOf = async (p) => { try { await (typeof p === 'function' ? p() : p); r
 
 // ---- 2. the provider set is derived, not typed ----
 {
-  ok(JSON.stringify([...PROVIDER_ORIGINS].sort()) === JSON.stringify([...EXPECTED].sort()), 'the provider set is derived from PROVIDERS and equals the four literal origins + the two Tauri presets', JSON.stringify(PROVIDER_ORIGINS));
+  ok(JSON.stringify([...PROVIDER_ORIGINS].sort()) === JSON.stringify([...EXPECTED].sort()), 'the provider set is derived from PROVIDERS and equals the six literal origins (incl. NVIDIA NIM, Cerebras) + the two Tauri presets', JSON.stringify(PROVIDER_ORIGINS));
   ok(PROVIDER_ORIGINS.length === EXPECTED.length, `exactly ${EXPECTED.length} provider origins`, String(PROVIDER_ORIGINS.length));
   const again = providerEgressOrigins(prov.PROVIDERS);
   ok(JSON.stringify(again) === JSON.stringify(PROVIDER_ORIGINS), 'providerEgressOrigins(PROVIDERS) is stable (baseURL + keyTest.url origins)');

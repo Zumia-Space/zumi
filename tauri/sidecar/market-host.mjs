@@ -11,19 +11,15 @@ import path from 'node:path';
 
 import { validatePackZip } from './market-standard.mjs';
 
-// Kokoro's runtime pack, built by scripts/market-pack-kokoro.mjs; the build's own sha and size go here. `download` null means
-// the package does not exist yet: the item is listed, labelled, and cannot be installed.
+// Kokoro's runtime pack, built by scripts/market-pack-kokoro.mjs; the build's own sha and size go here. Every shipped item has a
+// pinned download (check:release-gate): an item with no package is not listed. VieNeu-TTS left 05-11: no package exists (1.36 GB
+// measured 01-11, packaging needs the owner's go). `needs` is what the detail panel shows under Permissions.
 export const CATALOG = Object.freeze([
   {
     id: 'voice.kokoro-82m', kind: 'voice', version: '1.2.1', recommended: true, licence: 'Apache-2.0', author: 'hexgrad',
-    langs: ['en'], platforms: ['win-x64'], bytes: 87194313, modelBytes: 156 * 1024 * 1024,
+    langs: ['en'], platforms: ['win-x64'], bytes: 87194313, modelBytes: 156 * 1024 * 1024, needs: ['runs-code', 'model-download'],
     // releaseAsset: the file may not be on GitHub yet, so the item is offered only once a HEAD finds it. No new app version is needed when it appears.
     download: { url: 'https://github.com/Zumia-Space/zumi/releases/download/packs-v1/voice.kokoro-82m-1.2.1.zip', sha256: '70268f99efcb55ca9be37e7c3f472a870f07312a965a85be4a3eb8331342b452', bytes: 28501808, releaseAsset: true },
-  },
-  {
-    id: 'voice.vieneu-tts', kind: 'voice', version: '3.0.0', recommended: false, licence: 'Apache-2.0', author: 'pnnbao97',
-    langs: ['vi', 'en'], platforms: ['win-x64'], bytes: 1360 * 1024 * 1024, modelBytes: 0,
-    download: null, // measured 01-11: 751 MB Python + 518 MB model + 91 MB tokenizer. Packaging needs the owner's go (download).
   },
 ]);
 
@@ -49,6 +45,7 @@ export function createMarketHost({ dataDir, catalog = CATALOG, fetchImpl, emit =
     try { const j = JSON.parse(fs.readFileSync(installedFile, 'utf8')); return j && typeof j === 'object' ? j : {}; } catch { return {}; }
   };
   const writeInstalled = (j) => { fs.mkdirSync(packsDir, { recursive: true }); fs.writeFileSync(installedFile, `${JSON.stringify(j, null, 2)}\n`); };
+  const installedVersion = (id) => (readInstalled()[id] || {}).version || null;
   const isInstalled = (id) => Boolean(readInstalled()[id]) && fs.existsSync(path.join(packDir(id), 'zumi-pack.json')) && !fs.existsSync(pendingRemoval(id));
 
   // Windows keeps a loaded DLL's file locked until the process ends, so a remove after Kokoro ran finishes on the next start.
@@ -71,25 +68,27 @@ export function createMarketHost({ dataDir, catalog = CATALOG, fetchImpl, emit =
     if (busy.has(c.id)) return 'installing';
     if (bundled(c.id)) return 'bundled';
     if (fs.existsSync(pendingRemoval(c.id))) return 'restart';
-    if (isInstalled(c.id)) return 'installed';
+    if (isInstalled(c.id)) return !c.download || installedVersion(c.id) === c.version ? 'installed' : 'update';
     if (!c.download) return 'unpackaged';
-    if (c.download.releaseAsset && !(published.get(c.id) || {}).yes) { refreshPublished(c); return 'unpublished'; }
+    const probe = published.get(c.id);
+    if (c.download.releaseAsset && !(probe || {}).yes) { refreshPublished(c); return probe && probe.offline ? 'offline' : 'unpublished'; }
     return 'available';
   }
 
-  /** Is the Release asset there? 2xx or a redirect is yes; anything else, offline included, is not yet. */
+  /** Is the Release asset there? 2xx or a redirect is yes. A request that never got an answer is offline; any status is an answer. */
   async function probePublished(c) {
-    let yes = false;
-    try { const res = await fetchImpl(c.download.url, { method: 'HEAD' }); yes = res.status >= 200 && res.status < 400; } catch { /* not yet */ }
-    published.set(c.id, { yes, at: Date.now() });
-    return yes;
+    let yes = false, offline = false;
+    try { const res = await fetchImpl(c.download.url, { method: 'HEAD' }); yes = res.status >= 200 && res.status < 400; } catch (e) { offline = e.code !== 'egress_refused'; }
+    const probe = { yes, offline, at: Date.now() };
+    published.set(c.id, probe);
+    return probe;
   }
   // Called from the list, which stays synchronous: the answer repaints the page through the one event it already follows.
   function refreshPublished(c) {
     const last = published.get(c.id);
     if (last && (last.pending || Date.now() - last.at < REPROBE_MS)) return;
-    published.set(c.id, { yes: false, at: Date.now(), pending: true });
-    probePublished(c).then((yes) => { if (yes) emit('market:progress', { id: c.id, phase: 'done', loaded: 0, total: 0 }); });
+    published.set(c.id, { yes: false, offline: Boolean(last && last.offline), at: Date.now(), pending: true });
+    probePublished(c).then((p) => { if (p.yes || p.offline !== Boolean(last && last.offline)) emit('market:progress', { id: c.id, phase: 'done', loaded: 0, total: 0 }); });
   }
 
   function list() {
@@ -101,6 +100,8 @@ export function createMarketHost({ dataDir, catalog = CATALOG, fetchImpl, emit =
         return {
           ...rest,
           state: itemState(c),
+          source: download ? new URL(download.url).host : null,
+          needs: rest.needs || [],
           sha256: download ? download.sha256 : null,
           downloadBytes: download ? download.bytes : 0,
           installedVersion: installed[c.id] ? installed[c.id].version : null,
@@ -123,12 +124,12 @@ export function createMarketHost({ dataDir, catalog = CATALOG, fetchImpl, emit =
         res = await fetchImpl(c.download.url, { signal: ctl.signal });
         const next = res.status >= 300 && res.status < 400 && res.headers.get('location');
         if (next) res = await fetchImpl(next, { signal: ctl.signal }); // one hop; a second redirect fails below as not ok
-      } catch (e) { throw coded('download_failed', e.code === 'egress_refused' ? 'refused' : 'network'); }
+      } catch (e) { throw e.code === 'egress_refused' ? coded('download_failed', 'refused') : coded('offline', 'network'); }
       if (!res.ok || !res.body) throw coded('download_failed', `http_${res.status}`);
       const reader = res.body.getReader();
       for (;;) {
         let step;
-        try { step = await reader.read(); } catch { throw coded('download_failed', 'network'); }
+        try { step = await reader.read(); } catch { throw coded('offline', 'network'); }
         if (step.done) break;
         clearTimeout(stall); stall = setTimeout(() => ctl.abort(), STALL_MS);
         got += step.value.length;
@@ -151,7 +152,11 @@ export function createMarketHost({ dataDir, catalog = CATALOG, fetchImpl, emit =
     if (!c) return { ok: false, code: 'unknown_item' };
     if (busy.has(id)) return { ok: false, code: 'busy' };
     if (!c.download) return { ok: false, code: 'not_packaged' };
-    if (!bundled(id) && !isInstalled(id) && c.download.releaseAsset && !(await probePublished(c))) return { ok: false, code: 'not_published' };
+    const fresh = !bundled(id) && (!isInstalled(id) || installedVersion(id) !== c.version); // not here yet, or an Update
+    if (fresh && c.download.releaseAsset) {
+      const probe = await probePublished(c);
+      if (!probe.yes) return { ok: false, code: probe.offline ? 'offline' : 'not_published' };
+    }
     // In the installer already: only its model can still be missing.
     const inBuild = bundled(id);
     if (inBuild && !(c.modelBytes > 0 && model && !model.present())) return { ok: false, code: 'bundled' };
@@ -162,12 +167,13 @@ export function createMarketHost({ dataDir, catalog = CATALOG, fetchImpl, emit =
     const cleanup = () => { for (const p of [zip, part]) fs.rmSync(p, { recursive: true, force: true }); };
     say('download');
     try {
-      if (!inBuild && !isInstalled(id)) {
+      if (fresh) {
         fs.mkdirSync(packsDir, { recursive: true });
         await download(c, zip, (loaded, total) => say('download', loaded, total));
         say('verify');
         const verdict = await validatePackZip(zip, part, { kind: c.kind, expectId: id, publisher: 'zumia', onProgress: (p) => say('verify', p.loaded, p.total) });
         if (!verdict.ok) { log(`[market] install id=${id} refused ${verdict.errors[0].code}`); throw coded('invalid_pack', verdict.errors[0].message); }
+        if (model && c.modelBytes > 0 && isInstalled(id)) model.stop(); // an Update: the running voice holds the old pack's files
         fs.rmSync(packDir(id), { recursive: true, force: true });
         fs.renameSync(part, packDir(id));
         fs.rmSync(zip, { force: true });

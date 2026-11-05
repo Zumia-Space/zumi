@@ -1,7 +1,7 @@
 {
   "name": "zumi-desktop",
   "productName": "Zumi",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Zumi desktop companion: 3D VRM avatar with a visual reflex engine",
   "main": "src/main/main.js",
   "author": "Zumia Space",
@@ -43,6 +43,7 @@
     "check:market-pack": "node scripts/check-market-pack.mjs",
     "check:market-host": "node scripts/check-market-host.mjs",
     "check:market-ui": "node scripts/check-market-ui.mjs",
+    "check:market-e2e": "node scripts/check-market-e2e.mjs",
     "check:board-step-overlap": "node scripts/check-board-step-overlap.mjs",
     "check:voice-pack": "node scripts/check-voice-pack.mjs",
     "check:soul-address": "node scripts/check-soul-address.mjs",
@@ -51,6 +52,7 @@
     "check:memory-notes": "node scripts/check-memory-notes.mjs",
     "check:public-text": "node scripts/check-public-text.mjs",
     "check:first-run-setup": "node scripts/check-first-run-setup.mjs",
+    "check:free-key-guide": "node scripts/check-free-key-guide.mjs",
     "check:role-pop-layout": "node scripts/check-role-pop-layout.mjs",
     "check:go-cli-login": "node scripts/check-go-cli-login.mjs",
     "check:soul": "node scripts/check-soul.mjs",
@@ -329,7 +331,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotesFile": "release-notes/0.3.0.md"
+      "releaseNotesFile": "release-notes/0.3.1.md"
     },
     "electronDist": "node_modules/electron/dist"
   }

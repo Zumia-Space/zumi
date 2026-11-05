@@ -42,6 +42,7 @@ function makeScratch() {
   fs.cpSync(path.join(ROOT, 'src', 'renderer'), path.join(SCRATCH, 'src', 'renderer'), { recursive: true });
   fs.mkdirSync(path.join(SCRATCH, 'src', 'main'), { recursive: true });
   fs.copyFileSync(path.join(ROOT, 'src', 'main', 'providers.js'), path.join(SCRATCH, 'src', 'main', 'providers.js'));
+  fs.copyFileSync(path.join(ROOT, 'src', 'main', 'free-key-routes.js'), path.join(SCRATCH, 'src', 'main', 'free-key-routes.js')); // free-key-guide.js imports it
   fs.cpSync(path.join(ROOT, 'src', 'next-tokens'), path.join(SCRATCH, 'src', 'next-tokens'), { recursive: true });
   fs.cpSync(path.join(ROOT, 'vendor', 'laneboard', 'public'), path.join(SCRATCH, 'vendor', 'laneboard', 'public'), { recursive: true });
   fs.symlinkSync(path.join(ROOT, 'node_modules'), path.join(SCRATCH, 'node_modules'), 'junction');
@@ -324,14 +325,16 @@ async function chromiumPart(buildDir) {
       r = await rows();
       ok(r.length === 50 && r.every((x) => x.chip === 'NOTE') && (await calls()).filter((x) => x.name === 'list').pop().arg.kind === 'note', 'AC-M1: the Notes filter shows notes only (kind passed to the host)', `rows=${r.length}`);
       await page.click('.nb-kinds [data-kind="all"]');
+      // The + Note composer (c8ba5fb5) is also .nb-filter and comes first: name the search box itself.
+      const MEM_SEARCH = '#next-brain input.nb-filter[type="search"]';
       for (const q of ['ca phe', 'cà phê']) {
-        await page.fill('.nb-filter', q); await page.waitForTimeout(500);
+        await page.fill(MEM_SEARCH, q); await page.waitForTimeout(500);
         r = await rows();
         ok(r.length > 0 && r.every((x) => /c[àa] ph[êe]/.test(x.text)), `AC-M1: searching "${q}" finds the Vietnamese text "cà phê" (with and without diacritics)`, `rows=${r.length}`);
       }
-      await page.fill('.nb-filter', 'zzzz'); await page.waitForTimeout(500);
+      await page.fill(MEM_SEARCH, 'zzzz'); await page.waitForTimeout(500);
       ok((await rows()).length === 0 && (await page.$$('#next-brain .nb-empty')).length === 1, 'memory: a search with no hit shows the empty line');
-      await page.fill('.nb-filter', ''); await page.waitForTimeout(500);
+      await page.fill(MEM_SEARCH, ''); await page.waitForTimeout(500);
       const first = (await rows())[0].id;
       await page.click('.nb-mem .nb-toggle.danger'); await page.waitForTimeout(200);
       ok(!(await rows()).some((x) => x.id === first) && await meta() === '119 memories' && (await calls()).some((x) => x.name === 'delete' && x.arg === Number(first)), 'memory: forgetting one removes the row, calls delete(id) and the count drops to 119');

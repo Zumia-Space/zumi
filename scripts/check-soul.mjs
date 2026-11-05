@@ -113,7 +113,7 @@ ok(/\.nb-soul-row \{ display: grid; grid-template-columns: minmax\(0, 1fr\);/.te
 
 // ---------- 5. both chat paths read the soul per turn ----------
 const cb = fs.readFileSync(path.join(ROOT, 'src/main/chat-brain.js'), 'utf8');
-ok((cb.match(/soul: soulOf\(\)/g) || []).length === 2 && /buildMessages\(g\.message, g\.history, g\.boardDigest, g\.outline, soulOf\(\)\)/.test(cb), 'non-streamed (+ retry) and streamed reply both pass soulOf()');
+ok((cb.match(/soul: soulOf\(\)/g) || []).length === 2 && /buildMessages\(g\.message, g\.history, g\.boardDigest, g\.outline, soulOf\(\)[,)]/.test(cb), 'non-streamed (+ retry) and streamed reply both pass soulOf()');
 for (const f of ['src/main/main.js', 'tauri/sidecar/chat-host.mjs']) {
   ok(/getSoul:/.test(fs.readFileSync(path.join(ROOT, f), 'utf8')), `${f} hands getSoul to createChatBrain`);
 }
