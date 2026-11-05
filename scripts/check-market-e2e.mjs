@@ -2,7 +2,7 @@
 // check:market-e2e (T-31 Marketplace, 05-11). Installs EVERY item of the shipped catalog (tauri/sidecar/market-host.mjs CATALOG) by clicking
 // its card in the built renderer, from the real package bytes, through the real host, egress guard, sha256 pin and package validator.
 // The only stand-in is the server: each catalog URL is answered by a local mirror of the same file, so the run proves the app side
-// whether or not the file is on GitHub yet (check-release-gate --live asks GitHub). The Kokoro model download (Hugging Face, 163 MB)
+// whether or not the file is on GitHub yet (check-packs-asset / check-packs-public ask GitHub). The Kokoro model download (Hugging Face, 163 MB)
 // is a stub here; check:kokoro-download-redirect covers it.
 //   node scripts/check-market-e2e.mjs [--packs <dir>] [--shots <dir>] [--out <result.json>]
 //   --packs: a folder holding each item's zip under its download file name; a missing Kokoro zip is rebuilt from this tree.

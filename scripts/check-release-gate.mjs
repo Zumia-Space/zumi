@@ -2,6 +2,8 @@
 //   node scripts/check-release-gate.mjs                static rows: notes, Kokoro pin, packs-v1 rules
 //   node scripts/check-release-gate.mjs --kokoro       also rebuilds the Kokoro pack and compares it with the catalog pin (after npm ci)
 //   node scripts/check-release-gate.mjs --live         also asks GitHub which release is Latest (needs gh)
+// The packs themselves: scripts/check-packs-asset.mjs (the workflow, with its token) and scripts/check-packs-public.mjs (by hand,
+// once the repo is public, before publishing).
 //   --notes <file>                                     read these notes instead of the version's own (the check's bite test)
 import fs from 'node:fs';
 import os from 'node:os';
@@ -55,13 +57,7 @@ if (args.includes('--live')) {
   const latest = (r.stdout || '').trim();
   const none = r.status !== 0 && /404/.test(r.stderr || '');
   ok(none || /^v\d/.test(latest), 'GitHub\'s Latest release is an app release, or none exists yet', latest || r.stderr);
-  // A stranger's download: no gh, no token. A private repo or a missing packs-v1 asset answers 404 here, as it did in 0.3.0.
-  for (const c of CATALOG.filter((x) => x.download)) {
-    let status = 'network';
-    try { status = (await fetch(c.download.url, { method: 'HEAD', redirect: 'follow' })).status; } catch { /* stays 'network' */ }
-    ok(status === 200, `${c.id}: anyone can download ${c.download.url}`, String(status));
-  }
 }
 
 console.log(`\ncheck-release-gate: ${pass} passed, ${fail} failed`);
-if (fail) process.exitCode = 1; // not exit(): a live run still holds fetch sockets, and exit() under them aborts libuv on Windows
+if (fail) process.exitCode = 1;

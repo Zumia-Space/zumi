@@ -211,6 +211,8 @@
     "check:third-party-openlegal": "node scripts/check-third-party-openlegal.mjs",
     "check:public-first-run": "node scripts/check-public-first-run.mjs",
     "check:release-gate": "node scripts/check-release-gate.mjs",
+    "check:packs-asset": "node scripts/check-packs-asset.mjs",
+    "check:packs-public": "node scripts/check-packs-public.mjs",
     "check:release": "node scripts/release-checks.mjs",
     "check:contributing": "node scripts/check-contributing.mjs",
     "gen:standin-room-v2": "node scripts/gen-standin-room-v2.mjs"

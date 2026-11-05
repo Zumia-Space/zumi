@@ -1,7 +1,7 @@
 // The checks a release must pass. One list, run the same way by .github/workflows/release.yml and, inside a fresh export, by the
 // maintainers' rehearsal. Any failure fails the run; nothing is skipped because a file is missing.
 //   node scripts/release-checks.mjs            a tag: everything
-//   node scripts/release-checks.mjs --dry      a rehearsal: no signing key is baked in yet, and GitHub's Latest is not asked
+//   node scripts/release-checks.mjs --dry      a rehearsal: no signing key is baked in yet, GitHub's Latest is not asked, no pack is downloaded
 //   --also <script.mjs>                        add a script (the rehearsal's negative control)
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -29,6 +29,8 @@ export const RELEASE_CHECKS = [
   ['check-first-run-setup'],
   ['check-free-key-guide'],
   dry ? ['check-release-gate', '--kokoro'] : ['check-release-gate', '--kokoro', '--live'],
+  // A tag: every pack the catalog pins is downloaded with the job token and must equal its pin (draft or published, private or public).
+  ...(dry ? [] : [['check-packs-asset']]),
 ];
 if (args.includes('--also')) RELEASE_CHECKS.push([args[args.indexOf('--also') + 1]]);
 

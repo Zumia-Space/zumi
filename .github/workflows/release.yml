@@ -58,9 +58,10 @@ jobs:
           version=$(node -p "require('./package.json').version")
           echo "ZUMI_VERSION=$version" >> "$GITHUB_ENV"
 
-      - name: Tag equals package.json version
+      # v<version>, or v<version>-r<N> for a rebuild of the same app version (a failed tag is never moved or deleted).
+      - name: Tag names the package.json version
         if: github.event_name == 'push'
-        run: test "v$ZUMI_VERSION" = "$GITHUB_REF_NAME"
+        run: printf '%s\n' "$GITHUB_REF_NAME" | grep -Eqx "v${ZUMI_VERSION//./\\.}(-r[1-9][0-9]*)?"
 
       - name: Release notes exist
         run: test -f "release-notes/$ZUMI_VERSION.md"
