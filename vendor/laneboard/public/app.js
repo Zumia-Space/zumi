@@ -429,6 +429,15 @@ function needsTip(task) {
 }
 const STATE_TONE = { owner: 'q', receipt: 'q', blocked: 'bad', done: 'ok', paused: 'grey', closed: 'grey', doing: '' };
 const stepsDone = task => `${task.steps.filter(s => s.state === 'done').length}/${task.steps.length}`;
+/** The pin outline, drawn like GEAR and the menu icon (24 px grid, stroke 2, round caps: the lucide shape family the board and
+ *  the Zumi app icons share). CSS fills it when the task is pinned. Owner 08-11: no emoji pin. */
+const PIN_ICON = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>';
+/** The owner's pin toggle (pin.set); a read-only reader gets nothing — the "Đang ghim" strip is the read. */
+function pinButton(task) {
+  if (!isOwner()) return '';
+  const on = !!task.pinned, label = t(on ? 'pin.unpin' : 'pin.pin');
+  return `<button type="button" class="pin-btn${on ? ' on' : ''}" data-action="pin" data-task="${esc(task.id)}" aria-pressed="${on}" aria-label="${esc(label)}" title="${esc(label)}">${PIN_ICON}</button>`;
+}
 /** A moment on the Vietnam clock (UTC+7), the clock the server's override note prints ("… giờ VN"). */
 const VN_MS = 7 * 3600000;
 const vnDate = iso => { const ms = Date.parse(iso); return Number.isFinite(ms) ? new Date(ms + VN_MS) : null; };
@@ -494,7 +503,7 @@ function renderRail() {
     const pop = isOwner() && S.stPop === task.id ? `<div class="st-pop" role="menu" aria-label="${esc(t('task.statusLabel'))}">${OWNER_STATUSES.map(x => `<button type="button" role="menuitemradio" aria-checked="${task.status === x}" data-action="set-status" data-task="${esc(task.id)}" data-status="${x}" data-rev="${task.rev}">${esc(t('status.' + x))}</button>`).join('')}</div>` : '';
     return `<div class="lrow task ${here === task.id ? 'here' : ''}"><a class="lmain" href="#/task/${esc(encodeURIComponent(task.id))}" ${here === task.id ? 'aria-current="page"' : ''} title="${esc(`${task.id} ${task.title}`)}">${healthDot(task.status === 'paused' ? 'grey' : task.health)}<span class="tid">${esc(task.id)}</span><span class="ttl">${esc(task.title)}</span>`
       + `<span class="lmeta">${hasDraft(task.id) ? `<span class="draft-mark" title="${esc(t('compose.draft'))}">✎</span>` : ''}${freshLabel(task) ? `<span class="idle" title="${esc(freshLabel(task))}">⚠</span>` : ''}${idle ? `<span class="idle" title="${esc(t('left.idle', { dur: fmtDur(idle) }))}">⏱${esc(shortDur(idle))}</span>` : ''}<span class="n">${esc(stepsDone(task))}</span></span></a>`
-      + `<span class="lmeta">${stBtn}${overrideBadge(task, true)}${n ? `<span class="badge" title="${esc(t('rail.openFeedback', { n }))}">${n}</span>` : ''}</span>${pop}</div>`;
+      + `<span class="lmeta">${pinButton(task)}${stBtn}${overrideBadge(task, true)}${n ? `<span class="badge" title="${esc(t('rail.openFeedback', { n }))}">${n}</span>` : ''}</span>${pop}</div>`;
   };
   const chip = (k, label) => `<button type="button" class="chip-btn" data-action="left-filter" data-k="${k}" aria-pressed="${f === k}">${esc(label)}</button>`;
   const railOpen = !!S.open.rail; // 641–960 px: the task list folds behind one button
@@ -814,6 +823,18 @@ function overviewCard(d) {
       : `<div class="diag-list">${tasks.map(row).join('')}</div>`;
   return `<section class="card diag-overview"><div class="diag-overview-head"><h2>${esc(t('diagram.overviewTitle'))}</h2><div class="segmented" role="tablist" aria-label="${esc(t('diagram.overviewView'))}">${seg}</div></div>${counts}${body}</section>`;
 }
+/** "Đang ghim": the owner's pinned tasks, oldest pin first; hidden when nothing is pinned. A red mark = an open ask
+ *  waits on the owner (the same attention list the rail and the queue read). Click opens the task. */
+function pinStrip() {
+  const pins = (S.data.tasks || []).filter(x => x.pinned).sort((a, b) => (Date.parse(a.pinned_at) || 0) - (Date.parse(b.pinned_at) || 0) || a.id.localeCompare(b.id));
+  if (!pins.length) return '';
+  const waiting = S.data.attention?.waiting || [];
+  const items = pins.map(task => {
+    const ask = waiting.some(w => w.task_id === task.id && w.kind !== 'unreceived'), step = task.current_step?.label || t('task.allDone');
+    return `<a class="pin-item" href="#/task/${esc(encodeURIComponent(task.id))}"><span class="pin-code">${esc(task.id)}</span><span class="pin-title">${esc(task.title)}</span>${ask ? `<span class="pin-ask" role="img" aria-label="${esc(t('diagram.waitingOne'))}" title="${esc(t('diagram.waitingOne'))}"></span>` : ''}<span class="pin-now">${task.now ? esc(task.now) : '—'}</span><span class="pin-step">${esc(step)}</span></a>`;
+  }).join('');
+  return `<section class="card pin-strip" aria-label="${esc(t('pin.title'))}"><h2>${esc(t('pin.title'))}</h2><div class="pin-items">${items}</div></section>`;
+}
 function renderHome() {
   const d = S.data;
   if (!d.me) return renderPublic();
@@ -823,7 +844,7 @@ function renderHome() {
     ${a.answered.length ? `<h2 class="mt">${esc(t('home.answered'))}</h2><div class="rows">${a.answered.map(answeredRow).join('')}</div>` : ''}</section>`;
   const edit = isLead() ? `<details data-open="sum-edit" ${S.open['sum-edit'] ? 'open' : ''}><summary class="muted">${esc(t('docs.edit'))}</summary><form data-form="summary" data-rev="${sum?.rev || 0}"><textarea name="text" rows="6" data-draft="summary">${esc(S.drafts.summary ?? items.join('\n'))}</textarea><div class="sub muted">${esc(t('docs.summaryHint'))}</div><div class="actions"><button class="btn primary">${esc(t('docs.save'))}</button></div></form></details>` : '';
   const notes = `<section class="card"><h2>${esc(t('summary.notes'))}${sum ? ` <span class="muted">· ${esc(fmtTime(sum.attribution.updated_at))}</span>` : ''}</h2>${items.length ? `<ul class="doc-list">${items.map(i => `<li class="md-line">${mdInline(i, '')}</li>`).join('')}</ul>` : `<p class="empty">${esc(t('docs.summaryEmpty'))}</p>`}${edit}</section>`;
-  return head + `<div class="stack">${queue}${overviewCard(d)}${notes}${statsModelsCard()}${statsCard()}${workersTable()}</div>`;
+  return pinStrip() + head + `<div class="stack">${queue}${overviewCard(d)}${notes}${statsModelsCard()}${statsCard()}${workersTable()}</div>`;
 }
 /** One owner answer on Home's "answered" list: its task, the answer, and whether the coordinator has received it. */
 function answeredRow(x) {
@@ -891,6 +912,42 @@ function wkChip(task, role, own) {
   const chip = own ? `<button type="button" class="${cls}" data-action="wk-pop" data-key="${esc(key)}" aria-haspopup="dialog" aria-expanded="${open}" title="${esc(tip)}">${body}</button>` : `<span class="${cls}" title="${esc(tip)}">${body}</span>`;
   return `<div class="wk-cell" data-role-box="${role}"><span class="wk-lab">${esc(t('worker.role.' + role))}</span>${chip}${warn}${pop}</div>`;
 }
+// ---------- machines (J-05 worker-machine-0811): WHERE a task is coordinated and worked, picked like the model ----------
+// public/machines.js is the registry; a task with no pick sends no machine fields and reads the defaults (Máy 1 for both).
+const MC = () => window.LaneMachines;
+/** The machine of one role slot: the server's value, else the task's first worker machine, else the default. */
+function machineOf(task, role) {
+  return task.roles?.[role]?.machine || task.worker_machines?.[0] || MC().DEFAULT_WORKERS[0];
+}
+/** "Điều phối: Máy 1 · Làm: Máy 3 (laptop)" in the task header; opens the Thợ tab, where the owner changes it. */
+function machineLine(task) {
+  const mc = MC(), coord = task.coordinator || mc.DEFAULT_COORDINATOR, workers = task.worker_machines?.length ? task.worker_machines : mc.DEFAULT_WORKERS;
+  const text = t('machine.line', { coord: mc.machineText(coord), work: workers.map(m => mc.machineText(m, true)).join(', ') });
+  const tip = workers.map(m => `${mc.machineText(m, true)}: ${mc.MACHINES[m]?.reach || ''}`).join('\n');
+  return `<button type="button" class="linkish muted mc-line" data-action="ctx-tab" data-tab="worker" data-machines="${esc(task.id)}" title="${esc(tip)}">${esc(text)}</button>`;
+}
+/** The machine picker: coordinator select, one checkbox per machine, a machine select per role slot (offering the worker
+ *  machines only). Each change is written at once (machines.set, by = owner), exactly like a model change. */
+function machineFields(task, own) {
+  const mc = MC(), id = esc(task.id), coord = task.coordinator || mc.DEFAULT_COORDINATOR, workers = task.worker_machines?.length ? task.worker_machines : mc.DEFAULT_WORKERS;
+  const slots = ROLE_SLOTS.filter(r => task.roles?.[r]);
+  const line = t('machine.line', { coord: mc.machineText(coord), work: workers.map(m => mc.machineText(m, true)).join(', ') });
+  if (!own) return `<p class="mc-ro">${esc(line)}</p><p class="sub muted">${slots.map(r => `${esc(t('worker.role.' + r))}: ${esc(mc.machineText(machineOf(task, r)))}`).join(' · ')}</p>`;
+  const opt = (m, sel) => `<option value="${esc(m)}"${sel ? ' selected' : ''}>${esc(mc.machineText(m, true))}</option>`;
+  return `<label><span>${esc(t('machine.coordinator'))}</span><select data-machine-coord="${id}">${mc.MACHINE_IDS.map(m => opt(m, m === coord)).join('')}</select></label>`
+    + `<fieldset class="mc-workers"><legend>${esc(t('machine.workers'))}</legend>${mc.MACHINE_IDS.map(m => `<label class="mc-check"><input type="checkbox" data-machine-worker="${id}" value="${esc(m)}"${workers.includes(m) ? ' checked' : ''}> <span>${esc(mc.machineText(m, true))}</span></label>`).join('')}</fieldset>`
+    + slots.map(r => `<label><span>${esc(t('machine.slot', { role: t('worker.role.' + r) }))}</span><select data-machine-slot="${id}" data-role="${r}">${workers.map(m => opt(m, m === machineOf(task, r))).join('')}</select></label>`).join('');
+}
+/** "Thợ theo task": the machine chip under a task's model chips; it opens the picker in the same popover as a model chip. */
+function wkMachineChip(task, own) {
+  const mc = MC(), key = `${task.id}:machines`, open = own && S.wkPop === key;
+  const coord = task.coordinator || mc.DEFAULT_COORDINATOR, workers = task.worker_machines?.length ? task.worker_machines : mc.DEFAULT_WORKERS;
+  const tip = t('machine.line', { coord: mc.machineText(coord), work: workers.map(m => mc.machineText(m, true)).join(', ') });
+  const body = `${task.machines_by === 'owner' ? '<i class="wk-dot" aria-hidden="true"></i>' : ''}<span class="wk-txt">${esc(mc.machineText(coord))} → ${esc(workers.map(m => mc.machineText(m, true)).join(', '))}</span>`;
+  const pop = open ? `<div class="wk-pop wk-mpop" role="dialog" aria-label="${esc(t('machine.title'))}">${machineFields(task, true)}</div>` : '';
+  const chip = own ? `<button type="button" class="wk-chip${task.coordinator ? '' : ' dim'}" data-action="wk-pop" data-key="${esc(key)}" aria-haspopup="dialog" aria-expanded="${open}" title="${esc(tip)}">${body}</button>` : `<span class="wk-chip ro" title="${esc(tip)}">${body}</span>`;
+  return `<div class="wk-cell wk-mcell"><span class="wk-lab">${esc(t('machine.title'))}</span>${chip}${pop}</div>`;
+}
 // Ported from the Zumi desktop app (its local patch on 760501b, T-31 role-ui-port step 3, 10-10).
 // A worker popover opens below its chip; when the window has no room for it below but has room above (the last row on
 // a short window), it opens upward instead.
@@ -905,7 +962,7 @@ function workersTable() {
   if (!workers.length) return '';
   const own = isOwner();
   const defCells = ROLE_SLOTS.map(r => `<div class="wk-cell"><span class="wk-lab">${esc(t('worker.role.' + r))}</span><span class="wk-chip ro">${esc(chipText(ROLE_DEFAULTS[r]))}</span></div>`).join('');
-  const rows = workers.map(x => `<div class="wk-trow" data-route-box="${esc(x.id)}"><a class="wk-code code" href="#/task/${encodeURIComponent(x.id)}" data-worker-open="${esc(x.id)}" title="${esc(x.id)}">${esc(x.id)}</a><div class="wk-chips">${ROLE_SLOTS.map(r => wkChip(x, r, own)).join('')}</div></div>${S.errors['routing:' + x.id] ? `<div class="wk-err">${violationsBox('routing:' + x.id)}</div>` : ''}`).join('');
+  const rows = workers.map(x => `<div class="wk-trow" data-route-box="${esc(x.id)}"><a class="wk-code code" href="#/task/${encodeURIComponent(x.id)}" data-worker-open="${esc(x.id)}" title="${esc(x.id)}">${esc(x.id)}</a><div class="wk-chips">${ROLE_SLOTS.map(r => wkChip(x, r, own)).join('')}</div><div class="wk-mrow">${wkMachineChip(x, own)}</div></div>${S.errors['routing:' + x.id] ? `<div class="wk-err">${violationsBox('routing:' + x.id)}</div>` : ''}`).join('');
   return `<section class="card"><h2>${esc(t('summary.workers'))}</h2><div class="wk-grid"><div class="wk-trow wk-head" aria-hidden="true"><span class="wk-code">${esc(t('worker.task'))}</span><div class="wk-chips">${ROLE_SLOTS.map(r => `<span>${esc(t('worker.role.' + r))}</span>`).join('')}</div></div>`
     + `<div class="wk-trow wk-defaults"><span class="wk-code" title="${esc(t('worker.defaultsTip'))}">${esc(t('worker.defaults'))}</span><div class="wk-chips">${defCells}</div></div>${rows}</div></section>`;
 }
@@ -917,7 +974,7 @@ function renderTask(id) {
   if (!task) return `<p class="empty pad">${esc(t('task.notFound'))}</p>`;
   S.curTask = task.id;
   const st = taskState(task), w = task.worker;
-  const head = `<header class="tv-head"><div class="tv-ids"><span class="code">${esc(task.id)}</span>${healthDot(task.status === 'paused' ? 'grey' : task.health)}<span class="st ${STATE_TONE[st]}"${st === 'owner' ? ` title="${esc(needsTip(task))}"` : ''}>${esc(t('left.state.' + st))}</span>${isOwner() ? headStatusSelect(task) : ''}${task.lane ? `<span class="muted">${esc(t('lane.name', { lane: task.lane }))}</span>` : ''}<span class="muted">${esc(headSteps(task))}</span>${w ? `<button type="button" class="linkish muted" data-action="ctx-tab" data-tab="worker">${esc(workerText(w))}</button>` : ''}${overrideBadge(task)}${staleBadge(task)}</div><h1>${esc(task.title)}</h1>${isOwner() ? violationsBox('task:' + task.id) : ''}</header>`;
+  const head = `<header class="tv-head"><div class="tv-ids"><span class="code">${esc(task.id)}</span>${pinButton(task)}${healthDot(task.status === 'paused' ? 'grey' : task.health)}<span class="st ${STATE_TONE[st]}"${st === 'owner' ? ` title="${esc(needsTip(task))}"` : ''}>${esc(t('left.state.' + st))}</span>${isOwner() ? headStatusSelect(task) : ''}${task.lane ? `<span class="muted">${esc(t('lane.name', { lane: task.lane }))}</span>` : ''}<span class="muted">${esc(headSteps(task))}</span>${w ? `<button type="button" class="linkish muted" data-action="ctx-tab" data-tab="worker">${esc(workerText(w))}</button>` : ''}${d.me ? machineLine(task) : ''}${overrideBadge(task)}${staleBadge(task)}</div><h1>${esc(task.title)}</h1>${isOwner() ? violationsBox('task:' + task.id) : ''}</header>`;
   const center = `<section class="center">${head}${situationCard(task)}${d.me ? `<div class="stream-scroll" id="stream-scroll" aria-label="${esc(t('stream.title'))}">${streamEntries(task)}</div>` : ''}${isLead() ? composer(task) : ''}</section>`;
   return `<div class="tv">${center}<aside class="ctx" id="ctx">${ctxTabs(task)}</aside></div>`;
 }
@@ -1285,12 +1342,13 @@ function filesPanel(task) {
 function workerPanel(task) {
   const w = task.worker, def = task.worker_default;
   if (!w) return `<p class="empty">${esc(t('worker.none'))}</p>`;
-  const changes = (S.history[task.id] || []).filter(ev => /^(routing|roles)\./.test(ev.op)).slice(-8).reverse();
+  const changes = (S.history[task.id] || []).filter(ev => /^(routing|roles|machines)\./.test(ev.op)).slice(-8).reverse();
   const own = isOwner(), mine = S.data.roles?.[task.id] || {};
   const row = r => task.roles?.[r] ? `<tr><th>${esc(t('worker.role.' + r))}</th>${slotCell(task, r, own)}${own && r !== 'code' && mine[r] ? `<td><button type="button" class="linkish" data-action="roles-reset" data-id="${esc(task.id)}" data-role="${r}">${esc(t('worker.resetRole'))}</button></td>` : '<td></td>'}</tr>` : '';
   const fails = Object.entries(task.gate_fails || {}).filter(([, g]) => g.total).map(([gate, g]) => `<li><span class="mono">${esc(gate)}</span> · ${esc(t('worker.gateFails', { n: g.total, since: g.count }))}${g.blocked ? ` · ${esc(g.blocked)}` : ''}</li>`).join('');
   return `<div class="stack" data-route-box="${esc(task.id)}">
     <table class="events wk-table"><tbody>${ROLE_SLOTS.map(row).join('')}</tbody></table>
+    <h3 class="mt">${esc(t('machine.title'))}</h3><div class="wk-mpick stack">${machineFields(task, own)}</div>
     ${violationsBox('routing:' + task.id)}
     ${def ? `<p class="sub muted">${esc(t('worker.default', { worker: workerText(def) }))}${w.by === 'owner' && own ? ` · <button type="button" class="linkish" data-action="routing-reset" data-id="${esc(task.id)}">${esc(t('worker.resetTo', { model: modelName(def.model), effort: def.effort }))}</button>` : ''}</p>` : ''}
     ${w.reason ? `<p class="sub muted">${esc(t('worker.reason', { reason: w.reason }))}</p>` : ''}
@@ -1304,6 +1362,7 @@ function roleChange(ev) {
   if (ev.op === 'routing.set') return t('history.routing', { from: ev.data.previous ? workerText(ev.data.previous) : '—', to: workerText(ev.data) });
   if (ev.op === 'roles.set') return t('history.roles', { role: t('worker.role.' + ev.data.role), from: ev.data.previous ? workerText(ev.data.previous) : '—', to: workerText(ev.data) });
   if (ev.op === 'roles.reset') return t('history.rolesReset', { role: t('worker.role.' + ev.data.role) });
+  if (ev.op === 'machines.set') { const mc = MC(), d = ev.data; return t('history.machines', { to: [d.coordinator && `${t('machine.coordinator')} ${mc.machineText(d.coordinator)}`, d.worker_machines && `${t('machine.workers')} ${d.worker_machines.map(m => mc.machineText(m, true)).join(', ')}`, d.role && `${t('worker.role.' + d.role)} ${mc.machineText(d.machine)}`].filter(Boolean).join(' · ') }); }
   return ev.data.bump ? t('history.escalateBump', { gate: ev.data.gate, reason: ev.data.bump.reason }) : t('history.escalate', { gate: ev.data.gate, n: ev.data.count });
 }
 
@@ -2291,6 +2350,21 @@ document.addEventListener('change', async e => {
     if (await write('routing.set', id, { model: val('model'), effort: fixEffort(val('model'), val('effort')) }, undefined, 'routing:' + id)) toast(t('worker.saved'));
     return refresh();
   }
+  if (e.target.dataset.machineCoord || e.target.dataset.machineWorker || e.target.dataset.machineSlot) { // Máy: written at once like the model (machines.set, by = owner)
+    const ds = e.target.dataset, id = ds.machineCoord || ds.machineWorker || ds.machineSlot;
+    let data;
+    if (ds.machineCoord) data = { coordinator: e.target.value };
+    else if (ds.machineSlot) data = { role: ds.role, machine: e.target.value };
+    else {
+      const checked = [...e.target.closest('.mc-workers').querySelectorAll('input[data-machine-worker]:checked')].map(i => i.value);
+      const cur = S.data.tasks.find(x => x.id === id)?.worker_machines || MC().DEFAULT_WORKERS;
+      const picked = [...cur.filter(m => checked.includes(m)), ...checked.filter(m => !cur.includes(m))]; // keep the order: worker_machines[0] is the slots' default
+      if (!picked.length) { e.target.checked = true; toast(t('machine.needOne')); return; } // a task always has a worker machine
+      data = { worker_machines: picked };
+    }
+    if (await write('machines.set', id, data, undefined, 'routing:' + id)) toast(t('worker.saved'));
+    return refresh();
+  }
   if (e.target.dataset.roleSlot) { // plan / review / scout: model or effort changed -> roles.set at once (by = owner)
     const id = e.target.dataset.roleSlot, role = e.target.dataset.role, box = e.target.closest('[data-role-box]') || e.target.parentElement;
     const val = f => box.querySelector(`select[data-role-slot][data-field="${f}"]`)?.value;
@@ -2362,6 +2436,12 @@ document.addEventListener('click', async e => {
     const id = b.dataset.task, task = S.data.tasks.find(x => x.id === id);
     if (!task || task.status === b.dataset.status) return;
     if (await write('task.update', id, { status: b.dataset.status }, Number(b.dataset.rev), 'task:' + id)) toast(t('common.saved'));
+    return refresh();
+  }
+  if (action === 'pin') {
+    const task = S.data.tasks.find(x => x.id === b.dataset.task);
+    if (!task) return;
+    if (await write('pin.set', task.id, { pinned: !task.pinned })) toast(t('pin.saved'));
     return refresh();
   }
   if (action === 'left-filter') { S.leftFilter = b.dataset.k; store.set('leftFilter', b.dataset.k); return renderRail(); }

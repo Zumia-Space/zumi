@@ -154,6 +154,11 @@ export async function initHud({ zumi, $, engine, catalog, talk, hasModel, getVie
         fresh.scrollIntoView({ block: taller ? 'start' : 'nearest' });
       }
     }
+    if (expanded === taskId && !fromAsks) { // an expanded updates card: bring its Open button above the list's fold (J-05 card-clip)
+      const list = $('hud-updates');
+      const open = list.querySelector(`.hud-item[data-task="${cssEsc(taskId)}"] .hud-open`);
+      if (open) { const over = open.getBoundingClientRect().bottom - list.getBoundingClientRect().bottom; if (over > 0) list.scrollTop += over + 4; }
+    }
     if (!ndc || !hasModel()) return;
     if (talk.speech.speaking()) return; // never interrupt speech
     if (!clickThrottle(Date.now())) return; // at most one glance per 800 ms
@@ -307,6 +312,7 @@ export async function initHud({ zumi, $, engine, catalog, talk, hasModel, getVie
     const now = Date.now();
     for (const [id, until] of hot) if (until < now) hot.delete(id);
     const ups = $('hud-updates');
+    const upsScroll = ups.scrollTop; // the rebuild below resets it; the list scrolls (hud.css)
     ups.innerHTML = '';
     $('hud-unavailable').hidden = Boolean(feed) || !last;
     // A rejected sign-in (board-live.mjs latch) says so, instead of the generic "can't see the board" (T-31 0.2.11).
@@ -326,6 +332,7 @@ export async function initHud({ zumi, $, engine, catalog, talk, hasModel, getVie
       }
       if (!feed.updates.length) ups.appendChild(li('hud-item empty', [['title', t('hud.none')]]));
     }
+    ups.scrollTop = upsScroll;
     $('hud-asks-title').textContent = t('hud.asks', { n: feed ? feed.waitingCount : 0 });
     const asks = $('hud-asks');
     // Focus (T-31 fix round 1610 r3): this repaint replaces the note input, so remember where the owner was typing and

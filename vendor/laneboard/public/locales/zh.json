@@ -611,6 +611,14 @@
   "op.roles.reset": "重置角色模型",
   "op.roles.escalate": "记录一次关卡失败",
   "op.roles.override": "允许 Sonnet 处理一个任务",
+  "op.machines.set": "更改一个任务的机器",
+  "machine.title": "机器",
+  "machine.line": "协调：{coord} · 执行：{work}",
+  "machine.coordinator": "协调",
+  "machine.workers": "执行",
+  "machine.slot": "{role} 运行于",
+  "machine.needOne": "至少选择一台机器",
+  "history.machines": "更改机器：{to}",
   "refs.copy": "复制",
   "refs.copied": "已复制路径",
   "refs.localTip": "所有者电脑上的文件：浏览器无法打开，请复制路径",
@@ -699,5 +707,10 @@
   "sweep.open": "已发送，CoS 正在复查 · {time}",
   "sweep.last": "上次 {time}",
   "sweep.sentToast": "已发送，CoS 将重新检查所有任务。",
-  "feedback.kind.sweep": "全板更新"
+  "feedback.kind.sweep": "全板更新",
+  "pin.title": "已固定",
+  "pin.pin": "固定此任务",
+  "pin.unpin": "取消固定此任务",
+  "pin.saved": "固定状态已更新",
+  "op.pin.set": "固定或取消固定任务"
 }

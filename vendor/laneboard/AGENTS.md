@@ -149,6 +149,8 @@ Machine-readable: [`schema/v1/index.json`](schema/v1/index.json) (also served at
 | `roles.reset` | owner | task id | — |
 | `roles.escalate` | owner, coordinator (the calling lane must be `CoS`) | task id | — |
 | `roles.override` | owner, coordinator (the calling lane must be `CoS`) | task id | — |
+| `machines.set` | owner, coordinator (never over the owner's pick) | task id | — |
+| `pin.set` | owner only | task id | — |
 | `attachment.add` | owner, coordinator, reporter | task id | — |
 | `token.issue` | owner | token name | — |
 | `token.revoke` | owner | `tok-N` | — |

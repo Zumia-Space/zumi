@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pins.json",
+  "title": "Owner pin of one task (projection, state.pins[<task id>])",
+  "description": "Written by pin.set. pinned_at is the first pin's time: re-pinning keeps it. A closed or deleted task drops its entry.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["pinned_at", "by"],
+  "properties": {
+    "pinned_at": { "$ref": "common.json#/$defs/timestamp" },
+    "by": { "$ref": "common.json#/$defs/actor" }
+  }
+}

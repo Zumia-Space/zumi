@@ -298,6 +298,84 @@ pub fn parse_data_dir(argv: &[String]) -> Result<Option<PathBuf>, String> {
     Ok(Some(PathBuf::from(value)))
 }
 
+/// The file beside the exe that remembers a kit's `--data-dir` (one line: the absolute path). T-31 voice-persist, 09-11:
+/// the flag lived only in a shortcut, so a launch without it (the exe double-clicked, a restart by a script) silently
+/// opened the roaming app data dir and the kit's data (owner voice, keys, settings) looked lost. The pointer sits in
+/// the install folder: whoever can write it can already replace the exe, so it adds no new way to redirect the data.
+/// Delete it to go back to the app data dir.
+pub const DATA_DIR_POINTER: &str = "zumi-data-dir.txt";
+const MAX_POINTER_BYTES: u64 = 4096;
+
+/// Why a remembered data dir was not used. `previous` is the remembered path only when it was a valid path (a missing
+/// folder, e.g. an unplugged drive); a rejected or unreadable pointer keeps its text out of every log and notice.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PointerProblem {
+    pub reason: &'static str,
+    pub previous: Option<PathBuf>,
+}
+
+/// The data dir of this launch plus, when a remembered dir could not be used, why (see `data_dir_notice`).
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct ResolvedDataDir {
+    pub dir: Option<PathBuf>,
+    pub problem: Option<PointerProblem>,
+}
+
+/// The data dir of this launch (`exe_dir` = the folder of the running exe; `self_test` = a self-test launch).
+/// `--data-dir` wins and is remembered beside the exe; without it a normal launch uses the remembered dir. A self-test
+/// launch neither reads nor writes the pointer (its data dir is the run dir). A flag-less launch with no pointer reads
+/// one missing file and writes nothing.
+pub fn resolve_data_dir(argv: &[String], exe_dir: Option<&Path>, self_test: bool) -> Result<ResolvedDataDir, String> {
+    let flag = parse_data_dir(argv)?;
+    let Some(pointer) = exe_dir.filter(|_| !self_test).map(|d| d.join(DATA_DIR_POINTER)) else {
+        return Ok(ResolvedDataDir { dir: flag, problem: None });
+    };
+    Ok(match flag {
+        Some(dir) => {
+            remember_data_dir(&pointer, &dir);
+            ResolvedDataDir { dir: Some(dir), problem: None }
+        }
+        None => match remembered_data_dir(&pointer) {
+            Ok(dir) => ResolvedDataDir { dir, problem: None },
+            Err(problem) => ResolvedDataDir { dir: None, problem: Some(problem) },
+        },
+    })
+}
+
+/// Write the pointer when it is missing or names another dir. A failure (a read-only install folder) is logged and the
+/// launch goes on with the flag's dir: only the NEXT flag-less launch is affected.
+fn remember_data_dir(pointer: &Path, dir: &Path) {
+    let text = dir.to_string_lossy();
+    if std::fs::read_to_string(pointer).is_ok_and(|t| t.trim() == text) {
+        return;
+    }
+    let tmp = pointer.with_extension("txt.tmp");
+    if let Err(e) = std::fs::write(&tmp, text.as_bytes()).and_then(|()| std::fs::rename(&tmp, pointer)) {
+        eprintln!("zumi: --data-dir not remembered in {}: {e}", pointer.display());
+    }
+}
+
+/// The remembered dir, held to the flag's rules (absolute, no UNC, at most MAX_POINTER_BYTES) and required to still be a
+/// folder. `Ok(None)` = no pointer; `Err` = a pointer that cannot be used (the caller records and shows it, because a
+/// release build has no stderr).
+fn remembered_data_dir(pointer: &Path) -> Result<Option<PathBuf>, PointerProblem> {
+    let problem = |reason, previous| PointerProblem { reason, previous };
+    let size = match std::fs::metadata(pointer) {
+        Ok(meta) => meta.len(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err(problem("pointer_unreadable", None)),
+    };
+    if size > MAX_POINTER_BYTES {
+        return Err(problem("pointer_too_large", None));
+    }
+    let Ok(text) = std::fs::read_to_string(pointer) else { return Err(problem("pointer_unreadable", None)) };
+    match parse_data_dir(&["--data-dir".to_string(), text.trim_start_matches('\u{feff}').trim().to_string()]) {
+        Ok(Some(dir)) if dir.is_dir() => Ok(Some(dir)),
+        Ok(Some(dir)) => Err(problem("folder_not_found", Some(dir))),
+        Ok(None) | Err(_) => Err(problem("pointer_rejected", None)),
+    }
+}
+
 impl SelfTest {
     /// Attach the validated `--data-dir` (see `parse_data_dir`). Only the process entry calls this, from argv.
     pub fn with_user_data_dir(mut self, dir: Option<PathBuf>) -> Self {
@@ -1058,6 +1136,113 @@ mod tests {
                     vec!["--data-dir", "//srv/share/z"], vec!["--data-dir", r"\\?\D:\x"], vec!["--data-dir", ""]] {
             assert!(parse_data_dir(&argv(&bad)).is_err(), "{bad:?} must be refused");
         }
+    }
+
+    /// A fresh `<temp>/<name>-<pid>` dir in the OS temp dir (never %APPDATA%).
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn launch(args: &[&str], exe_dir: &Path) -> SelfTest {
+        let a = argv(args);
+        let mode = SelfTest::from_args(&a);
+        let enabled = mode.enabled();
+        mode.with_user_data_dir(resolve_data_dir(&a, Some(exe_dir), enabled).unwrap().dir)
+    }
+
+    #[test]
+    fn a_kit_started_without_its_data_dir_flag_keeps_the_kit_data() {
+        // T-31 voice-persist, measured on anh's PC 09-11: the preview kit kept its data (owner-voice.json + the owner key)
+        // in <kit>/data through a `--data-dir` shortcut; the app started 06-11 WITHOUT the flag opened the roaming
+        // %APPDATA%\space.zumia.preview instead, and Zumi had no voice.
+        let kit = scratch("zumi-kit-data-dir");
+        let (exe_dir, data, roaming) = (kit.join("app"), kit.join("data"), kit.join("roaming").join("space.zumia.preview"));
+        for d in [&exe_dir, &data, &roaming] { std::fs::create_dir_all(d).unwrap(); }
+        std::fs::write(data.join("owner-voice.json"), r#"{"v":1,"zumiaVoice":true}"#).unwrap();
+        let data_arg = data.to_str().unwrap();
+
+        let first = launch(&["--data-dir", data_arg], &exe_dir);
+        assert_eq!(first.data_dir(&roaming), data, "the flag still chooses the data dir");
+        let plain = launch(&[], &exe_dir);
+        assert_eq!(plain.data_dir(&roaming), data, "a launch without the flag must open the kit data, not the roaming dir");
+        assert!(plain.data_dir(&roaming).join("owner-voice.json").is_file(), "the owner voice is found");
+        assert_eq!(crate::webview_data_dir(&plain), Some(data.join("webview")), "the webview profile follows too");
+
+        // A self-test launch never uses the remembered dir: its data dir is the run dir.
+        let run = kit.join("run");
+        let st = launch(&["--selftest", run.to_str().unwrap()], &exe_dir);
+        assert_eq!(st.data_dir(&roaming), run.join("ud"));
+
+        // A new flag replaces the remembered dir.
+        let other = kit.join("data2");
+        std::fs::create_dir_all(&other).unwrap();
+        launch(&["--data-dir", other.to_str().unwrap()], &exe_dir);
+        assert_eq!(launch(&[], &exe_dir).data_dir(&roaming), other);
+        // A pointer written by hand (PowerShell 5 `Set-Content -Encoding UTF8` adds a BOM, Notepad a CRLF) still works.
+        std::fs::write(exe_dir.join(DATA_DIR_POINTER), format!("\u{feff}{}\r\n", data.display())).unwrap();
+        assert_eq!(launch(&[], &exe_dir).data_dir(&roaming), data, "a BOM and a line end are not part of the path");
+
+        // The remembered dir passes the same rules as the flag, and must still be a folder; otherwise the app data dir.
+        for bad in [r"\\srv\share\z", "rel/dir", ""] {
+            std::fs::write(exe_dir.join(DATA_DIR_POINTER), bad).unwrap();
+            assert_eq!(launch(&[], &exe_dir).data_dir(&roaming), roaming, "{bad:?} must be ignored");
+            let problem = resolve_data_dir(&[], Some(&exe_dir), false).unwrap().problem;
+            assert_eq!(problem, Some(PointerProblem { reason: "pointer_rejected", previous: None }), "{bad:?}: reported, its text kept out");
+        }
+        std::fs::write(exe_dir.join(DATA_DIR_POINTER), "x".repeat(5000)).unwrap();
+        assert_eq!(resolve_data_dir(&[], Some(&exe_dir), false).unwrap(), ResolvedDataDir { dir: None, problem: Some(PointerProblem { reason: "pointer_too_large", previous: None }) });
+        let gone = kit.join("gone");
+        std::fs::write(exe_dir.join(DATA_DIR_POINTER), gone.to_str().unwrap()).unwrap();
+        assert_eq!(launch(&[], &exe_dir).data_dir(&roaming), roaming, "a remembered dir that no longer exists is ignored");
+        assert_eq!(
+            resolve_data_dir(&[], Some(&exe_dir), false).unwrap().problem,
+            Some(PointerProblem { reason: "folder_not_found", previous: Some(gone.clone()) }),
+            "an unplugged drive is reported with the folder it named"
+        );
+        assert_eq!(resolve_data_dir(&[], Some(&exe_dir), true).unwrap(), ResolvedDataDir::default(), "a self-test launch never reads it");
+        let _ = std::fs::remove_dir_all(&kit);
+    }
+
+    #[test]
+    fn a_flagless_launch_without_a_pointer_writes_nothing() {
+        // The public install (no --data-dir ever given) is unchanged: the app data dir, no problem, no file created.
+        let exe_dir = scratch("zumi-no-pointer");
+        assert_eq!(resolve_data_dir(&argv(&[]), Some(&exe_dir), false).unwrap(), ResolvedDataDir::default());
+        assert_eq!(std::fs::read_dir(&exe_dir).unwrap().count(), 0, "nothing is written beside the exe");
+        let _ = std::fs::remove_dir_all(&exe_dir);
+    }
+
+    #[test]
+    fn may1_keeps_the_roaming_dir_with_or_without_the_flag() {
+        // CoS decision 09-11 (0.3.2 RC): Máy 1 keeps roaming %APPDATA%\space.zumia.preview as its live data dir. A
+        // flag-less launch with no pointer must use the app data dir and write nothing; a launch with --data-dir set to
+        // that roaming dir must record it, replacing a pointer to the old portable kit dir, so later flag-less launches
+        // (and a Zumi.exe whose own app data dir is space.zumia.zumi) keep opening it.
+        let root = scratch("zumi-may1-roaming");
+        let (exe_dir, kit, roaming) = (root.join("app"), root.join("kit-data"), root.join("Roaming").join("space.zumia.preview"));
+        for d in [&exe_dir, &kit, &roaming] { std::fs::create_dir_all(d).unwrap(); }
+        let pointer = exe_dir.join(DATA_DIR_POINTER);
+
+        let plain = resolve_data_dir(&argv(&[]), Some(&exe_dir), false).unwrap();
+        assert_eq!(plain, ResolvedDataDir::default(), "no flag, no pointer: the app data dir, no problem");
+        assert_eq!(launch(&[], &exe_dir).data_dir(&roaming), roaming);
+        assert!(!pointer.exists(), "a flag-less launch writes no pointer");
+
+        std::fs::write(&pointer, kit.to_str().unwrap()).unwrap();
+        let flagged = launch(&["--data-dir", roaming.to_str().unwrap()], &exe_dir);
+        assert_eq!(flagged.data_dir(&roaming), roaming);
+        assert_eq!(std::fs::read_to_string(&pointer).unwrap(), roaming.to_str().unwrap(), "the pointer now names roaming");
+        let other_app_dir = root.join("Roaming").join("space.zumia.zumi");
+        assert_eq!(launch(&[], &exe_dir).data_dir(&other_app_dir), roaming, "a flag-less launch follows the pointer");
+        assert_eq!(resolve_data_dir(&argv(&[]), Some(&exe_dir), false).unwrap().problem, None);
+
+        // `--data-dir=<path>` is not the flag (argv needs two tokens): it is ignored, so a shortcut must use a space.
+        let eq = format!("--data-dir={}", kit.display());
+        assert_eq!(parse_data_dir(&argv(&[eq.as_str()])).unwrap(), None);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

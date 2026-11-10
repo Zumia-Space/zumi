@@ -302,7 +302,9 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
         now: refsOf.now.text, next: refsOf.next.text, refs: { now: refsOf.now.refs, next: refsOf.next.refs },
         asks: asks.map(a => { const r = splitRefs(a.text); return { id: a.id, lane: askLane(state(), a), text: r.text, step_id: a.step_id || '', refs: r.refs, at: a.attribution.created_at }; }),
         steps: steps.map(s => ({ ...s, lane: stepLane(t.id, s.id) })),
-        routeOverride: routeOverrideOf(t.id)
+        routeOverride: routeOverrideOf(t.id),
+        ...(t.coordinator ? { coordinator: t.coordinator, workerMachines: t.worker_machines, machinesBy: LEGACY_BY[t.machines_by] || t.machines_by } : {}),
+        ...(t.pinned ? { pinned: true, pinnedAt: t.pinned_at } : {})
       } : {};
       return {
         code: t.id, title: t.title, lane: t.lane, health: t.status === 'paused' ? 'grey' : t.health, goal: t.goal ?? '', now: t.now ?? '', next: t.next ?? '',

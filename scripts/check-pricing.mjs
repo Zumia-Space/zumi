@@ -47,7 +47,7 @@ if (mod && typeof mod.pricingHtml === 'function') {
   const { pricingHtml, wireLinks } = mod;
   const none = pricingHtml({ upgrade: false, donate: false });
   const both = pricingHtml({ upgrade: true, donate: true });
-  ok(stable(mod.PRICING_LINK_IDS) === stable(['upgrade', 'donate']), 'a. the card names only the upgrade and donate link ids', stable(mod.PRICING_LINK_IDS));
+  ok(stable(mod.PRICING_LINK_IDS) === stable(['upgrade', 'donate', 'discord']), 'a. the card names only the upgrade, donate and discord link ids', stable(mod.PRICING_LINK_IDS));
   ok((none.match(/class="np-plan\b/g) || []).length === 2 && (both.match(/class="np-plan\b/g) || []).length === 2, 'a. exactly two plan cards');
   ok(/data-i18n="pricing\.free\.name"/.test(none) && /data-i18n="pricing\.cloud\.name"/.test(none), 'a. the plans are Free (On your PC) and Cloud memory');
   ok(/class="dchip soon"[^>]*data-i18n="pricing\.cloud\.badge"/.test(none), 'a. Cloud memory carries the "Coming soon" badge');
@@ -66,6 +66,14 @@ if (mod && typeof mod.pricingHtml === 'function') {
   ok(two.every((b) => /type="button"/.test(b) && !/\bhref\s*=/i.test(b)) && !/<a\b/i.test(both) && !/\bhref\s*=/i.test(both), 'a. each is a type=button with no href, and the card has no <a> / href at all');
   const upOnly = linkButtonsOf(pricingHtml({ upgrade: true, donate: false })), donOnly = linkButtonsOf(pricingHtml({ upgrade: false, donate: true }));
   ok(upOnly.length === 2 && upOnly.filter((b) => !/\bdisabled\b/.test(b)).length === 1 && donOnly.length === 1 && !/\bdisabled\b/.test(donOnly[0]), 'a. upgrade set -> Upgrade enabled + Donate disabled; donate set -> one enabled Donate', stable([upOnly, donOnly]));
+  // J-05 (anh 09-11): Join Discord sits beside Donate in the hero, same row, and only when links.list() says discord === true.
+  const heroBtns = (html) => (/<div class="np-hero-btns">([\s\S]*?)<\/div>/.exec(html) || [])[1] || '';
+  const withDiscord = pricingHtml({ upgrade: false, donate: true, discord: true });
+  const ids = (html) => linkButtonsOf(html).map((b) => (b.match(/data-link="([^"]*)"/) || [])[1]);
+  ok(stable(ids(heroBtns(withDiscord))) === stable(['donate', 'discord']) && linkButtonsOf(heroBtns(withDiscord)).every((b) => !/disabled/.test(b)) && /data-i18n="settings\.joinDiscord"/.test(heroBtns(withDiscord)),
+    'a. discord === true -> an enabled Join Discord button in the same .np-hero-btns row, right after Donate', stable(ids(heroBtns(withDiscord))));
+  ok(!ids(none).includes('discord') && !ids(both).includes('discord') && stable(ids(heroBtns(pricingHtml({ donate: false, discord: false })))) === stable(['donate']) && stable(ids(heroBtns(pricingHtml({ donate: false, discord: 'yes' })))) === stable(['donate']),
+    'a. discord unset / false / a truthy non-boolean -> no Join Discord button (Donate stays alone)');
   // wiring: a stub root with the two buttons; a click must call links.open(<id>) and only that
   const opened = [];
   const listeners = new Map();

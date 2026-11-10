@@ -4824,7 +4824,7 @@ checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
 
 [[package]]
 name = "zumi-preview"
-version = "0.3.1"
+version = "0.3.4"
 dependencies = [
  "base64 0.23.1",
  "png 0.17.16",

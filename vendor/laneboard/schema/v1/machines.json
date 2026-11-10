@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "machines.json",
+  "title": "Machine pick for one task (projection, state.machines[<task id>])",
+  "description": "Written by machines.set. Readers apply the defaults when a task has no entry: coordinator main, worker_machines [main], each slot on worker_machines[0].",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["coordinator", "worker_machines", "slots", "by", "at"],
+  "properties": {
+    "coordinator": { "type": "string" },
+    "worker_machines": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "slots": { "type": "object", "additionalProperties": false, "properties": { "plan": { "type": "string" }, "code": { "type": "string" }, "review": { "type": "string" }, "scout": { "type": "string" } } },
+    "by": { "enum": ["owner", "coordinator"] },
+    "set_by": { "$ref": "common.json#/$defs/actor" },
+    "at": { "$ref": "common.json#/$defs/timestamp" }
+  }
+}

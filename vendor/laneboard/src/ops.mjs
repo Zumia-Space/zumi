@@ -10,6 +10,7 @@ import { currentStep } from './rules.mjs';
 import { TURN, buildQuick, noteLaneWrite, mayUseLane, sameLane, laneKey } from './turns.mjs';
 import { isReservedLane, RESERVED_LANES } from './mailbox.mjs';
 import { validateArchitecture } from './architecture.mjs';
+import { isMachine, resolveMachines } from './machines.mjs';
 
 export class BoardError extends Error {
   constructor(status, code, extra = {}) { super(code); this.status = status; this.code = code; this.extra = extra; }
@@ -128,7 +129,7 @@ export function compactPlan(state, taskId, keepLast = COMPACT_DEFAULT_KEEP) {
 const needGeminiEffort = (model, effort) => { const message = effortError(model, effort); if (message) fail(400, 'gemini_effort_not_allowed', { model, effort, message }); };
 
 export function emptyState() {
-  return { schema: 1, seq: 0, tasks: {}, steps: {}, archive: {}, asks: {}, inbox: {}, feedback: {}, attachments: {}, routing: {}, roles: {}, route_override: {}, gate_fails: {}, times: {}, task_times: {}, docs: {}, activity: {}, tokens: {}, prefs: {}, notify: null, freshness: null, goals: {}, plans: {}, pings: [], requests: {} };
+  return { schema: 1, seq: 0, tasks: {}, steps: {}, archive: {}, asks: {}, inbox: {}, feedback: {}, attachments: {}, routing: {}, roles: {}, route_override: {}, machines: {}, pins: {}, gate_fails: {}, times: {}, task_times: {}, docs: {}, activity: {}, tokens: {}, prefs: {}, notify: null, freshness: null, goals: {}, plans: {}, pings: [], requests: {} };
 }
 
 /** Feedback target that is not a task: the board's thread of new-task requests ("+ new task"). */
@@ -387,6 +388,7 @@ export const OPS = {
       }
       Object.assign(t, pick(ev.data, TASK_FIELDS));
       if (t.architecture === null) delete t.architecture; // null clears the diagram: the key is absent, as on a task that never had one
+      if (ev.data.status === 'closed') delete state.pins?.[t.id]; // a closed task leaves the pinned strip (and comes back unpinned)
       if (ev.data.step_order) t.step_ids = [...ev.data.step_order];
       touch(t, ev); markActivity(state, t.id, ev.at);
     }
@@ -407,6 +409,8 @@ export const OPS = {
       delete state.tasks[t.id];
       delete state.routing[t.id];
       delete state.route_override?.[t.id]; // a re-created id must not inherit the deleted task's CoS allowance
+      delete state.machines?.[t.id]; // nor its machine pick
+      delete state.pins?.[t.id]; // nor its owner pin
       markActivity(state, t.id, ev.at);
     }
   },
@@ -802,6 +806,46 @@ export const OPS = {
       delete mine[ev.data.role];
       if (!Object.keys(mine).length) delete state.roles[ev.target_id];
       addPing(state, ev, { kind: 'routing', task_id: ev.target_id, detail: { role: ev.data.role, reset: true } });
+    }
+  },
+  // ---- machine pick (J-05 worker-machine-0811): WHERE a task is coordinated and worked, next to the model pick ----
+  'machines.set': {
+    check({ state, req, actor }) {
+      needTask(state, req.target_id);
+      const d = req.data, cur = state.machines?.[req.target_id];
+      if (d.coordinator === undefined && d.worker_machines === undefined && d.role === undefined && d.machine === undefined) fail(400, 'nothing_to_set', { message: 'send coordinator, worker_machines, or role + machine' });
+      if (d.worker_machines && new Set(d.worker_machines).size !== d.worker_machines.length) fail(400, 'duplicate_machine', { worker_machines: d.worker_machines });
+      if ((d.role === undefined) !== (d.machine === undefined)) fail(400, 'role_and_machine', { message: 'a slot pick needs both role and machine' });
+      for (const m of [d.coordinator, d.machine, ...(d.worker_machines || [])]) if (m !== undefined && !isMachine(m)) fail(400, 'unknown_machine', { machine: m });
+      if (cur?.by === 'owner' && actor.role !== 'owner') fail(409, 'owner_set', { message: 'the owner picked these machines; only the owner changes them' });
+      const workers = d.worker_machines || resolveMachines(cur).worker_machines;
+      if (d.machine !== undefined && !workers.includes(d.machine)) fail(400, 'machine_not_in_workers', { machine: d.machine, worker_machines: workers });
+      // What this replaces, journaled so the history reads "old -> new".
+      const previous = cur ? { coordinator: cur.coordinator, worker_machines: cur.worker_machines, slots: cur.slots } : null;
+      return { data: { ...d, ...(previous ? { previous } : {}) }, result: { id: req.target_id, revision: 0 } };
+    },
+    apply(state, ev) {
+      state.machines ??= {}; // projections written before machine picks existed
+      const d = ev.data, cur = state.machines[ev.target_id], was = resolveMachines(cur);
+      const workers = d.worker_machines || was.worker_machines;
+      // A slot pick that is no longer one of the workers is dropped: the slot falls back to worker_machines[0].
+      const slots = Object.fromEntries(Object.entries({ ...cur?.slots, ...(d.role ? { [d.role]: d.machine } : {}) }).filter(([, m]) => workers.includes(m)));
+      state.machines[ev.target_id] = { coordinator: d.coordinator || was.coordinator, worker_machines: workers, slots, by: ev.actor.role === 'owner' ? 'owner' : 'coordinator', set_by: ev.actor, at: ev.at };
+    }
+  },
+  // ---- owner pin (J-05 pin-0811): a key task stays at the top of the board for the owner ----
+  'pin.set': {
+    check({ state, req }) {
+      const task = needTask(state, req.target_id);
+      // A closed task cannot be pinned: close drops the pin, so a pin taken after close would never be removed.
+      if (req.data.pinned && task.status === 'closed') fail(409, 'task_closed', { message: 'a closed task cannot be pinned' });
+      return { data: req.data, result: { id: req.target_id, revision: 0 } };
+    },
+    apply(state, ev) {
+      state.pins ??= {}; // projections written before pins existed
+      if (!ev.data.pinned) { delete state.pins[ev.target_id]; return; }
+      const cur = state.pins[ev.target_id];
+      state.pins[ev.target_id] = { pinned_at: cur?.pinned_at || ev.at, by: ev.actor }; // re-pinning keeps the first pin time
     }
   },
   // The decision (count, bump or not) is computed once here and journaled, so replay applies exactly what was decided live.

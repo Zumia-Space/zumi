@@ -864,6 +864,8 @@ const EN = {
   // ---------- "Require PIN for Board" toggle (T-31 voice-P1 follow-up, owner request 08-10) ----------
   'settings.requirePin': 'Require PIN for Board',
   'settings.pinToggleCurrent': 'Current PIN',
+  'settings.pinTogglePendingOff': 'The PIN is still ON. Type your current PIN and press Apply to turn it off.',
+  'settings.pinTogglePendingOn': 'The PIN is still OFF. Choose a new PIN, repeat it and press Apply to turn it on.',
   'settings.apply': 'Apply',
   'settings.cancel': 'Cancel',
   'settings.pinRequiredOn': 'PIN requirement turned on',
@@ -2156,6 +2158,8 @@ const VI = {
 
   'settings.requirePin': 'Yêu cầu mã PIN cho Bảng task',
   'settings.pinToggleCurrent': 'Mã PIN hiện tại',
+  'settings.pinTogglePendingOff': 'Mã PIN vẫn đang BẬT. Nhập mã PIN hiện tại rồi bấm Áp dụng để tắt.',
+  'settings.pinTogglePendingOn': 'Mã PIN vẫn đang TẮT. Chọn mã PIN mới, nhập lại rồi bấm Áp dụng để bật.',
   'settings.apply': 'Áp dụng',
   'settings.cancel': 'Hủy',
   'settings.pinRequiredOn': 'Đã bật yêu cầu mã PIN',
@@ -3436,6 +3440,8 @@ const ZH = {
 
   'settings.requirePin': '看板需要 PIN',
   'settings.pinToggleCurrent': '当前 PIN',
+  'settings.pinTogglePendingOff': 'PIN 仍然是开启状态。请输入当前 PIN 并点击“应用”来关闭。',
+  'settings.pinTogglePendingOn': 'PIN 仍然是关闭状态。请设置新 PIN、再输入一次并点击“应用”来开启。',
   'settings.apply': '应用',
   'settings.cancel': '取消',
   'settings.pinRequiredOn': '已开启 PIN 要求',

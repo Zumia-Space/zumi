@@ -611,6 +611,14 @@
   "op.roles.reset": "đặt lại model của vai",
   "op.roles.escalate": "ghi một cổng trượt",
   "op.roles.override": "cho Sonnet làm một task",
+  "op.machines.set": "đổi máy làm một task",
+  "machine.title": "Máy",
+  "machine.line": "Điều phối: {coord} · Làm: {work}",
+  "machine.coordinator": "Điều phối",
+  "machine.workers": "Làm",
+  "machine.slot": "{role} chạy ở",
+  "machine.needOne": "Chọn ít nhất một máy",
+  "history.machines": "đổi máy: {to}",
   "refs.copy": "Chép",
   "refs.copied": "Đã chép đường dẫn",
   "refs.localTip": "Tệp trên máy của anh: trình duyệt không mở được, hãy chép đường dẫn",
@@ -699,5 +707,10 @@
   "sweep.open": "Đã gửi, CoS đang rà · {time}",
   "sweep.last": "lần trước {time}",
   "sweep.sentToast": "Đã gửi, CoS sẽ rà lại tình trạng các task.",
-  "feedback.kind.sweep": "Cập nhật toàn bảng"
+  "feedback.kind.sweep": "Cập nhật toàn bảng",
+  "pin.title": "Đang ghim",
+  "pin.pin": "Ghim task này",
+  "pin.unpin": "Bỏ ghim task này",
+  "pin.saved": "Đã đổi ghim",
+  "op.pin.set": "ghim / bỏ ghim task"
 }

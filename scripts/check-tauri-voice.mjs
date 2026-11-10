@@ -10,7 +10,7 @@
 //      EXACTLY ONE adapter call per click and no silent cross-provider fallback, testVoice once per click;
 //   3. the sidecar rpc: voiceInfo/voiceState/voiceProviders/setProviderKey/clearProviderKey/setVoicePrefs/testVoice/
 //      openGuide/tts answer Electron's shapes;
-//   4. the owner voice flag: owner-voice.json (preview data dir) only; the flavour ownerAdmin does not turn it on (0.2.9 parity);
+//   4. the owner voice flag: file, not flavour -- owner-voice.json in the data dir only; ownerAdmin does not turn it on (0.2.9 parity);
 //   5. security: setProviderKey returns a boolean, voiceProviders returns hasKey only, and the sentinel keys of all
 //      talk-mode key files + Leda appear in no reply, no log and no file but their own encrypted blob;
 //   6. part 2: Kokoro prefetch/progress, the Windows voice, ttsAbandon, talk:ttsMore split over 512 KB reassembled
@@ -280,7 +280,7 @@ function makeHost(dir, { initials, routes, flavour, ownerFlag = false, log = () 
   ok(/forceTtsFail: \(\) => null/.test(read('tauri', 'sidecar', 'voice-host.mjs')), 'voice-host passes the E2E hooks off explicitly (source guard)');
 }
 
-// ---------------------------------------------------------------- 3. the owner voice flag: file OR flavour
+// ---------------------------------------------------------------- 3. the owner voice flag: file, not flavour
 {
   { // Owner key (owner 02-11): the path under --data-dir, through the real voice host and secret stores.
     const d = freshDir('owner-key', {}, { v: 1, zumiaVoice: true });

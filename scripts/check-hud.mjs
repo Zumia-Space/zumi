@@ -923,6 +923,16 @@ function panelState({ stepCount = 3, times, goal, now, health = 'yellow', lane =
   const hudJs = fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'hud', 'hud.js'), 'utf8');
   const hudCss = fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'hud', 'hud.css'), 'utf8');
   ok(/\.hud-asks\s*>\s*\.hud-list\s*\{[^}]*overflow-y:\s*auto/.test(hudCss), 'hud.css: the asks list scrolls (overflow-y:auto) so an expanded ask cannot clip Send');
+  ok(/\.hud-updates\s*>\s*\.hud-list\s*\{[^}]*overflow-y:\s*auto/.test(hudCss), 'hud.css: the updates list scrolls (overflow-y:auto) so an expanded update card cannot clip its Open-on-the-board button (J-05 card-clip)');
+  ok(/const upsScroll = ups\.scrollTop/.test(hudJs) && /ups\.scrollTop = upsScroll/.test(hudJs) && /\.hud-open`\)/.test(hudJs), 'hud.js: paint() keeps the updates scroll position and expanding an update scrolls its Open button into view (J-05 card-clip)');
+  // J-05 (CoS 09-11): the T1 card is clickable too (whole card + a footer Open button), keyboard-accessible; the updates card header stays pinned.
+  const panelsJs = fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'hud', 'panels.js'), 'utf8');
+  ok(/data-openable|dataset\.openable/.test(panelsJs) && /panel\.onclick\s*=/.test(panelsJs) && /closest\('button'\)/.test(panelsJs) && /panel\.tabIndex\s*=\s*0/.test(panelsJs) && /e\.key === 'Enter' \|\| e\.key === ' '/.test(panelsJs),
+    'panels.js: an openable T1 panel opens its task on a card click (a click on its own button keeps that button) and on Enter/Space, with tabindex=0');
+  ok(/hp-foot-open/.test(panelsJs) && /t\('hud\.open'\)/.test(panelsJs) && /\.hp-foot-open/.test(hudCss), 'panels.js: the T1 footer row carries a small "Open on the board" button (hp-foot-open)');
+  ok(/\.hud-task-panel\[data-openable\]\s*\{[^}]*pointer-events:\s*auto/.test(hudCss) && /\.hud-group\.yield\s+\.hud-task-panel\[data-openable\]\s*\{[^}]*pointer-events:\s*none/.test(hudCss),
+    'hud.css: the openable T1 card owns its pointer events and yields with its group for an arm');
+  ok(/\.hud-item\.open\s*>\s*\.code[^{]*\{[^}]*position:\s*sticky[^}]*top:\s*0/.test(hudCss), 'hud.css: an expanded card pins its header (code + title + age) with position:sticky while the list scrolls');
   ok(/getComputedStyle\(ol\)\.overflowY\s*===\s*['"]auto['"]/.test(hudJs), 'hud.js: fitRows leaves a scrolling list alone (never hides a reachable ask)');
   const m = /function onCardClick\([^)]*\)\s*\{([\s\S]*?)\n  \}/.exec(hudJs);
   const body = m ? m[1] : '';

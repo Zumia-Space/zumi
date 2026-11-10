@@ -37,6 +37,11 @@
 .hud-item .code { font-family: var(--mono); font-size: 11px; color: var(--holo); }
 .hud-item .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hud-item .age { font-size: 10.5px; color: var(--holo-dim); }
+/* An expanded card keeps its header line (code + title + age) pinned while the updates list scrolls, so a scrolled card never
+   shows only a fragment of its text (J-05). Opaque-ish backing; the gap moves from column-gap into padding so it has no seam. */
+.hud-item.open { column-gap: 0; }
+.hud-item.open > .code, .hud-item.open > .title, .hud-item.open > .age { position: sticky; top: 0; z-index: 1; padding-right: 7px; background: color-mix(in srgb, color-mix(in srgb, var(--holo-tint) 14%, var(--background)) 94%, transparent); }
+.hud-item.open > .age { padding-right: 0; }
 .hud-item .step { grid-column: 1 / -1; display: flex; gap: 6px; align-items: baseline; font-size: 11px; color: color-mix(in srgb, var(--foreground) 62%, var(--holo-tint)); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .hud-item .state { font-style: normal; font-size: 10px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--holo-line); color: var(--holo); }
 .hud-item .state.s-waiting { border-color: color-mix(in srgb, var(--question) 70%, transparent); color: color-mix(in srgb, var(--question) 75%, var(--foreground)); }
@@ -112,6 +117,11 @@
    stays reachable instead of being hidden. The look otherwise is unchanged. */
 .hud-group .hud-asks { display: flex; flex-direction: column; }
 .hud-group .hud-asks > .hud-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* The updates list scrolls too (J-05 card-clip, 09-11 owner note): the panel is squeezed by the T1 panel under it inside the
+   group's max-height, and its overflow:hidden cut an expanded card -- "Open on the board" disappeared with no way to reach it.
+   Same shape as the asks list above; hud.js onCardClick brings the Open button into view and paint() keeps the scroll position. */
+.hud-group .hud-updates { display: flex; flex-direction: column; min-height: 96px; } /* header + one row stays visible even when the T1 panel takes the group's height */
+.hud-group .hud-updates > .hud-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .hud-left { left: 14px; top: 14px; width: clamp(210px, 25%, 330px); max-height: calc(46% - 14px); }
 .hud-right { right: 14px; top: 24%; width: clamp(200px, 22%, 290px); max-height: 24%; }
 /* an expanded ask grows the asks group UP into the free top-right corner; its bottom stays at 48% (arm rule above), so
@@ -279,6 +289,13 @@
    buttons must do the same or they are click-through (the .hud-group.yield rule above turns them off again while the
    group steps aside for an arm). */
 .hud-task-panel .hp-btn { font: inherit; font-size: 10px; line-height: 15px; padding: 1px 8px; margin: 0; color: var(--hp-cy); background: var(--hp-faint); border: 1px solid var(--hp-line); clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px)); cursor: pointer; pointer-events: auto; }
+/* J-05 card-clip: the whole task card is clickable (renderPanel sets data-openable when it has an open action). Like the updates
+   cards it owns its pointer events (the root stays pointer-events:none) and steps aside with its group for an arm. */
+.hud-task-panel[data-openable] { pointer-events: auto; cursor: pointer; }
+.hud-group.yield .hud-task-panel[data-openable] { pointer-events: none; }
+.hud-task-panel[data-openable]:focus-visible { outline: 1px solid var(--hp-cy); outline-offset: 2px; }
+.hud-task-panel[data-openable]:hover::before { opacity: 1; }
+.hud-task-panel .hp-foot-open { flex: 0 0 auto; }
 .hud-task-panel .hp-btn.hp-amber { color: var(--hp-amber); border-color: color-mix(in srgb, var(--question) 60%, transparent); background: color-mix(in srgb, var(--question) 12%, transparent); }
 
 /* ---- T1 NOW row (23 px): a static, word-cut line -- never the mock's scrolling ticker (fix 2) ---- */

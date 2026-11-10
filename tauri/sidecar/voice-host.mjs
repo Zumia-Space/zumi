@@ -4,7 +4,7 @@
 // freeze exception extracted the inline routing there). The host only supplies what Electron supplies around it:
 //   - the BYO cloud adapters (leda-tts.js, tts-gemini.js, tts-elevenlabs.js, tts-http.js), built lazily through the
 //     step-5 secret stores so their DPAPI key files live in the preview data dir;
-//   - the owner voice flag: <preview data dir>/owner-voice.json (parity) OR the build flavour's ownerAdmin;
+//   - the owner voice flag: <data dir>/owner-voice.json only (0.2.9 parity), never the build flavour's ownerAdmin;
 //   - the guarded TTS fetch (egress.mjs ttsFetch), never the global fetch directly;
 //   - Kokoro-82M (kokoro-tts.js, worker-thread inference) + the free Windows voice (local-tts.js), routed by
 //     tts-router.js and created with the preview data dir as Electron's userData;
@@ -84,8 +84,8 @@ export function createVoiceHost({
   voiceStateOverride = null, cloud = () => null,
   log = () => {},
 }) {
-  // Electron reads <userData>/owner-voice.json once at start; the preview also gets the build flavour's ownerAdmin
-  // (step 6-pre). Pinned HERE, like Electron's startup read, so the flag and the zumia-owner adapter can never
+  // Electron reads <userData>/owner-voice.json once at start; the build flavour's ownerAdmin does not count (0.2.9
+  // parity, gap 2). Pinned HERE, like Electron's startup read, so the flag and the zumia-owner adapter can never
   // disagree mid-run. No secret, no URL: only the presence of the two-key flag file matters.
   const ownerVoiceAtStart = readOwnerVoiceFlag(dataDir); // 0.2.9 parity (gap 2): the flavour ownerAdmin does NOT turn the owner voice on
   const ownerFlag = () => ownerVoiceAtStart;

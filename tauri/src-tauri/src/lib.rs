@@ -13,7 +13,8 @@
 // so a dead sidecar is a recoverable error, not a hung window), and kill-on-exit with no orphans.
 //
 // Isolation: a normal launch's sidecar data directory is `app_data_dir()` (derived from the
-// "space.zumia.preview" identifier), passed on the command line; it is never Electron's userData path.
+// "space.zumia.preview" identifier), passed on the command line; it is never Electron's userData path. `--data-dir`
+// (or, without it, the dir a kit remembered in zumi-data-dir.txt beside the exe: guest_cdp::resolve_data_dir) moves it.
 // A self-test launch gets `<runDir>/ud` instead (Electron's per-mode userData layout), so a test run can
 // never write the real preview data dir.
 // Note (gate 12, should-fix): the WebView2 PROFILE folder still uses Tauri's default app-data location in a
@@ -33,6 +34,7 @@ use tauri::{AppHandle, Manager};
 
 mod asset_route;
 mod board_open;
+mod data_dir_notice;
 mod dialog_ops;
 mod events;
 mod guest;
@@ -986,7 +988,7 @@ fn open_path_from_sidecar(app: &AppHandle, p: &str, owner: bool) -> Result<(), S
     open_path::open_path_on_main_with_timeout(
         p,
         owner,
-        app.path().app_data_dir().ok().as_deref(),
+        app.state::<guest_cdp::SelfTest>().data_dir_or(app.path().app_data_dir().ok().as_deref()).as_deref(),
         open_path::OPEN_TIMEOUT,
         |job| app.run_on_main_thread(job).map_err(|e| format!("shell_dispatch:{e}")),
         shell_ops::shell_execute,
@@ -1548,14 +1550,17 @@ pub fn run() {
     // check, not by an empty invoke table.
     let argv: Vec<String> = std::env::args().skip(1).collect();
     // Electron's `--user-data-dir`: a bad value ends the launch before anything is created or written.
-    let user_data_dir = match guest_cdp::parse_data_dir(&argv) {
-        Ok(dir) => dir,
+    let mode = guest_cdp::SelfTest::from_args(&argv);
+    let exe_dir = std::env::current_exe().ok().and_then(|exe| exe.parent().map(Path::to_path_buf));
+    let resolved = match guest_cdp::resolve_data_dir(&argv, exe_dir.as_deref(), mode.enabled()) {
+        Ok(resolved) => resolved,
         Err(reason) => {
             eprintln!("zumi: {reason}");
             std::process::exit(2);
         }
     };
-    let self_test = guest_cdp::SelfTest::from_args(&argv).with_user_data_dir(user_data_dir);
+    let pointer_problem = resolved.problem;
+    let self_test = mode.with_user_data_dir(resolved.dir);
     // Electron's avatar switch, read once here so the sidecar spawn and the /external/test.vrm route agree.
     test_model::init(&argv);
 
@@ -1580,6 +1585,14 @@ pub fn run() {
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
+            // A remembered data dir that cannot be used: logged in the dir this launch uses, and shown (data_dir_notice).
+            if let Some(problem) = &pointer_problem {
+                if let Some(current) = self_test.data_dir_or(app.path().app_data_dir().ok().as_deref()) {
+                    if data_dir_notice::record(&current, problem) {
+                        data_dir_notice::show(data_dir_notice::message(&current, problem));
+                    }
+                }
+            }
             let flavour_file = std::env::current_exe().ok().as_deref().and_then(flavour_beside).is_some();
             // A stranger's build: one app per data folder. Before the sidecar, so a second launch starts nothing and asks nothing.
             #[cfg(windows)]
@@ -1651,6 +1664,16 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn open_path_roots_follow_the_launch_data_dir() {
+        // The openPath roots must be the dir the sidecar writes (--data-dir, the remembered dir or a self-test run dir),
+        // not the raw app_data_dir(), or a file in the real data dir is refused and one in the roaming dir allowed.
+        let src = include_str!("lib.rs");
+        let start = src.find(concat!("fn open_path_from_", "sidecar(")).expect("the opener");
+        let body = &src[start..start + src[start..].find("\n}\n").expect("its end")];
+        assert!(body.contains("data_dir_or("), "{body}");
+    }
 
     /// A sidecar stand-in that Rpc owns, as spawn_sidecar_at stores it. `findstr` exits at stdin EOF; `ping` ignores stdin.
     #[cfg(windows)]

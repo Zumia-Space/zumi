@@ -18,7 +18,8 @@
     "check:ask-context-jump": "node scripts/check-ask-context-jump.mjs",
     "check:step-click": "node scripts/check-step-click.mjs",
     "check:step-overlap": "node scripts/check-step-overlap.mjs",
-    "check:steps-many": "node scripts/check-steps-many.mjs"
+    "check:steps-many": "node scripts/check-steps-many.mjs",
+    "check:machine-ui": "node scripts/check-machine-ui.mjs"
   },
   "files": ["src", "bin", "public", "schema", "fixtures", "scripts", "AGENTS.md", "README.md", "LICENSE", "NOTICE"]
 }

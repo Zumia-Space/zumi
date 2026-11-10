@@ -3,6 +3,7 @@
 // inbox and steps waiting in the 'owner' zone; the stalled block is built from server timestamps only.
 import { currentStep } from './rules.mjs';
 import { resolveRoles } from './roles.mjs';
+import { resolveMachines, withSlotMachines } from './machines.mjs';
 import { latestTurns } from './turns.mjs';
 import '../public/measure.js'; // sets globalThis.LaneMeasure (one copy for the server and the page)
 
@@ -47,6 +48,9 @@ export function routeOverrideView(state, nowMs) {
   for (const [code, o] of Object.entries(state.route_override || {})) out[code] = { ...o, expired: !(Date.parse(o.expires) > nowMs) };
   return out;
 }
+
+/** coordinator / worker_machines / machines_by of one task, the defaults applied when nothing is stored. */
+const machineFields = entry => { const m = resolveMachines(entry); return { coordinator: m.coordinator, worker_machines: m.worker_machines, machines_by: m.by }; };
 
 export function effectiveWorker(task, routing, roles) {
   const o = routing[task.id];
@@ -275,7 +279,7 @@ function scopedState(state, actor) {
     ...state,
     tasks: byTask(state.tasks), steps: byKeyPrefix(state.steps), archive: byTask(state.archive), times: byKeyPrefix(state.times), task_times: byTask(state.task_times),
     asks: byTaskField(state.asks), inbox: byTaskField(state.inbox), feedback: byTaskField(state.feedback), attachments: byTaskField(state.attachments),
-    routing: byTask(state.routing), roles: byTask(state.roles), route_override: byTask(state.route_override), gate_fails: byTask(state.gate_fails), activity: byTask(state.activity),
+    routing: byTask(state.routing), roles: byTask(state.roles), route_override: byTask(state.route_override), machines: byTask(state.machines), pins: byTask(state.pins), gate_fails: byTask(state.gate_fails), activity: byTask(state.activity),
     goals: byTask(state.goals), plans: byTask(state.plans),
     pings: (state.pings || []).filter(p => p.task_id && ok(p.task_id)),
     docs: registry ? { registry: { ...registry, entries: (registry.entries || []).filter(e => e.code && ok(e.code)) } } : {}
@@ -293,11 +297,14 @@ export function boardView(fullState, { actor, nowMs, stallMs, config, webhookSta
       steps,
       current_step: currentStep(steps), // server-derived on every read (src/rules.mjs); clients render it as given
       last_activity_at: state.activity[t.id] || null, // last accepted event on the task, server clock
+      ...(state.pins?.[t.id] ? { pinned: true, pinned_at: state.pins[t.id].pinned_at } : {}), // only once pinned: older views stay byte-identical
       worker_default: t.worker,
       worker: effectiveWorker(t, state.routing, state.roles),
       ...(roleSlots ? {
-        roles: resolveRoles(t, state.routing, state.roles), // plan / code / review / scout, review rule applied
-        gate_fails: state.gate_fails?.[t.id] || {}
+        // plan / code / review / scout, review rule applied; once a task has a machine pick each slot names its machine (J-05 worker-machine-0811)
+        roles: state.machines?.[t.id] ? withSlotMachines(resolveRoles(t, state.routing, state.roles), state.machines[t.id]) : resolveRoles(t, state.routing, state.roles),
+        gate_fails: state.gate_fails?.[t.id] || {},
+        ...(state.machines?.[t.id] ? machineFields(state.machines[t.id]) : {}) // only once picked: older views stay byte-identical
       } : {}),
       ...(archived ? { archived_steps: archivedSteps(state, t.id) } : {}), // ?archived=1 only: default output unchanged
       measured: measuredTimes(state, t.id, nowMs)

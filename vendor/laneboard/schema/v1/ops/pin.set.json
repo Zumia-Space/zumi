@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/pin.set.json",
+  "title": "data for pin.set",
+  "description": "Owner-only pin of one task (J-05 pin-0811). pinned=true stores pinned_at and by; pinning an already pinned task keeps the original pinned_at. pinned=false removes the entry.",
+  "x-roles": [
+    "owner"
+  ],
+  "x-target": "taskId",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "pinned"
+  ],
+  "properties": {
+    "pinned": { "type": "boolean" }
+  }
+}

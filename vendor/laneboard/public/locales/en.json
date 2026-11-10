@@ -610,6 +610,14 @@
   "op.roles.reset": "reset a role model",
   "op.roles.escalate": "recorded a failed gate",
   "op.roles.override": "allowed Sonnet on one task",
+  "op.machines.set": "changed the machines of one task",
+  "machine.title": "Machine",
+  "machine.line": "Coordinates: {coord} · Works: {work}",
+  "machine.coordinator": "Coordinates on",
+  "machine.workers": "Works on",
+  "machine.slot": "{role} runs on",
+  "machine.needOne": "Pick at least one machine",
+  "history.machines": "machines: {to}",
   "refs.copy": "Copy",
   "refs.copied": "Path copied",
   "refs.localTip": "A file on the owner's computer: a browser cannot open it, copy the path",
@@ -698,5 +706,10 @@
   "sweep.open": "Sent, CoS is reviewing · {time}",
   "sweep.last": "last {time}",
   "sweep.sentToast": "Sent. The CoS will re-check every task.",
-  "feedback.kind.sweep": "Board update"
+  "feedback.kind.sweep": "Board update",
+  "pin.title": "Pinned",
+  "pin.pin": "Pin this task",
+  "pin.unpin": "Unpin this task",
+  "pin.saved": "Pin changed",
+  "op.pin.set": "pinned or unpinned a task"
 }

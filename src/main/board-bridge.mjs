@@ -59,7 +59,10 @@ const PAGE_OPS = new Set([
 // PIN-unlocked before the bridge has any credential. Trade-off accepted at the Sol gate: while unlocked, any local
 // process that finds the loopback port can re-route lanes, the same exposure task.update already has. Never
 // roles.escalate (coordinator power), token.* or notify.set.
-const OWNER_OPS = new Set(['routing.set', 'routing.reset', 'roles.set', 'roles.reset']);
+// J-05 machines-app-tab (Laneboard 9bfe62d, CoS GO 6eb016e7fd99): also the owner's pin toggle (pin.set) and machine picker
+// (machines.set). Same trade-off. The board's x-roles still decide: pin.set is owner-only, machines.set is owner or
+// coordinator (the board's own rule, not widened here); a reporter gets the board's 403 for both.
+const OWNER_OPS = new Set(['routing.set', 'routing.reset', 'roles.set', 'roles.reset', 'pin.set', 'machines.set']);
 // T-31-MOBILE M3: the label on every phone token this app mints (coordinator 01-11: one test token "phone-test").
 export const PHONE_TOKEN_LABEL = 'phone-test';
 // Ops Zumi relays from chat. Exactly three (Coordinator QC 02-10).
@@ -202,7 +205,7 @@ async function upstreamFetch(upstreamOrigin, pathname, { method, auth, body } = 
  * @param {string} o.publicDir        the pinned Laneboard page (vendor/laneboard/public)
  * @param {string} [o.host]           default 127.0.0.1
  * @param {(op:string, channel:string) => void} [o.onRefused]  test hook: observe a refusal, no secrets in it
- * @param {boolean} [o.ownerOps]      owner build only: the PAGE channel may also forward OWNER_OPS (lane routing)
+ * @param {boolean} [o.ownerOps]      owner build only: the PAGE channel may also forward OWNER_OPS (lane routing, pin, machines)
  * @param {(generation: *) => void} [o.onAuthRejected]  the UPSTREAM answered 401 with the user's credentials (T-31 0.2.11
  *   auth-401). Called only right after `upstreamFetch`, so the bridge's own 401s (`locked`, caller `unauthorized`) never
  *   reach it. Gets the `authGeneration()` value captured when that request's auth was read, so the host can ignore a

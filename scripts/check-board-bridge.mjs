@@ -270,6 +270,61 @@ try {
     } finally { await ownerBridge.close(); await truthyBridge.close(); }
   }
 
+  // 5f. J-05 machines-app-tab (Laneboard 9bfe62d): the owner's pin toggle (pin.set) and machine picker (machines.set)
+  //     reach upstream from the OWNER build only. Release build: refused in main. Owner build holding another credential:
+  //     forwarded, and the board's own x-roles decide (pin.set owner only; machines.set owner or coordinator): a reporter
+  //     is refused both, a coordinator is refused pin.set and allowed machines.set. The RELAY channel never gains them.
+  {
+    const PIN_MACHINE = [['pin.set', { pinned: true }], ['machines.set', { coordinator: 'main', worker_machines: ['spare'] }]];
+    const seq0 = board.state.seq;
+    for (const [op, data] of PIN_MACHINE) {
+      const r = await request(port, 'POST', '/api/v1/write', { body: { version: 1, request_id: `rel-${op}`, op, target_id: 'T-1', data } });
+      check(`release build: ${op} refused in main (403 forbidden_op)`, r.status === 403 && r.json?.error === 'forbidden_op', r.json);
+    }
+    check('release build: pin.set / machines.set never reached upstream', board.state.seq === seq0 && !board.state.pins?.['T-1'] && !board.state.machines?.['T-1'], { seq0, seq: board.state.seq });
+    const reporterToken = board.write(ownerToken, { version: 1, request_id: 'seed-reporter-5d', op: 'token.issue', target_id: 'reporter-5d', data: { role: 'reporter', label: 'reporter 5d' } }).token;
+    const ownerBridge = createBridge({ upstreamOrigin, getToken: () => ownerToken, publicDir, ownerOps: true });
+    const reporterBridge = createBridge({ upstreamOrigin, getToken: () => reporterToken, publicDir, ownerOps: true });
+    try {
+      const op0 = await ownerBridge.port(), rp = await reporterBridge.port();
+      const w = (p, op, data) => request(p, 'POST', '/api/v1/write', { body: { version: 1, request_id: `pm-${op}-${Math.random().toString(36).slice(2)}`, op, target_id: 'T-1', data } });
+      const t1 = () => board.view(ownerToken).tasks.find((t) => t.id === 'T-1');
+      const rSeq = board.state.seq;
+      for (const [op, data] of PIN_MACHINE) {
+        const r = await w(rp, op, data);
+        check(`owner build, reporter credential: ${op} refused by the board (403, not a bridge decision)`, r.status === 403 && r.json?.error !== 'forbidden_op', r.json);
+      }
+      check('reporter credential: nothing pinned, no machines stored', board.state.seq === rSeq && !t1()?.pinned && !t1()?.coordinator, { rSeq, seq: board.state.seq });
+      const pin = await w(op0, 'pin.set', { pinned: true });
+      check('owner build: pin.set forwarded, 200, T-1 pinned', pin.status === 200 && pin.json?.ok === true && t1()?.pinned === true, { status: pin.status, pinned: t1()?.pinned });
+      const mc = await w(op0, 'machines.set', { coordinator: 'main', worker_machines: ['spare'] });
+      check('owner build: machines.set forwarded, 200, T-1 coordinator main / workers spare', mc.status === 200 && t1()?.coordinator === 'main' && t1()?.worker_machines?.join() === 'spare', { status: mc.status, coordinator: t1()?.coordinator, workers: t1()?.worker_machines });
+      const unpin = await w(op0, 'pin.set', { pinned: false });
+      check('owner build: pin.set pinned=false unpins', unpin.status === 200 && !t1()?.pinned, { status: unpin.status });
+      const ids = board.events(ownerToken, 0, 100000).filter((e) => e.op === 'pin.set' || e.op === 'machines.set').map((e) => String(e.request_id));
+      check('owner build: pin/machine writes carry the zumi-ui- prefix in the journal', ids.length === 3 && ids.every((r) => r.startsWith('zumi-ui-')), ids);
+      // coordinator credential (the board's machines.set rule is owner|coordinator; the app does not widen or narrow it)
+      const coordToken = board.write(ownerToken, { version: 1, request_id: 'seed-coord-5d', op: 'token.issue', target_id: 'coord-5d', data: { role: 'coordinator', label: 'coord 5d', lane: 'coordination' } }).token;
+      const coordBridge = createBridge({ upstreamOrigin, getToken: () => coordToken, publicDir, ownerOps: true });
+      try {
+        const cp = await coordBridge.port();
+        const cPin = await w(cp, 'pin.set', { pinned: true });
+        check('owner build, coordinator credential: pin.set refused by the board (403 forbidden_for_role, owner only)', cPin.status === 403 && cPin.json?.error === 'forbidden_for_role' && !t1()?.pinned, cPin.json);
+        // T-1's machines were picked by the owner above: the board keeps an owner pick from a coordinator (409 owner_set)
+        const cOver = await w(cp, 'machines.set', { coordinator: 'main', worker_machines: ['laptop'] });
+        check('owner build, coordinator credential: machines.set over the owner pick refused by the board (409 owner_set)', cOver.status === 409 && cOver.json?.error === 'owner_set' && t1()?.worker_machines?.join() === 'spare', { status: cOver.status, error: cOver.json?.error });
+        board.write(ownerToken, { version: 1, request_id: 'seed-T-2-5d', op: 'task.create', target_id: 'T-2', data: { title: 'machines by coordinator', steps: [{ id: 's1', label: 'x', zone: 'build', state: 'todo' }] }, expected_revision: 0 });
+        const cMc = await request(cp, 'POST', '/api/v1/write', { body: { version: 1, request_id: 'pm-coord-T-2', op: 'machines.set', target_id: 'T-2', data: { coordinator: 'main', worker_machines: ['laptop'] } } });
+        const t2 = board.view(ownerToken).tasks.find((t) => t.id === 'T-2');
+        check('owner build, coordinator credential: machines.set ALLOWED by the board on a task without an owner pick (x-roles owner|coordinator)', cMc.status === 200 && t2?.worker_machines?.join() === 'laptop' && t2?.machines_by === 'coordinator', { status: cMc.status, workers: t2?.worker_machines, by: t2?.machines_by });
+      } finally { await coordBridge.close(); }
+      for (const [op, data] of PIN_MACHINE) {
+        const relay = await ownerBridge.relay(op, { target_id: 'T-1', data });
+        check(`owner build: RELAY channel never forwards ${op} (403)`, relay.status === 403 && JSON.parse(relay.text).error === 'forbidden_op');
+      }
+    } finally { await ownerBridge.close(); await reporterBridge.close(); }
+  }
+
   // 5c. review v7 should-fix: the page never gets a setting control it cannot write. The upstream state carries
   //     freshness + notify (Laneboard 0595f29); the state read through the bridge drops both, keeps the rest (stale_text,
   //     tasks), and freshness.set itself stays refused in main.

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/machines.set.json",
+  "title": "data for machines.set",
+  "description": "Pick the machines of one task (J-05 worker-machine-0811): the coordinator machine, the worker machines, or one role slot's machine (role + machine together). Fields left out keep their stored value (else the defaults: coordinator main, worker_machines [main]); a slot pick that is no longer one of the workers is dropped. Machine ids come from src/machines.mjs (main, spare, laptop). The coordinator may seed a task but never overwrite the owner's pick (409 owner_set).",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-target": "taskId",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "coordinator": { "type": "string", "maxLength": 32 },
+    "worker_machines": { "type": "array", "minItems": 1, "maxItems": 3, "items": { "type": "string", "maxLength": 32 } },
+    "role": { "enum": ["plan", "code", "review", "scout"] },
+    "machine": { "type": "string", "maxLength": 32 }
+  }
+}

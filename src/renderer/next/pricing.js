@@ -1,11 +1,11 @@
 // T-31 alpha.3 R5 / alpha.4: the Pricing page (a rail item before Settings, next/boot.js addPricing): a full page over the Zumi panel
-// since alpha.4 (anh 30-10: no model behind it). Static text from i18n plus at most two link buttons. The page never holds a URL: a
+// since alpha.4 (anh 30-10: no model behind it). Static text from i18n plus at most three link buttons. The page never holds a URL: a
 // button names a link id and zumi.links.open(id) asks the host, which opens tauri/sidecar/links.mjs's URL for that id in the default
-// browser (R4 seam). Upgrade exists only while zumi.links.list() says its id is set. Donate is always shown (anh 30-10 05:10Z): disabled
+// browser (R4 seam). Upgrade and Join Discord (J-05, anh 09-11: beside Donate) exist only while zumi.links.list() says their id is set. Donate is always shown (anh 30-10 05:10Z): disabled
 // and reading "Coming soon" until its one donate link is set. No payment SDK, no payment flow, no account or plan state, no network.
 import { t } from '../i18n.js';
 
-export const PRICING_LINK_IDS = Object.freeze(['upgrade', 'donate']);
+export const PRICING_LINK_IDS = Object.freeze(['upgrade', 'donate', 'discord']);
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 /** One element carrying both the translated text (first paint) and its data-i18n key (repainted by the app's apply on a language change). */
@@ -15,7 +15,7 @@ const linkButton = (id, key) => `<button type="button" class="np-link" data-link
 /** A link button whose URL is not set yet: shown, disabled, its name then "Coming soon". */
 const soonButton = (id, key) => `<button type="button" class="np-link np-hero-btn" data-link="${id}" disabled aria-disabled="true">${txt('span', 'np-link-name', key)} · ${txt('span', 'np-soon', 'links.comingSoon')}</button>`;
 
-/** The page's markup for one links.list() answer: Upgrade only for upgrade === true; Donate always, enabled only for donate === true. */
+/** The page's markup for one links.list() answer: Upgrade only for upgrade === true; Join Discord only for discord === true; Donate always, enabled only for donate === true. */
 export function pricingHtml(set) {
   const on = (id) => Boolean(set) && set[id] === true;
   return `
@@ -25,7 +25,10 @@ export function pricingHtml(set) {
       ${txt('p', 'np-hero-kicker', 'pricing.hero.kicker')}
       ${txt('h2', 'np-hero-title', 'pricing.hero.title')}
       ${txt('p', 'np-hero-body', 'pricing.hero.body')}
-      ${on('donate') ? linkButton('donate', 'pricing.donate').replace('class="np-link"', 'class="np-link np-hero-btn"') : soonButton('donate', 'pricing.donate')}
+      <div class="np-hero-btns">
+        ${on('donate') ? linkButton('donate', 'pricing.donate').replace('class="np-link"', 'class="np-link np-hero-btn"') : soonButton('donate', 'pricing.donate')}
+        ${on('discord') ? linkButton('discord', 'settings.joinDiscord').replace('class="np-link"', 'class="np-link np-hero-btn np-hero-alt"') : ''}
+      </div>
     </div>
     <figure class="np-hero-art"><img class="np-hero-img" src="next/pricing-zumi.webp" width="720" height="720" alt="Zumi" draggable="false" loading="lazy"></figure>
   </section>

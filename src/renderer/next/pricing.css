@@ -32,6 +32,11 @@
 .np-hero-btn { margin-top: 8px; min-width: 200px; padding: 12px 30px; font-size: 16px; font-weight: 700; letter-spacing: .06em; color: var(--primary-foreground); background: var(--primary); box-shadow: 0 0 18px color-mix(in srgb, var(--primary) 55%, transparent); }
 .np-hero-btn:hover:not(:disabled) { color: var(--primary-foreground); background: color-mix(in srgb, var(--primary) 82%, var(--foreground)); box-shadow: 0 0 26px color-mix(in srgb, var(--primary) 75%, transparent); }
 .np-hero-btn:disabled { box-shadow: none; background: transparent; font-weight: 600; }
+.np-hero-btns { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.np-hero-btns .np-hero-btn { margin-top: 8px; }
+/* Join Discord beside Donate (J-05, anh 09-11): same size and weight, outlined so Donate stays the one filled call to action. */
+.np-hero-alt { color: var(--primary); background: transparent; box-shadow: none; }
+.np-hero-alt:hover:not(:disabled) { color: var(--primary); background: var(--line-faint); box-shadow: none; }
 .np-hero-art { margin: 0; min-height: 240px; border-left: 1px solid var(--line-dim); }
 .np-hero-img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%; }
 @media (max-width: 760px) { .np-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 200px); } .np-hero-title { font-size: 22px; } }

@@ -192,9 +192,13 @@ function t1Full(c) {
 
   // NOW: the board's own `now`, ref lines already dropped by the feed, cut on a word boundary.
   const now = nowLine('hp-nowline', task.now);
-  if (now) {
+  // Footer row: NOW line + a small "Open on the board" (J-05). With an ask the ask block already carries Open, so no second one.
+  const footOpen = !ask && c.onOpen ? el('button', 'hp-btn hp-foot-open', t('hud.open')) : null;
+  if (footOpen) { footOpen.type = 'button'; footOpen.addEventListener('click', () => c.onOpen(task.id)); }
+  if (now || footOpen) {
     const row = el('div', 'hp-ticker');
-    row.append(el('span', 'hp-lbl', t('hud.t1.now')), now);
+    if (now) row.append(el('span', 'hp-lbl', t('hud.t1.now')), now); else row.append(el('span', 'hp-sp'));
+    if (footOpen) row.append(footOpen);
     nodes.push(row);
   }
   return nodes;
@@ -418,5 +422,15 @@ export function renderPanel(panel, { design = 't1', expanded = false, task = nul
     : design === 't3' ? (expanded ? t3Full(ctx) : t3Compact(ctx))
       : (expanded ? t1Full(ctx) : t1Compact(ctx));
   for (const node of body) panel.append(node);
+  // J-05 card-clip (09-11): the whole card opens the task on the board, like an updates card. Assigned (not added) so a repaint of
+  // this same node never stacks listeners; a click on one of the card's own buttons keeps that button's action.
+  if (onOpen) {
+    panel.dataset.openable = '1'; panel.tabIndex = 0; panel.setAttribute('role', 'group');
+    panel.setAttribute('aria-label', `${task.id} · ${t('hud.open')}`);
+    panel.onclick = (e) => { if (!(e.target.closest && e.target.closest('button'))) onOpen(task.id); };
+    panel.onkeydown = (e) => { if (e.target === panel && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onOpen(task.id); } };
+  } else {
+    delete panel.dataset.openable; panel.removeAttribute('tabindex'); panel.removeAttribute('role'); panel.removeAttribute('aria-label'); panel.onclick = null; panel.onkeydown = null;
+  }
   fitNowLines(panel, locale); // needs a laid-out width: one frame after the nodes are live
 }

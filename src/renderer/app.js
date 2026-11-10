@@ -1115,6 +1115,7 @@ async function main() {
       const name = tab.dataset.tab;
       for (const p of document.querySelectorAll('.panel')) p.classList.toggle('active', p.id === `tab-${name}`);
       stageVisible = name === 'zumi';
+      document.dispatchEvent(new CustomEvent('zumi:tab', { detail: name })); // settings.js drops an unapplied PIN-toggle prompt
       if (name === 'board') { $('board-badge').hidden = true; refreshBoardTab(); }
       else if (name === 'zumi') { last = performance.now(); resize(); }
       else if (name === 'settings') { const s = document.querySelector('#tab-settings .settings'); if (s) s.scrollTop = 0; }

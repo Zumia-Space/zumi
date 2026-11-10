@@ -1,7 +1,7 @@
 {
   "name": "zumi-desktop",
   "productName": "Zumi",
-  "version": "0.3.1",
+  "version": "0.3.4",
   "description": "Zumi desktop companion: 3D VRM avatar with a visual reflex engine",
   "main": "src/main/main.js",
   "author": "Zumia Space",
@@ -30,6 +30,8 @@
     "check:board-signout": "node scripts/check-board-signout.mjs",
     "check:tauri-board-signout": "node scripts/check-tauri-board-signout.mjs",
     "check:board-unlock-live": "node scripts/check-board-unlock-live.mjs",
+    "check:board-pin-off-pending": "node scripts/check-board-pin-off-pending.mjs",
+    "check:board-pin-toggle-ipc": "node scripts/check-board-pin-toggle-ipc.mjs",
     "check:board-user-trim": "node scripts/check-board-user-trim.mjs",
     "check:board-auth-latch": "node scripts/check-board-auth-latch.mjs",
     "check:account-refresh": "node scripts/check-account-refresh.mjs",
@@ -333,7 +335,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotesFile": "release-notes/0.3.1.md"
+      "releaseNotesFile": "release-notes/0.3.4.md"
     },
     "electronDist": "node_modules/electron/dist"
   }

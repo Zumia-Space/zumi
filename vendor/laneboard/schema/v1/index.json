@@ -12,6 +12,8 @@
     "attachment.json",
     "routing.json",
     "route-override.json",
+    "machines.json",
+    "pins.json",
     "time.json",
     "prefs.json",
     "notify.json",
@@ -213,6 +215,25 @@
       "revision": "none",
       "device": false,
       "description": "CoS-only: allow Sonnet for one task code until an expiry, with a reason, and post a visible note on the task; clear=true removes it."
+    },
+    "machines.set": {
+      "schema": "ops/machines.set.json",
+      "roles": [
+        "owner",
+        "coordinator"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "description": "Pick the coordinator machine, the worker machines or one role slot machine of a task; the coordinator never overwrites the owner pick."
+    },
+    "pin.set": {
+      "schema": "ops/pin.set.json",
+      "roles": [
+        "owner"
+      ],
+      "target": "taskId",
+      "revision": "none",
+      "description": "Owner-only: pin or unpin one task; pinning keeps the first pin time."
     },
     "attachment.add": {
       "schema": "ops/attachment.add.json",

@@ -252,12 +252,29 @@ code.cmd.secret { white-space: normal; overflow-wrap: anywhere; user-select: all
 
 .toast { position: fixed; right: 20px; bottom: 20px; max-width: 420px; padding: 10px 14px; border-radius: var(--radius); background: var(--foreground); color: var(--background); font-size: var(--fs-ui); box-shadow: 0 8px 24px #0004; }
 
+/* ---------- pins (J-05 pin-0811): the owner's pin icon and the "Đang ghim" strip at the top of Home ---------- */
+.pin-btn { display: inline-flex; align-items: center; padding: 0 4px; border: 0; background: transparent; cursor: pointer; line-height: 1; color: var(--muted-foreground); opacity: .55; }
+.pin-btn .icon { width: .875rem; height: .875rem; }
+.pin-btn:hover { opacity: 1; }
+.pin-btn.on { opacity: 1; color: var(--foreground); }
+.pin-btn.on .icon { fill: currentColor; }
+.lmeta .pin-btn { margin-right: 2px; }
+.pin-strip { margin-bottom: 20px; } /* its own section above the "Cần anh" heading, neutral card border: a pin is not an ask */
+.pin-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.pin-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 3px 8px; align-items: center; min-width: 0; max-width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); color: inherit; text-decoration: none; }
+.pin-item:hover { border-color: var(--input); }
+.pin-code { font-family: var(--mono); font-size: var(--fs-meta); font-weight: 600; color: var(--muted-foreground); white-space: nowrap; }
+.pin-title { min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pin-ask { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+.pin-now, .pin-step { grid-column: 2 / -1; min-width: 0; font-size: var(--fs-meta); color: var(--muted-foreground); overflow-wrap: anywhere; }
+.pin-step::before { content: '› '; color: var(--muted-foreground); }
+
 /* Card enter/exit via the View Transitions API, as Orca does; off for reduced motion. */
 ::view-transition-group(*) { animation-duration: .26s; animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
 @media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } * { transition: none !important; } }
 
 @media (max-width: 960px) {
-  .shell { grid-template-columns: 1fr; }
+  .shell { grid-template-columns: minmax(0, 1fr); } /* 1fr alone lets a wide child push the page past 390 px */
   .rail-toggle { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; margin-top: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--background); cursor: pointer; font-weight: 600; }
   .rail-toggle .caret { margin-left: auto; color: var(--muted-foreground); }
   .rail-tasks:not(.open) { display: none; }
@@ -571,12 +588,21 @@ a.wk-code.code { padding: 1px 4px; text-align: center; }
 .wk-pop { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; display: grid; gap: 8px; min-width: 190px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--card); box-shadow: 0 8px 24px #0003; }
 .wk-pop label { display: grid; gap: 2px; font-size: var(--fs-meta); color: var(--muted-foreground); }
 .wk-pop select { width: 100%; min-height: 30px; }
+.wk-mrow { grid-column: 2; min-width: 0; } /* the machine chip sits under the model chips (J-05 worker-machine-0811) */
+.wk-mpop { min-width: 220px; }
+.mc-workers { display: grid; gap: 4px; margin: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-md); min-width: 0; }
+.mc-workers legend { padding: 0 4px; font-size: var(--fs-meta); color: var(--muted-foreground); }
+.wk-pop .mc-check, .mc-check { display: flex; align-items: center; gap: 6px; font-size: var(--fs-ui); color: var(--foreground); }
+.wk-mpick { display: grid; gap: 8px; max-width: 420px; }
+.wk-mpick > label { display: grid; gap: 2px; font-size: var(--fs-meta); color: var(--muted-foreground); }
+.wk-mpick select { min-height: 30px; }
 .wk-pop.up { top: auto; bottom: calc(100% + 4px); } /* placeWkPop: no room below -> open upward */
 .wk-err { padding: 0 0 6px 74px; }
 @media (min-width: 641px) { .wk-cell:nth-child(n+3) .wk-pop { left: auto; right: 0; } }
 @media (max-width: 640px) {
   .wk-head { display: none; }
   .wk-trow { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 8px 0; }
+  .wk-mrow { grid-column: 1; }
   .wk-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; }
   .wk-cell { flex-wrap: wrap; row-gap: 1px; }
   .wk-lab { display: block; flex: 0 0 100%; }

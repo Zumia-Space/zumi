@@ -42,6 +42,8 @@
         "roles.reset",
         "roles.escalate",
         "roles.override",
+        "machines.set",
+        "pin.set",
         "attachment.add",
         "token.issue",
         "token.revoke",

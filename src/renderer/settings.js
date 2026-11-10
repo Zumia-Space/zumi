@@ -431,7 +431,9 @@ export function initSettings(zumi, $, { onBoardChange, devBuild, ownerAdmin, voi
     if (el.pinToggleConfirm) el.pinToggleConfirm.hidden = !targetOn;
     if (el.pinTogglePin) { el.pinTogglePin.value = ''; el.pinTogglePin.placeholder = t(targetOn ? 'settings.pin' : 'settings.pinToggleCurrent'); }
     if (el.pinToggleConfirm) el.pinToggleConfirm.value = '';
-    if (el.pinToggleNote) el.pinToggleNote.textContent = '';
+    // The switch already shows the target, but nothing changed on disk until Apply: say so in words (0.3.2 owner report,
+    // "turned PIN off but the Board still asks for it": the switch was flipped, Apply never pressed).
+    if (el.pinToggleNote) { el.pinToggleNote.textContent = t(targetOn ? 'settings.pinTogglePendingOn' : 'settings.pinTogglePendingOff'); el.pinToggleNote.classList.remove('bad'); }
     if (el.pinTogglePrompt) el.pinTogglePrompt.hidden = false;
   }
 
@@ -520,10 +522,22 @@ export function initSettings(zumi, $, { onBoardChange, devBuild, ownerAdmin, voi
       const target = el.pinRequired.checked;
       const s = await zumi.board.status();
       if (!s.configured) { await zumi.board.setPinRequired(target); await refresh(); return; } // nothing to re-seal yet
+      // The box repaints to the pending TARGET while a prompt is open, so the next click flips relative to that, not to
+      // the real state. A click that lands back on the real state is "never mind": close the prompt, change nothing
+      // (0.3.3 install report 10-11: a re-tick offered "choose a NEW PIN" over a store that was already PIN-ON).
+      if (target === (s.pinRequired !== false)) { hidePinTogglePrompt(); await refresh(); return; }
+      sessionNote(''); // a leftover "PIN requirement turned off" line must not sit under a new, different prompt
       showPinTogglePrompt(target);
       await refresh(); // repaints the box back to `s.pinRequired` underneath the now-open prompt (pendingPinRequired wins visually)
     });
   }
+  // A pending (unapplied) toggle must not outlive the Settings tab: coming back would show a switch that reads OFF
+  // over a store that is still PIN-sealed. app.js announces every tab change; any tab but Settings drops the pending state.
+  document.addEventListener('zumi:tab', (e) => {
+    if (pendingPinRequired === null || (e && e.detail === 'settings')) return;
+    hidePinTogglePrompt();
+    refresh();
+  });
   if (el.pinToggleCancel) el.pinToggleCancel.addEventListener('click', async () => { hidePinTogglePrompt(); await refresh(); });
   if (el.pinToggleApply) {
     el.pinToggleApply.addEventListener('click', async () => {
