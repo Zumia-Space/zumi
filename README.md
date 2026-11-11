@@ -2,7 +2,7 @@
 
 Zumi is a desktop companion: an animated 3D character who lives in a room on your PC. You type to her, she answers through an AI provider you choose with your own key, and she reacts with gestures and a voice.
 
-> **Zumi is about halfway there.** The app works today, and roughly half of what we plan is built. The rest is still ahead, and we would like to build it with you. Try it, tell us what breaks, and join the community below.
+> **Zumi is about halfway there.** The app works today, and roughly half of what we plan is built. The rest is still ahead, and we would like to build it with you. Try it, tell us what breaks, and join the community on **[Discord](https://discord.gg/5jyJ3UJ5zF)**.
 
 **Official build: the Tauri app.** Windows first. Mac and Linux come later. The supported download is the Windows installer. A macOS build exists but has not been tested yet (see [macOS](#macos-untested-testers-wanted)).
 
@@ -72,7 +72,7 @@ Once testers confirm it works, the macOS build goes on the website.
 
 ## Join us
 
-Zumi is open source and still being shaped. The fastest ways to help right now:
+Zumi is open source and still being shaped. Come and say hello in the **[Zumi Discord](https://discord.gg/5jyJ3UJ5zF)**: it is where we talk about what to build next. The fastest ways to help right now:
 
 - **Use it and report what breaks.** Open a [bug report](https://github.com/Zumia-Space/zumi/issues/new?template=bug-report.yml). Your Zumi version, Windows version and the steps you took help most.
 - **Test on a Mac.** See [macOS](#macos-untested-testers-wanted).
