@@ -1,0 +1,58 @@
+name: macOS test report
+description: You tried the untested macOS build of Zumi. Tell us what worked and what did not.
+title: "[macOS test] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing. Nobody on the team has a Mac yet, so your report decides when the macOS build goes on the website.
+        If you have not got the test build yet, open this report anyway and say so; we will point you to it.
+  - type: input
+    id: zumi-version
+    attributes:
+      label: Zumi version
+      description: The file name of the .dmg, or Settings > App > About.
+      placeholder: "0.3.4"
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      placeholder: "macOS 15.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: chip
+    attributes:
+      label: Mac chip
+      options:
+        - Apple silicon (M1 or newer)
+        - Intel
+    validations:
+      required: true
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: What did you try?
+      description: Tick what worked. Leave unticked what failed or what you did not try, and explain below.
+      options:
+        - label: The .dmg opened and the app installed (Gatekeeper steps needed? Say which below)
+        - label: The app started and showed a window
+        - label: Node.js was found (or the app told you clearly that it needs Node.js 22+)
+        - label: I opened a .vrm model and the character showed
+        - label: I added an AI key in Settings > AI & Usage and got a reply
+        - label: Voice played
+        - label: Settings opened and saved
+        - label: The app quit cleanly
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Anything that failed, looked wrong or was slow. Steps to reproduce help most.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Optional. Remove any API keys or personal data before you paste.
+      render: text

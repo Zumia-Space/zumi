@@ -1,0 +1,51 @@
+name: Bug report
+description: Something in Zumi does not work as it should.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: input
+    id: zumi-version
+    attributes:
+      label: Zumi version
+      description: Settings > App > About.
+      placeholder: "0.3.4"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Windows 11 23H2"
+    validations:
+      required: true
+  - type: dropdown
+    id: build
+    attributes:
+      label: Which build
+      options:
+        - Official installer from GitHub Releases
+        - Built from source
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened instead
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Optional. Remove any API keys or personal data before you paste.
+      render: text
