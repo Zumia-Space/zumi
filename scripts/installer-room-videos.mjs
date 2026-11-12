@@ -1,6 +1,6 @@
 // The room videos inside an unpacked installer (scripts/check-tauri-installer-payload.mjs --out <dir>) against its flavour, for the
-// release workflow. official: exactly the files assets/rooms-video/rooms.json pins, each with its size and sha256, and no other .mp4.
-// public: no .mp4 at all.
+// release workflow. public and official: no .mp4 at all (slim installer, owner 11-11 mkt-q1: the 7 built-in rooms are Marketplace
+// packs). The pin check stays for a flavour that is given rooms.
 //   node scripts/installer-room-videos.mjs <payload dir> official|public
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,7 +13,7 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 export function roomVideoProblems(dir, flavour, manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets', 'rooms-video', 'rooms.json'), 'utf8'))) {
   const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
   const found = walk(dir).filter((f) => /\.mp4$/i.test(f));
-  const want = flavour === 'official' ? manifest.rooms : [];
+  const want = [];
   const problems = [];
   for (const f of found) {
     const r = want.find((x) => x.file === path.basename(f));
@@ -30,5 +30,5 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (!dir || !['official', 'public'].includes(flavour)) { console.error('usage: node scripts/installer-room-videos.mjs <payload dir> official|public'); process.exit(2); }
   const problems = roomVideoProblems(dir, flavour);
   if (problems.length) { console.error(`installer room videos (${flavour}): ${problems.join('; ')}`); process.exit(1); }
-  console.log(`installer room videos (${flavour}): ${flavour === 'official' ? 'the 7 pinned rooms, nothing else' : 'none'}`);
+  console.log(`installer room videos (${flavour}): none`);
 }

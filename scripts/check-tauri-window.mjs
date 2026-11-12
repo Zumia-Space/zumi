@@ -170,7 +170,10 @@ const filter = fnBody(guard, 'install_request_filter');
 const mainGuard = fnBody(guard, 'install_main_guard'); // the first definition is the cfg(windows) one
 const guestGuard = fnBody(guard, 'install_guard_inner');
 ok(filter.length > 0 && /AddWebResourceRequestedFilterWithRequestSourceKinds/.test(filter), 'install_request_filter holds the filter registration');
-ok(/let blocks = move \|uri: &str\| \{\s*crate::guest_requests::record\(uri\);\s*guard_blocks\(uri\)\s*\};/.test(guestGuard) && /install_request_filter\(&core, &environment, blocks, None, "guest_guard"\)/.test(guestGuard), 'guests call install_request_filter with the one guest rule (guard_blocks; the wardrobe ipc exception is gone)');
+// MKT phase 2 (41a96711): a pack guest gets its own prefix rule (pack_host::pack_request_blocks, refusals logged); every other
+// guest keeps the one guest rule. Exactly these two arms, each request recorded first.
+const guestBlocks = (guestGuard.match(/let blocks = move \|uri: &str\| \{([\s\S]*?)\n    \};/) || [])[1] || '';
+ok(/^\s*crate::guest_requests::record\(uri\);\s*match &pack \{/.test(guestBlocks) && /Some\(\(prefix, pack_id, data_dir\)\) => \{\s*let blocked = crate::pack_host::pack_request_blocks\(uri, prefix\);/.test(guestBlocks) && /None => guard_blocks\(uri\),\s*\}\s*$/.test(guestBlocks) && (guestBlocks.match(/=>/g) || []).length === 2 && /install_request_filter\(&core, &environment, blocks, None, "guest_guard"\)/.test(guestGuard), 'guests call install_request_filter with the one guest rule (guard_blocks), pack guests with their own prefix rule only (the wardrobe ipc exception is gone)', guestBlocks.slice(0, 200));
 ok(!/allow_ipc_host|is_wardrobe_label|guest_guard_blocks/.test(guard), 'guest_guard.rs keeps no wardrobe ipc.localhost exception');
 ok(/install_request_filter\(&core, &platform\.environment\(\), main_guard_blocks, Some\("main"\), "main_guard"\)/.test(mainGuard), 'main calls install_request_filter with main_guard_blocks and the first-request self-check');
 ok(!/add_NavigationStarting|add_NavigationCompleted|request_external_open|GuestRegistry/.test(mainGuard + filter), 'main installs ONLY the request filter: no NavigationStarting/Completed hook, no external open (gate G6)');

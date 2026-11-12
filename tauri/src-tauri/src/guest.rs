@@ -77,14 +77,38 @@ pub struct Bounds {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GuestKind {
     Board,
+    /// MKT: one web-app pack (pack_host.rs). Partition `pack:<id>`.
+    Pack,
 }
 
 impl GuestKind {
     fn label_prefix(self) -> &'static str {
         match self {
             GuestKind::Board => "guest-board",
+            GuestKind::Pack => "guest-pack",
         }
     }
+}
+
+/// True for a pack guest's label.
+pub(crate) fn is_pack_label(label: &str) -> bool {
+    label.starts_with(&format!("{}-", GuestKind::Pack.label_prefix()))
+}
+
+/// For a pack guest: (its only allowed request prefix, its pack id, the data dir for the refusal log). None for any other
+/// guest. Read from the label -> pack binding guest_open made, never from the page.
+pub(crate) fn pack_guard_for_label(app: &AppHandle, label: &str) -> Option<(String, String, Option<PathBuf>)> {
+    if !is_pack_label(label) {
+        return None;
+    }
+    let state = app.try_state::<crate::pack_host::PackState>()?;
+    let data_dir = state.data_dir.lock().unwrap().clone();
+    // A pack label with no bound pack still gets a pack rule that matches nothing: fail closed.
+    let (prefix, id) = match state.pack_for(label) {
+        Some(pack) => (crate::pack_host::pack_origin_prefix(&pack.id), pack.id.clone()),
+        None => ("\u{0}".to_string(), "?".to_string()),
+    };
+    Some((prefix, id, data_dir))
 }
 
 /// True for the Board tab guest's label; anything else is not a link opener.
@@ -107,7 +131,11 @@ pub fn profile_for_partition(partition: &str, base: &Path) -> Result<Profile, St
     match partition {
         "preview-board" => Ok(Profile { data_dir: guest_webview.join("board"), incognito: false }),
         "preview-board-live" => Ok(Profile { data_dir: guest_webview.join("board"), incognito: true }),
-        other => Err(format!("unknown_partition:{other}")),
+        // MKT: each pack has its own profile, so its storage, cache and browser process are its own.
+        other => match crate::pack_host::partition_pack_id(other) {
+            Some(id) => Ok(Profile { data_dir: guest_webview.join(format!("pack-{id}")), incognito: false }),
+            None => Err(format!("unknown_partition:{other}")),
+        },
     }
 }
 
@@ -124,6 +152,7 @@ pub fn guest_profile_base(self_test: &crate::guest_cdp::SelfTest, local_data_dir
 fn kind_for_partition(partition: &str) -> Result<GuestKind, String> {
     match partition {
         "preview-board" | "preview-board-live" => Ok(GuestKind::Board),
+        other if crate::pack_host::partition_pack_id(other).is_some() => Ok(GuestKind::Pack),
         other => Err(format!("unknown_partition:{other}")),
     }
 }
@@ -348,6 +377,11 @@ fn add_guest_webview(
             // the background. A request for the guest's own origin is denied and nothing more, like
             // Electron's setWindowOpenHandler (`!inBoard(url)`).
             match window_action(&url, &window_origin, opener_is_board) {
+                // MKT: a pack never opens the OS browser by itself (links.open with a declared key is its only way out).
+                WindowAction::External if is_pack_label(&window_label) => {
+                    let data_dir = window_app.try_state::<crate::pack_host::PackState>().and_then(|s| s.data_dir.lock().unwrap().clone());
+                    crate::pack_host::log_line(data_dir.as_deref(), "refused new window off the pack");
+                }
                 WindowAction::External => request_external_open(&window_app, url.as_str().to_string(), opener_is_board),
                 // P3-B: a chip (a target=_blank link) on the live board. Still denied here; decided in the background.
                 WindowAction::BoardOpen => request_board_open(&window_app, &window_label, url.as_str().to_string()),
@@ -528,12 +562,38 @@ pub async fn guest_open(
 ) -> Result<Value, String> {
     ensure_main(&caller)?;
 
-    let decision = decide(rpc.inner(), &src, &partition).await?;
-    let allow = decision.get("allow").and_then(Value::as_bool).unwrap_or(false);
-    let origin = decision.get("origin").and_then(Value::as_str).unwrap_or("").to_string();
-    if !allow || origin.is_empty() {
-        return Err("guest_refused".to_string());
-    }
+    // MKT: a pack tab is decided by the Rust pack host alone (installed, store-listed, every file re-hashed), never by the
+    // sidecar; its src must be exactly the pack's own ui page. Anything else goes through the sidecar policy as before.
+    let pack = match crate::pack_host::partition_pack_id(&partition) {
+        Some(id) => {
+            let state = app.state::<crate::pack_host::PackState>();
+            let loaded = match crate::pack_host::open_pack(&state, id) {
+                Ok(p) => p,
+                Err(code) => {
+                    let data_dir = state.data_dir.lock().unwrap().clone();
+                    crate::pack_host::log_line(data_dir.as_deref(), &format!("refused open {code} pack={id}"));
+                    return Err(format!("pack_refused:{code}"));
+                }
+            };
+            if src != format!("{}{}", crate::pack_host::pack_origin_prefix(id), loaded.ui) {
+                return Err("guest_refused".to_string());
+            }
+            Some(loaded)
+        }
+        None => None,
+    };
+    let origin = match &pack {
+        Some(p) => format!("{}/{}", crate::pack_host::ORIGIN, p.id),
+        None => {
+            let decision = decide(rpc.inner(), &src, &partition).await?;
+            let allow = decision.get("allow").and_then(Value::as_bool).unwrap_or(false);
+            let origin = decision.get("origin").and_then(Value::as_str).unwrap_or("").to_string();
+            if !allow || origin.is_empty() {
+                return Err("guest_refused".to_string());
+            }
+            origin
+        }
+    };
     let kind = kind_for_partition(&partition)?;
 
     let local_data = app.path().app_local_data_dir().map_err(|e| format!("guest_no_local_data_dir:{e}"))?;
@@ -544,6 +604,17 @@ pub async fn guest_open(
     let (id, label) = registry.alloc(kind);
     // Parse BEFORE registering: an unparseable src must not leave a registry entry behind.
     let url: Url = src.parse().map_err(|_| "guest_open_url".to_string())?;
+    // MKT: bind the label to its pack BEFORE the webview exists, so its very first request is already scoped.
+    if let Some(p) = &pack {
+        app.state::<crate::pack_host::PackState>().bind(&label, p.clone());
+    }
+    let unbind_app = app.clone();
+    let unbind_label = label.clone();
+    let unbind = move || {
+        if let Some(state) = unbind_app.try_state::<crate::pack_host::PackState>() {
+            state.unbind(&unbind_label);
+        }
+    };
     let guest = Guest {
         label: label.clone(),
         kind,
@@ -554,11 +625,17 @@ pub async fn guest_open(
 
     // Register, then create the native child; a failed add_child removes the entry so a half-open
     // guest (an id the shim could never close) cannot leak.
-    let (webview, guard_rx) = insert_then_build(
+    let (webview, guard_rx) = match insert_then_build(
         || registry.insert(id, guest),
         || { registry.remove(id); },
         || add_guest_webview(&app, id, &label, &origin, &profile),
-    )?;
+    ) {
+        Ok(built) => built,
+        Err(e) => {
+            unbind();
+            return Err(e);
+        }
+    };
 
     // Fail closed until the guard is confirmed live on the webview.
     let guard_result = tauri::async_runtime::spawn_blocking(move || guard_rx.recv_timeout(GUARD_TIMEOUT))
@@ -569,6 +646,7 @@ pub async fn guest_open(
         _ => {
             let _ = webview.close();
             registry.remove(id);
+            unbind();
             return Err("guest_guard_failed".to_string());
         }
     };
@@ -652,6 +730,9 @@ pub async fn guest_close(
 ) -> Result<(), String> {
     ensure_main(&caller)?;
     if let Some(guest) = registry.remove(id) {
+        if let Some(state) = caller.app_handle().try_state::<crate::pack_host::PackState>() {
+            state.unbind(&guest.label);
+        }
         if let Some(webview) = guest.webview {
             let _ = webview.close();
         }

@@ -58,8 +58,12 @@ ok(gateAt > 0 && interceptAt > gateAt, 'the update.* intercept sits after the al
 ok(/updater::start\(&handle, flavour_file, self_test\.enabled\(\), /.test(lib), 'the updater starts with the flavour and self-test facts');
 // alpha.14 F1: a `--data-dir` launch wrote updater.log under %APPDATA% (app_data_dir). The log follows the launch's own data dir.
 const updaterSrc = fs.readFileSync(path.join(TAURI, 'src', 'updater.rs'), 'utf8');
-ok(/updater::start\(&handle, flavour_file, self_test\.enabled\(\), self_test\.data_dir_or\(/.test(lib) && /pub fn start\(app: &AppHandle, flavour_file: bool, self_test: bool, data_dir: Option<PathBuf>\)/.test(updaterSrc)
+ok(/updater::start\(&handle, flavour_file, self_test\.enabled\(\), self_test\.data_dir_or\(/.test(lib) && /pub fn start\(app: &AppHandle, flavour_file: bool, self_test: bool, data_dir: Option<PathBuf>, data_dir_override: Option<PathBuf>\)/.test(updaterSrc)
   && /log_file\.lock\(\)\.unwrap\(\) = data_dir\.map\(/.test(updaterSrc) && !/app_data_dir\(\)/.test(updaterSrc), "updater.log lives in the launch's data dir (--data-dir honoured), never app_data_dir() directly");
+// T-31-ROOM-slim p7: startup clears the pending folder, and it sat under %LOCALAPPDATA%\<identifier> even on a --data-dir launch,
+// so a probe run deleted the installed app's pending update. The folder follows the override (rule unit-tested in updater.rs).
+ok(/self_test\.user_data_dir\(\)\.map\(Path::to_path_buf\)\);/.test(lib) && /pending_dir_for\(local\.as_deref\(\), data_dir_override\.as_deref\(\)\)/.test(updaterSrc)
+  && !/let dir = local\.join\(PENDING_DIR\)/.test(updaterSrc), 'the pending update folder follows --data-dir / the remembered data dir, never %LOCALAPPDATA% on such a launch');
 ok(lib.indexOf('guard_pending.store(false') < lib.indexOf('updater::start(&handle'), 'the updater starts after the main guard is up');
 const features = /\[features\]([\s\S]*?)\n\[/.exec(cargoToml)[1];
 ok(/^update-e2e = \[\]/m.test(features) && !/^default = .*update-e2e/m.test(features), 'update-e2e exists and is not a default feature');

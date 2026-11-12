@@ -435,10 +435,23 @@ unsafe fn install_guard_inner(platform: PlatformWebview, app: AppHandle, id: u64
     let core = platform.controller().CoreWebView2().map_err(|e| format!("guest_guard_core:{e}"))?;
     let environment = platform.environment();
 
-    // (a)+(b) The request filter + constant 403 (shared with the main webview's guard). Every guest gets the same rule.
+    // (a)+(b) The request filter + constant 403 (shared with the main webview's guard). A board guest gets the loopback
+    // rule; a pack guest (MKT, pack_host.rs) gets its own prefix only, and each refusal is logged with its origin.
+    let pack = crate::guest::pack_guard_for_label(&app, &label);
+    let is_pack = pack.is_some();
     let blocks = move |uri: &str| {
         crate::guest_requests::record(uri);
-        guard_blocks(uri)
+        match &pack {
+            Some((prefix, pack_id, data_dir)) => {
+                let blocked = crate::pack_host::pack_request_blocks(uri, prefix);
+                if blocked {
+                    let origin = Url::parse(uri).ok().map(|u| format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))).unwrap_or_else(|| "unparsable".to_string());
+                    crate::pack_host::log_line(data_dir.as_deref(), &format!("refused request pack={pack_id} origin={origin}"));
+                }
+                blocked
+            }
+            None => guard_blocks(uri),
+        }
     };
     let source_kinds = install_request_filter(&core, &environment, blocks, None, "guest_guard")?;
 
@@ -478,7 +491,13 @@ unsafe fn install_guard_inner(platform: PlatformWebview, app: AppHandle, id: u64
                 Err(e) => return fail(e),
             };
             if let Some(link) = decision.forward {
-                crate::guest::request_external_open(&starting_app, link, starting_is_board);
+                if is_pack {
+                    // A pack leaves its own files only through links.open (a declared key); a navigation is refused, full stop.
+                    let data_dir = starting_app.try_state::<crate::pack_host::PackState>().and_then(|s| s.data_dir.lock().unwrap().clone());
+                    crate::pack_host::log_line(data_dir.as_deref(), "refused navigation off the pack");
+                } else {
+                    crate::guest::request_external_open(&starting_app, link, starting_is_board);
+                }
             }
             match decision.action {
                 NavStart::Clear => starting_in_flight.set(None),

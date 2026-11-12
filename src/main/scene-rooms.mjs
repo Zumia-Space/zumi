@@ -63,8 +63,10 @@ export function resolveSelectedScene(stored, availableIds, defaultId = null) {
  * @param resolveVideoDir (manifest) => the folder holding the .mp4 files (main.js decides: env, packaged resources, or
  *   manifest.localDir) -- null = no videos on this machine
  * @param settings { get: () => settings object, set: (patch) => void } -- main.js's own settings.json store
+ * @param packVideoDir (id) => the folder of an installed room pack for that room (T-31-ROOM-slim: <data>/packs/room.<id>), or
+ *   null. Asked only when the video is not in the build's own folder; the pin (size + sha256 from rooms.json) is the same.
  */
-export function createSceneRooms({ manifestPath, resolveVideoDir, settings, log = () => {} }) {
+export function createSceneRooms({ manifestPath, resolveVideoDir, packVideoDir = () => null, settings, log = () => {} }) {
   let manifest = null;
   let manifestError = null;
   try {
@@ -78,18 +80,23 @@ export function createSceneRooms({ manifestPath, resolveVideoDir, settings, log 
 
   // sha256 of a 2-7 MB file costs a few ms; cached per (path, size, mtime) so repeat lists are free.
   const verified = new Map();
-  function fileOk(r) {
-    if (!videoDir) return null;
-    const full = path.join(videoDir, r.file);
+  function pinned(full, r) {
     let st;
     try { st = fs.statSync(full); } catch { return null; }
-    if (st.size !== r.bytes) return null;
+    if (!st.isFile() || st.size !== r.bytes) return null;
     const key = `${full}|${st.size}|${st.mtimeMs}`;
     if (!verified.has(key)) verified.set(key, crypto.createHash('sha256').update(fs.readFileSync(full)).digest('hex') === r.sha256);
     return verified.get(key) ? full : null;
   }
+  // The build's own folder first (an owner build, or an older install that still holds the videos), then the room's pack.
+  function fileOk(r) {
+    const own = videoDir ? pinned(path.join(videoDir, r.file), r) : null;
+    if (own) return own;
+    const pack = packVideoDir(r.id);
+    return pack ? pinned(path.join(pack, r.file), r) : null;
+  }
 
-  function available() { return manifest && videoDir ? manifest.rooms.filter((r) => fileOk(r)) : []; }
+  function available() { return manifest ? manifest.rooms.filter((r) => fileOk(r)) : []; }
 
   function list() {
     const rooms = available();

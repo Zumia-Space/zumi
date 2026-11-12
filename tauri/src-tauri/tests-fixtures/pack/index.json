@@ -1,0 +1,35 @@
+{
+ "format": "zumi-market/1",
+ "serial": 3,
+ "published": "2026-11-11T00:00:00Z",
+ "packs": [
+  {
+   "id": "plugin.canary",
+   "kind": "plugin",
+   "name": {
+    "en": "Canary"
+   },
+   "versions": [
+    {
+     "version": "1.0.0",
+     "api": 1,
+     "url": "plugin.canary-1.0.0.zip",
+     "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+     "bytes": 1,
+     "manifestSha256": "7e4229939a36ddce440939db720a9ce0a7f8d2005f1b9be766f5393fa0b5a3d6"
+    },
+    {
+     "version": "0.9.0",
+     "api": 1,
+     "url": "plugin.canary-0.9.0.zip",
+     "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+     "bytes": 1,
+     "manifestSha256": "7e4229939a36ddce440939db720a9ce0a7f8d2005f1b9be766f5393fa0b5a3d6"
+    }
+   ],
+   "withdrawn": [
+    "0.9.0"
+   ]
+  }
+ ]
+}

@@ -25,9 +25,10 @@ const globToRe = (g) => new RegExp('^' + g.replace(/[.+^${}()|[\]\\]/g, '\\$&')
   .replace(/\u0001/g, '(?:.*/)?').replace(/\u0002/g, '.*').replace(/\u0003/g, '(?:/.*)?') + '$');
 const RES = ZUMI_ONLY.map(globToRe);
 
-// The 7 built-in video rooms of the official installer (owner 03-11: the 7 rooms he approved are the default rooms), by exact name.
-// Each is pinned by size and sha256 in assets/rooms-video/rooms.json; check:public-payload O2b keeps this list equal to its files.
-// Any other .mp4 (an old variant, a review clip) stays denied.
+// The 7 built-in video rooms (owner 03-11: the 7 rooms he approved are the default rooms), by exact name. Since the slim installer
+// (owner 11-11, mkt-q1; T-31-ROOM-slim) they ship as Marketplace packs room.<id>, never inside the official installer; this list is
+// what scripts/market-pack-rooms.mjs packs. Each is pinned by size and sha256 in assets/rooms-video/rooms.json; check:public-payload
+// O2b keeps this list equal to its files.
 const OFFICIAL_ROOM_VIDEOS = Object.freeze([
   '01-cozy-study.mp4',
   '02-scifi-bridge.mp4',
@@ -38,18 +39,14 @@ const OFFICIAL_ROOM_VIDEOS = Object.freeze([
   '07-space-station-window.mp4',
 ]);
 
-// The official installer (ASSET-REVIEW 2026-11-02, rooms added 2026-11-03): public code plus exactly these Zumi-only files. Other
+// The official installer (ASSET-REVIEW 2026-11-02; slim since owner 11-11 mkt-q1, T-31-ROOM-slim): public code plus exactly these
+// Zumi-only files. Night City (resources-pinned/room-v2 + its no-chair plate) and the 7 room videos are Marketplace packs now. Other
 // avatars and the owner files stay out. The source export still drops all of them (PUBLIC_REPO_EXCLUDE): a source build has no
 // .vrm and no room video, only this installer may.
 const OFFICIAL_ALLOWED = Object.freeze([
-  ...OFFICIAL_ROOM_VIDEOS.map((f) => `rooms-video/${f}`), // staged at <resources>/rooms-video (rooms.json packagedDir)
-  'assets/rooms-video/chair-talk.png', // the chair plate the video rooms draw over the clip (scene-rooms.mjs `chair`)
+  'assets/rooms-video/chair-talk.png', // the chair plate a video room pack is drawn under (scene-rooms.mjs `chair`, 1 MB)
   '**/zumi-default-*.vrm', // pinned by size and sha256 (scripts/lib/default-vrm.cjs)
   '**/LICENSE-zumi-default.txt',
-  'resources-pinned/room-v2/**',
-  'tauri/ui/rooms/default-v2/**',
-  'assets/chair3d/talk-plate-nochair.png',
-  'tauri/ui/chair3d/plate-nochair.png',
   '**/pricing-zumi.webp',
   'ASSETS-LICENSE.md',
 ]);
@@ -76,6 +73,8 @@ const PUBLIC_REPO_EXCLUDE = Object.freeze([
   'scripts/shot-board-roles.mjs', // screenshots of the owner's live board UI
   'scripts/shot-laneboard-owner-ui.mjs',
   'scripts/box-e2e-update.mjs', // the owner's render-box soak run
+  'scripts/market-pack-rooms.mjs', // builds the store's room packs from the owner's room videos (owner values roomsVideoDir); store tooling
+  'scripts/slim-installer-run.mjs', // built-app probes A/B/C on the spare box (slim installer release gate)
   'tauri/stage-preview-kit.ps1', // the owner's preview-kit release staging
   'tauri/verify/VAULT-BOX-RUNBOOK.md', // render-box runbook
   'scripts/box/**', // render-box job scripts (the box's own folder layout)

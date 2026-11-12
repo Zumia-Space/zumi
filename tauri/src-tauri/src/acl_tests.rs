@@ -175,3 +175,25 @@ fn settings_importApply_is_main_webview_only() { import_method_is_main_webview_o
 #[test]
 #[allow(non_snake_case)] // named after the rpc method, as scripts/check-tauri-profile-import.mjs expects
 fn settings_importDismiss_is_main_webview_only() { import_method_is_main_webview_only("settings.importDismiss"); }
+
+// MKT phase 2: a web-app pack guest (label guest-pack-<n>, served from the zumipack protocol) resolves no command at all;
+// only main resolves pack_list.
+#[test]
+fn a_pack_guest_resolves_no_command_and_only_main_lists_packs() {
+    let pack_origin = || Origin::Remote { url: "http://zumipack.localhost/plugin.canary/ui/index.html".parse::<Url>().unwrap() };
+    let mut ctx = crate::app_context();
+    let auth = ctx.runtime_authority_mut();
+    assert!(auth.resolve_access("pack_list", "main", "main", &Origin::Local).is_some(), "main resolves pack_list (positive control)");
+    let commands = [
+        "rpc", "guest_open", "guest_navigate", "guest_bounds", "guest_close", "guest_cdp", "pack_list",
+        "plugin:event|listen", "plugin:event|emit", "plugin:event|emit_to", "plugin:event|unlisten",
+        "plugin:webview|webview_close", "plugin:window|close", "plugin:app|version",
+    ];
+    for guest in ["guest-pack-0", "guest-pack-3", "guest-board-0"] {
+        for origin in [Origin::Local, remote(), pack_origin()] {
+            for cmd in commands {
+                assert!(auth.resolve_access(cmd, "main", guest, &origin).is_none(), "{guest} ({origin}) must not resolve {cmd}");
+            }
+        }
+    }
+}

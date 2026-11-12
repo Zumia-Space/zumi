@@ -595,7 +595,8 @@ function addGuest(w, src = 'http://127.0.0.1:4321/', partition = 'preview-board'
 
     const guardRs = src('tauri/src-tauri/src/guest_guard.rs');
     ok(!/guest_guard_blocks|allow_ipc_host|is_ipc_host|is_wardrobe_label/.test(guardRs), 'guest_guard.rs: no wardrobe-only ipc.localhost switch is left');
-    ok(/let blocks = move \|uri: &str\| \{\s*crate::guest_requests::record\(uri\);\s*guard_blocks\(uri\)\s*\};/.test(guardRs), 'every guest is guarded by the one guest rule (guard_blocks)');
+    // MKT phase 2: a pack guest (pack_host.rs) gets its own-prefix rule; every other guest keeps the one guest rule.
+    ok(/let blocks = move \|uri: &str\| \{\s*crate::guest_requests::record\(uri\);\s*match &pack \{[\s\S]*?crate::pack_host::pack_request_blocks\(uri, prefix\)[\s\S]*?None => guard_blocks\(uri\),\s*\}\s*\};/.test(guardRs), 'every board guest is guarded by the one guest rule (guard_blocks); a pack guest by its own-prefix rule');
   }
 
   fs.rmSync(TMP_ROOT, { recursive: true, force: true });

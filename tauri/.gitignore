@@ -4,7 +4,7 @@
 # Produced by tauri/prep-ui.mjs; the real bundle is what Tauri embeds via `frontendDist: ../ui`.
 # A committed placeholder is NOT kept here — build.rs writes a one-line index.html when ui/ is
 # empty so `cargo build` works from a clean checkout.
-ui/
+/ui/
 
 # Rust build output (kept off C:, lives in this worktree on D:).
 target/

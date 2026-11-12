@@ -11,6 +11,7 @@ import { initSay } from './talk/say.js';
 import { runDemo } from './demo.js';
 import { initSettings } from './settings.js';
 import { initMarket } from './market.js';
+import { initPackTabs } from './pack-tabs.js';
 import { initPhoneCard } from './phone-card.js';
 import { initSettingsTabs } from './settings-tabs.js';
 import { initRhythmCard } from './rhythm-card.js';
@@ -643,6 +644,19 @@ async function main() {
     if (token === roomLoadToken) { paintScenePicker(); applyScene(); } // video rooms apply only on top of the painted v2 room
   }
 
+  // A room pack was installed or removed in the Marketplace (T-31-ROOM-slim): re-read the rooms and the video rooms, and load the
+  // default room when the stage has none yet. A room already on the stage stays; its video picker gains or loses the room.
+  async function roomsChangedByPack() {
+    try { sceneList = await zumi.scenes.list(); } catch (e) { console.error('video rooms: list failed', e); }
+    const list = await zumi.rooms.list();
+    const listed = list.rooms.some((r) => r.id === currentRoomV2Id);
+    if ((!currentRoomV2 && !currentRoom) || (currentRoomV2 && !listed)) {
+      roomNote('');
+      const note = $('room-note'); if (note) { note.classList.remove('market-link'); note.onclick = null; }
+      await switchRoom(list.selected && list.selected !== 'none' ? list.selected : null);
+    } else { paintScenePicker(); await applyScene(); }
+  }
+
   async function switchModel(id, { forceEntrance } = {}) {
     const m = models.find((x) => x.id === id);
     if (!m) return null;
@@ -1109,8 +1123,11 @@ async function main() {
     }
     return webview.loadURL(reloadBoardUrl().href);
   });
-  for (const tab of document.querySelectorAll('.tab')) {
-    tab.addEventListener('click', () => {
+  // One delegated handler, so the tabs web-app packs add later (pack-tabs.js) switch the same way.
+  $('sidebar').addEventListener('click', (event) => {
+    const tab = event.target.closest('.tab');
+    if (!tab) return;
+    {
       for (const el of document.querySelectorAll('.tab')) el.classList.toggle('active', el === tab);
       const name = tab.dataset.tab;
       for (const p of document.querySelectorAll('.panel')) p.classList.toggle('active', p.id === `tab-${name}`);
@@ -1119,8 +1136,9 @@ async function main() {
       if (name === 'board') { $('board-badge').hidden = true; refreshBoardTab(); }
       else if (name === 'zumi') { last = performance.now(); resize(); }
       else if (name === 'settings') { const s = document.querySelector('#tab-settings .settings'); if (s) s.scrollTop = 0; }
-    });
-  }
+    }
+  });
+  initPackTabs({ lang: () => document.documentElement.lang || 'en', openZumiTab: () => document.querySelector('.tab[data-tab="zumi"]').click() });
   // Next-version UI (ADR 2026-10-27-next-version-path-flag): __ZUMI_NEXT_UI__ is a build constant (scripts/build-renderer.mjs, default off);
   // off, esbuild drops this line and the build carries no src/renderer/next/**. Runs after the tab handlers above, so it can add its own sidebar item.
   const freeKeyGuide = initFreeKeyGuide({ zumi, $ }); // the Guide panel: three key routes; opened from the first-run card and Settings > AI
@@ -1138,8 +1156,15 @@ async function main() {
       rooms: () => pickerRows($('scene-select'), $('scene-picker').hidden),
       models: () => pickerRows($('model-picker'), false),
       use: (kind, id) => { const s = $(kind === 'room' ? 'scene-select' : 'model-picker'); s.value = id; s.dispatchEvent(new Event('change')); },
+      roomsChanged: roomsChangedByPack,
     },
   });
+  // T-31-ROOM-slim: a slim install starts with no room. Say where one comes from instead of an empty stage with no word.
+  if (market && !info.selftest && (!defaultRoom || defaultRoom === 'none')) {
+    roomNote(t('market.start.noRoom'));
+    const note = $('room-note');
+    if (note) { note.classList.add('market-link'); note.onclick = () => market.open('room.night-city', 'all'); }
+  }
   if (market) {
     $('voice-market-row').hidden = false;
     $('voice-market-open').addEventListener('click', () => market.open('voice.kokoro-82m', 'voice'));

@@ -1,0 +1,15 @@
+{
+ "format": "zumi-pack/1",
+ "id": "plugin.canary",
+ "kind": "plugin",
+ "version": "1.0.0",
+ "name": { "en": "Canary", "vi": "Canary" },
+ "author": { "name": "Zumia" },
+ "licence": { "spdx": "Apache-2.0", "file": "LICENSE.txt" },
+ "plugin": {
+  "api": 1,
+  "ui": "ui/index.html",
+  "tab": { "label": { "en": "Canary", "vi": "Canary" }, "icon": "ui/icon.svg" },
+  "permissions": { "storage": true, "links": { "docs": "https://zumia.space/" }, "net": [] }
+ }
+}

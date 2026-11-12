@@ -10,6 +10,10 @@ import { fileURLToPath } from 'node:url';
 
 import { packZip, sha256, zipBuffer } from './lib/zip-write.mjs';
 import { PACK_KINDS, ROOM_PLATE_SIZE, ROOM_VIDEO_SIZE, STANDARD, validatePackZip } from '../tauri/sidecar/market-standard.mjs';
+import { HOST_API, checkDownload, loadVerdict, pickVersion, verifyIndex } from '../tauri/sidecar/market-store.mjs';
+import { generateKeyPair, keyIdOf, parsePublicKey, publicKeyText, signMinisign } from '../tauri/sidecar/market-sign.mjs';
+import { sceneDescriptor, sceneGlb } from './lib/scene-fixture.mjs';
+import { packDirZip } from './market-pack-dir.mjs';
 
 const { TEMPLATE_IDS } = createRequire(import.meta.url)('../src/main/soul-prefs.js');
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -48,10 +52,11 @@ const GOOD = {
   model: () => [base('model', { model: { vrm: 'model.vrm' } }), { 'LICENSE.txt': 'l', 'model.vrm': vrm() }],
   skill: () => [base('skill', { skill: { file: 'skill.md', summary: 'Plans a day' } }), { 'LICENSE.txt': 'l', 'skill.md': '# Plan a day' }],
   soul: () => [base('soul', { soul: { file: 'soul.json' } }), { 'LICENSE.txt': 'l', 'soul.json': SOUL }],
-  plugin: () => [base('plugin', { plugin: { entry: 'plugin.mjs', permissions: { net: ['https://example.com'], settings: ['uiLang'], hud: false } } }), { 'LICENSE.txt': 'l', 'plugin.mjs': 'export {};' }],
+  plugin: () => [base('plugin', { plugin: { api: 1, ui: 'ui/index.html', tab: { label: { en: 'Sample' } }, permissions: { storage: true, links: { docs: 'https://zumia.space/' }, net: [] } } }), { 'LICENSE.txt': 'l', 'ui/index.html': '<!doctype html><script src="app.js"></script>', 'ui/app.js': 'void 0;' }],
+  scene: () => [base('scene', { scene: { api: 1, glb: 'scene.glb', descriptor: 'scene.json', tiers: ['low', 'high'], budget: { triangles: 1500000, textureMaxPx: 2048 } } }), { 'LICENSE.txt': 'l', 'scene.glb': sceneGlb(), 'scene.json': sceneDescriptor() }],
   agent: () => [base('agent', { agent: { items: [{ id: 'voice.kokoro-82m', version: '1.2.1', sha256: 'a'.repeat(64) }], settings: { uiLang: 'vi' } } }), { 'LICENSE.txt': 'l' }],
 };
-ok(PACK_KINDS.join() === 'voice,room,model,skill,soul,plugin,agent', 'seven types have a standard', PACK_KINDS.join());
+ok(PACK_KINDS.join() === 'voice,room,model,skill,soul,plugin,agent,scene', 'eight types have a standard (scene added)', PACK_KINDS.join());
 for (const kind of PACK_KINDS) {
   const [m, f] = GOOD[kind]();
   const v = await verdict(packZip(m, f), { kind, expectId: m.id });
@@ -97,9 +102,27 @@ const FAULTS = [
   ['soul: not JSON', 'soul', (m, f) => { f['soul.json'] = '{nope'; }, 'soul_json'],
   ['soul: sets the owner name', 'soul', (m, f) => { f['soul.json'] = JSON.stringify({ ...JSON.parse(SOUL), ownerName: 'Kei' }); }, 'soul_owner_name'],
   ['soul: field too long', 'soul', (m, f) => { f['soul.json'] = JSON.stringify({ ...JSON.parse(SOUL), name: 'x'.repeat(41) }); }, 'soul_invalid'],
-  ['plugin: no entry', 'plugin', (m) => { m.plugin.entry = 'gone.mjs'; }, 'plugin_entry'],
-  ['plugin: http origin', 'plugin', (m) => { m.plugin.permissions.net = ['http://x.com']; }, 'plugin_permissions'],
-  ['plugin: a setting off the list', 'plugin', (m) => { m.plugin.permissions.settings = ['aiKey']; }, 'plugin_permissions'],
+  ['plugin: no ui page', 'plugin', (m) => { m.plugin.ui = 'ui/gone.html'; }, 'plugin_ui'],
+  ['plugin: no tab label', 'plugin', (m) => { delete m.plugin.tab; }, 'plugin_tab'],
+  ['plugin: a .mjs file (web app packs run no Node code)', 'plugin', (m, f) => { f['ui/host.mjs'] = 'export {};'; }, 'plugin_native'],
+  ['plugin: a native file', 'plugin', (m, f) => { f['bin/helper.dll'] = 'MZ'; }, 'plugin_native'],
+  ['plugin: a network origin (v1 has no network)', 'plugin', (m) => { m.plugin.permissions.net = ['https://x.com']; }, 'plugin_net'],
+  ['plugin: an unknown permission', 'plugin', (m) => { m.plugin.permissions.settings = ['aiKey']; }, 'plugin_permission_unknown'],
+  ['plugin: a link that is not https', 'plugin', (m) => { m.plugin.permissions.links = { docs: 'http://zumia.space/' }; }, 'plugin_link'],
+  ['plugin: an avatar permission other than read', 'plugin', (m) => { m.plugin.permissions.avatar = 'write'; }, 'plugin_permission_unknown'],
+  ['plugin: no api', 'plugin', (m) => { delete m.plugin.api; }, 'manifest_api'],
+  ['api: a pack the host is too old for', 'plugin', (m) => { m.plugin.api = 2; }, 'pack_needs_newer_host'],
+  ['api: a pack on a retired api', 'scene', (m) => { m.scene.api = 0; }, 'pack_api_retired'],
+  ['scene: not a glb', 'scene', (m, f) => { f['scene.glb'] = 'nope'; }, 'scene_glb'],
+  ['scene: an external URI', 'scene', (m, f) => { f['scene.glb'] = sceneGlb({ mutate: (j) => { j.images[0] = { uri: 'https://evil.example/t.png' }; } }); }, 'scene_uri'],
+  ['scene: a data URI buffer', 'scene', (m, f) => { f['scene.glb'] = sceneGlb({ mutate: (j) => { j.buffers.push({ uri: 'data:application/octet-stream;base64,AAAA', byteLength: 3 }); } }); }, 'scene_uri'],
+  ['scene: a glTF extension off the allow-list', 'scene', (m, f) => { f['scene.glb'] = sceneGlb({ mutate: (j) => { j.extensionsUsed = ['EXT_script_runner']; } }); }, 'scene_extension'],
+  ['scene: an oversize texture', 'scene', (m, f) => { f['scene.glb'] = sceneGlb({ texturePx: [4096, 4096] }); }, 'scene_texture_size'],
+  ['scene: over its triangle budget', 'scene', (m, f) => { m.scene.budget.triangles = 10; f['scene.glb'] = sceneGlb({ triangles: 11 }); }, 'scene_triangles'],
+  ['scene: a budget above the standard cap', 'scene', (m) => { m.scene.budget.triangles = 5000000; }, 'scene_budget'],
+  ['scene: no zumi_stand anchor', 'scene', (m, f) => { f['scene.glb'] = sceneGlb({ nodes: ['room'] }); f['scene.json'] = sceneDescriptor({ anchors: {} }); }, 'scene_anchor'],
+  ['scene: descriptor not JSON', 'scene', (m, f) => { f['scene.json'] = '{nope'; }, 'scene_descriptor'],
+  ['scene: code in a scene', 'scene', (m, f) => { f['logic.js'] = 'x'; }, 'file_type'],
   ['agent: no items', 'agent', (m) => { m.agent.items = []; }, 'agent_items'],
   ['agent: item without a hash', 'agent', (m) => { delete m.agent.items[0].sha256; }, 'agent_items'],
   ['agent: nested agent pack', 'agent', (m) => { m.agent.items[0].id = 'agent.other'; }, 'agent_nested'],
@@ -166,7 +189,7 @@ for (const kind of ['voice', 'plugin']) {
   const v = await verdict(packZip(m, f), { publisher: 'user' });
   ok(v.errors.some((e) => e.code === 'code_publisher'), `a user's ${kind} package is refused: it runs code`, JSON.stringify(v.errors));
 }
-for (const kind of ['room', 'model', 'skill', 'soul', 'agent']) {
+for (const kind of ['room', 'model', 'skill', 'soul', 'agent', 'scene']) {
   const [m, f] = GOOD[kind]();
   ok((await verdict(packZip(m, f), { publisher: 'user' })).ok, `a user's ${kind} package passes the same validator`);
 }
@@ -176,8 +199,31 @@ const rooms = JSON.parse(fs.readFileSync(path.join(repo, 'assets', 'rooms-video'
 ok(rooms.plateSize.join() === ROOM_PLATE_SIZE.join() && rooms.videoSize.join() === ROOM_VIDEO_SIZE.join(), 'room plate and video sizes equal the shipped manifest', `${rooms.plateSize} ${rooms.videoSize}`);
 ok(Math.max(...rooms.rooms.map((r) => r.bytes)) < STANDARD.room.maxBytes, 'the largest shipped room video fits the room limit');
 ok(Math.max(...rooms.rooms.map((r) => r.seconds)) <= 60, 'every shipped room fits the loop limit');
-ok(!STANDARD.room.ext.includes('.glb'), 'a room package has no 3D type');
+ok(!STANDARD.room.ext.includes('.glb'), 'a room package has no 3D type (a painted room may carry only the occluder glb its room.json names)');
 const plate = path.join(repo, 'resources-pinned', 'room-v2', 'B-talk-plate.png');
+
+// ---------- slim installer (T-31-ROOM-slim): the two shapes the built-in rooms ship as ----------
+// "over": a looping video drawn over the default room's talk plate (the seven built-in video rooms). No plate of its own.
+const overRoom = (o = {}, files = {}) => [base('room', { id: 'room.beach-cabin', room: { over: 'default-v2', video: 'room.mp4', seconds: 8, framing: FRAMING, ...o } }), { 'LICENSE.txt': 'l', 'room.mp4': mp4(), ...files }];
+{ const [m, f] = overRoom(); const v = await verdict(packZip(m, f)); ok(v.ok, 'room over default-v2: a video with no plate passes', JSON.stringify(v.errors)); }
+{ const [m, f] = overRoom({ over: 'night' }); const v = await verdict(packZip(m, f)); ok(v.errors.some((e) => e.code === 'room_over'), 'room over: only default-v2 can be drawn over', JSON.stringify(v.errors)); }
+{ const [m, f] = overRoom({}, { 'x.glb': 'glTF' }); const v = await verdict(packZip(m, f)); ok(v.errors.some((e) => e.code === 'file_type'), 'room over: a glb is still refused', JSON.stringify(v.errors)); }
+// "layout": the painted default room itself (room.json v2 + its plates + the occluder glb it names), checked by room-check.mjs.
+const pinnedRoom = path.join(repo, 'resources-pinned', 'room-v2');
+const paintedFiles = () => {
+  const j = JSON.parse(fs.readFileSync(path.join(pinnedRoom, 'room.json'), 'utf8'));
+  const f = { 'LICENSE.txt': 'l', 'room.json': fs.readFileSync(path.join(pinnedRoom, 'room.json')), [j.model]: fs.readFileSync(path.join(pinnedRoom, j.model)) };
+  for (const v of Object.values(j.views)) f[v.plate] = fs.readFileSync(path.join(pinnedRoom, v.plate));
+  return [j, f];
+};
+if (fs.existsSync(path.join(pinnedRoom, 'room.json')) && fs.existsSync(plate)) {
+  const painted = (o = {}) => base('room', { id: 'room.night-city', room: { layout: 'room.json', ...o } });
+  { const [, f] = paintedFiles(); const v = await verdict(packZip(painted(), f)); ok(v.ok, 'room layout: the real Night City room (room.json v2, plates, occluders) passes', JSON.stringify(v.errors)); }
+  { const [j, f] = paintedFiles(); f['extra.glb'] = f[j.model]; const v = await verdict(packZip(painted(), f)); ok(v.errors.some((e) => e.code === 'file_type'), 'room layout: a glb the room.json does not name is refused', JSON.stringify(v.errors)); }
+  { const [, f] = paintedFiles(); f['room.json'] = '{"schemaVersion":2}'; const v = await verdict(packZip(painted(), f)); ok(v.errors.some((e) => e.code === 'room_layout'), 'room layout: a room.json the room checker refuses is refused', JSON.stringify(v.errors)); }
+  { const [, f] = paintedFiles(); f['room.mp4'] = mp4(); const v = await verdict(packZip(painted({ video: 'room.mp4' }), f)); ok(v.errors.some((e) => e.code === 'room_form'), 'room: layout and video together are refused (one shape per pack)', JSON.stringify(v.errors)); }
+  { const [j, f] = paintedFiles(); delete f[j.views.talk.plate]; const v = await verdict(packZip(painted(), f)); ok(v.errors.some((e) => e.code === 'room_layout'), 'room layout: a plate room.json names must be in the pack', JSON.stringify(v.errors)); }
+} else console.log('INFO no pinned room-v2 on this PC: the painted-room rows did not run');
 if (fs.existsSync(plate)) { const b = fs.readFileSync(plate).subarray(0, 32); ok(b.readUInt32BE(16) === 1920 && b.readUInt32BE(20) === 1200, 'the real plate is the standard size'); }
 // Rooms and the model are not in git. ZUMI_REAL_ROOM_VIDEO and ZUMI_REAL_MODEL point at shipped files for the two real-file rows.
 const realVideo = process.env.ZUMI_REAL_ROOM_VIDEO;
@@ -194,6 +240,96 @@ if (vrmFile) {
   const v = await verdict(packZip(m, f), { kind: 'model' });
   ok(v.ok, 'the real default model passes the model standard', JSON.stringify(v.errors));
 } else console.log('INFO no default model on this PC: the real-model row did not run');
+
+// ---------- canaries: the open fixtures the runtime is tested with ----------
+{
+  const zip = path.join(tmp, 'plugin.canary.zip');
+  fs.writeFileSync(zip, packDirZip(path.join(repo, 'scripts', 'fixtures', 'market', 'plugin.canary')));
+  const v = await validatePackZip(zip, path.join(tmp, 'plugin.canary'), { kind: 'plugin', expectId: 'plugin.canary' });
+  ok(v.ok, 'plugin.canary (built from scripts/fixtures/market) passes the plugin standard', JSON.stringify(v.errors));
+  const [m, f] = GOOD.scene(); m.id = 'scene.canary';
+  const s = await verdict(packZip(m, f), { kind: 'scene', expectId: 'scene.canary' });
+  ok(s.ok, 'scene.canary passes the scene standard', JSON.stringify(s.errors));
+  ok(STANDARD.scene.maxBytes === 64 * 1024 * 1024 && !STANDARD.scene.code, 'a scene is data only, up to 64 MB');
+  ok(Object.keys(HOST_API).sort().join() === [...PACK_KINDS].sort().join(), 'the host api table names every kind', Object.keys(HOST_API).join());
+}
+
+// ---------- the signed store index ----------
+{
+  const store = generateKeyPair(), spare = generateKeyPair(), stranger = generateKeyPair();
+  const keys = [parsePublicKey(publicKeyText(store)), parsePublicKey(publicKeyText(spare))];
+  const [pm, pf] = GOOD.plugin();
+  const zipBuf = packZip(pm, pf);
+  const zipFile = path.join(tmp, 'plugin.sample-1.0.0.zip'); fs.writeFileSync(zipFile, zipBuf);
+  const ver = (version, api, extra = {}) => ({ version, api, url: `plugin.sample-${version}.zip`, sha256: sha256(zipBuf), bytes: zipBuf.length, manifestSha256: 'a'.repeat(64), ...extra });
+  const index = (serial, withdrawn = []) => ({ format: 'zumi-market/1', serial, published: '2026-11-11T00:00:00Z', packs: [{ id: 'plugin.sample', kind: 'plugin', name: { en: 'Sample' }, versions: [ver('1.2.0', 2), ver('1.1.0', 1), ver('1.0.0', 1)], withdrawn }] });
+  const signed = (obj, pair = store) => { const bytes = Buffer.from(JSON.stringify(obj)); return { bytes, sig: signMinisign(bytes, pair) }; };
+  const s = signed(index(5));
+  let v = verifyIndex(s.bytes, s.sig, { publicKeys: keys, cachedSerial: 4 });
+  ok(v.ok && v.index.serial === 5, 'a signed index with a higher serial is accepted', JSON.stringify(v));
+  v = verifyIndex(s.bytes, s.sig, { publicKeys: keys, cachedSerial: 5 });
+  ok(v.ok, 'the same index fetched again (equal serial) is accepted', JSON.stringify(v));
+  const sp = signed(index(6), spare);
+  ok(verifyIndex(sp.bytes, sp.sig, { publicKeys: keys, cachedSerial: 5 }).ok, 'an index signed by the offline spare key is accepted');
+  const tampered = Buffer.from(s.bytes.toString().replace('"serial":5', '"serial":9'));
+  v = verifyIndex(tampered, s.sig, { publicKeys: keys, cachedSerial: 0 });
+  ok(!v.ok && v.code === 'index_signature', 'refused: an index with a bad signature (edited after signing)', JSON.stringify(v));
+  const st = signed(index(7), stranger);
+  v = verifyIndex(st.bytes, st.sig, { publicKeys: keys, cachedSerial: 0 });
+  ok(!v.ok && v.code === 'index_signature', 'refused: an index signed by a key the app does not hold', JSON.stringify(v));
+  v = verifyIndex(s.bytes, s.sig, { publicKeys: keys, cachedSerial: 6 });
+  ok(!v.ok && v.code === 'index_serial', 'refused: an index with a lower serial (an old index replayed)', JSON.stringify(v));
+  const bad = signed({ format: 'zumi-market/2', serial: 9, packs: [] });
+  v = verifyIndex(bad.bytes, bad.sig, { publicKeys: keys, cachedSerial: 0 });
+  ok(!v.ok && v.code === 'index_format', 'refused: a signed index of an unknown format', JSON.stringify(v));
+  const ix = index(5);
+  let pick = pickVersion(ix.packs[0], HOST_API);
+  ok(pick.ok && pick.version.version === '1.1.0', 'version pick: the newest version whose api the host supports (1.2.0 needs api 2)', JSON.stringify(pick));
+  const wd = index(8, ['1.1.0']);
+  pick = pickVersion(wd.packs[0], HOST_API);
+  ok(pick.ok && pick.version.version === '1.0.0', 'version pick skips a withdrawn version', JSON.stringify(pick));
+  pick = pickVersion({ ...ix.packs[0], versions: [ver('2.0.0', 2)] }, HOST_API);
+  ok(!pick.ok && pick.code === 'pack_needs_newer_host', 'refused: a pack whose every version needs a newer host', JSON.stringify(pick));
+  let d = await checkDownload(zipFile, ver('1.0.0', 1));
+  ok(d.ok, 'a zip that matches its index entry is accepted', JSON.stringify(d));
+  const other = path.join(tmp, 'other.zip'); const ob = Buffer.from(zipBuf); ob[ob.length - 30] ^= 1; fs.writeFileSync(other, ob);
+  d = await checkDownload(other, ver('1.0.0', 1));
+  ok(!d.ok && d.code === 'zip_sha', 'refused: a zip whose hash differs from the index', JSON.stringify(d));
+  d = await checkDownload(zipFile, ver('1.0.0', 1, { bytes: zipBuf.length + 1 }));
+  ok(!d.ok && d.code === 'zip_bytes', 'refused: a zip whose size differs from the index', JSON.stringify(d));
+  let l = loadVerdict(wd, { id: 'plugin.sample', version: '1.1.0', manifestSha256: 'a'.repeat(64) }, HOST_API);
+  ok(!l.ok && l.code === 'pack_withdrawn', 'refused at load: a withdrawn version', JSON.stringify(l));
+  l = loadVerdict(ix, { id: 'plugin.sample', version: '1.1.0', manifestSha256: 'a'.repeat(64) }, HOST_API);
+  ok(l.ok, 'load: a listed, not withdrawn version with its manifest hash', JSON.stringify(l));
+  l = loadVerdict(ix, { id: 'plugin.sample', version: '1.1.0', manifestSha256: 'b'.repeat(64) }, HOST_API);
+  ok(!l.ok && l.code === 'manifest_mismatch', 'refused at load: an installed manifest that is not the listed one', JSON.stringify(l));
+  l = loadVerdict(ix, { id: 'plugin.gone', version: '1.0.0', manifestSha256: 'a'.repeat(64) }, HOST_API);
+  ok(!l.ok && l.code === 'pack_not_listed', 'refused at load: a pack gone from the index', JSON.stringify(l));
+  l = loadVerdict(ix, { id: 'plugin.sample', version: '1.2.0', manifestSha256: 'a'.repeat(64) }, HOST_API);
+  ok(!l.ok && l.code === 'pack_needs_newer_host', 'refused at load: a listed version whose api the host lacks', JSON.stringify(l));
+}
+
+// ---------- store CLI publish --serial-min: a fresh public store starts above an older index signed by the same key ----------
+{
+  const { spawnSync } = await import('node:child_process');
+  const pair = generateKeyPair();
+  const keyFile = path.join(tmp, 'cli-test.key');
+  fs.writeFileSync(keyFile, JSON.stringify({ format: 'zumi-market-key/1', role: 'store', keyId: keyIdOf(pair), keyNum: pair.keyNum.toString('hex'), privatePem: pair.privatePem }));
+  const [pm, pf] = GOOD.plugin();
+  const zipFile = path.join(tmp, 'cli-plugin.sample-1.0.0.zip'); fs.writeFileSync(zipFile, packZip(pm, pf));
+  const publish = (store, ...extra) => spawnSync(process.execPath, [path.join(repo, 'scripts', 'market-store-cli.mjs'), 'publish', '--store', store, '--key', keyFile, ...extra, zipFile], { encoding: 'utf8' });
+  const readIndex = (store) => { try { return verifyIndex(fs.readFileSync(path.join(store, 'index.json')), fs.readFileSync(path.join(store, 'index.json.minisig'), 'utf8'), { publicKeys: [parsePublicKey(publicKeyText(pair))] }); } catch (e) { return { ok: false, code: String(e.message) }; } };
+  let r = publish(path.join(tmp, 'cli-store-plain'));
+  let v = readIndex(path.join(tmp, 'cli-store-plain'));
+  ok(r.status === 0 && v.ok && v.index.serial === 1, 'store CLI: the first publish into an empty store is serial 1', `${r.stderr}${JSON.stringify(v)}`);
+  r = publish(path.join(tmp, 'cli-store-min'), '--serial-min', '10');
+  v = readIndex(path.join(tmp, 'cli-store-min'));
+  ok(r.status === 0 && v.ok && v.index.serial === 10 && /serial 10\b/.test(r.stdout), 'store CLI: publish --serial-min 10 into an empty store signs serial 10', `${r.stderr}${JSON.stringify(v)}`);
+  for (const bad of ['0', '-3', '1.5', 'ten']) {
+    r = publish(path.join(tmp, `cli-store-bad-${bad}`), '--serial-min', bad);
+    ok(r.status !== 0 && !fs.existsSync(path.join(tmp, `cli-store-bad-${bad}`, 'index.json')), `store CLI: --serial-min ${bad} is refused before anything is written`, r.stderr);
+  }
+}
 
 // ---------- the docs cover every type ----------
 const doc = fs.readFileSync(path.join(repo, 'docs', 'marketplace', 'package-standards.md'), 'utf8');

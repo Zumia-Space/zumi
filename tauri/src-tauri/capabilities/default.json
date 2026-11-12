@@ -9,6 +9,7 @@
     "allow-guest-open",
     "allow-guest-navigate",
     "allow-guest-bounds",
-    "allow-guest-close"
+    "allow-guest-close",
+    "allow-pack-list"
   ]
 }

@@ -68,6 +68,8 @@ pub(crate) enum Class {
     External,
     Room,
     Scene,
+    /// T-31-ROOM-slim: a file a slim build no longer embeds in `frontendDist`, answered from disk (`fallback_file`).
+    Fallback,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -163,6 +165,7 @@ pub(crate) fn mime_for(route: &Route) -> &'static str {
         return "image/png";
     }
     match route.rel.rsplit('.').next() {
+        Some(ext) if ext.eq_ignore_ascii_case("png") => "image/png",
         Some(ext) if ext.eq_ignore_ascii_case("vrm") || ext.eq_ignore_ascii_case("glb") => "model/gltf-binary",
         Some(ext) if ext.eq_ignore_ascii_case("json") => "application/json",
         Some(ext) if ext.eq_ignore_ascii_case("mp4") => "video/mp4",
@@ -433,13 +436,89 @@ pub(crate) fn recheck(route: &Route, answer: &Answer, data_dir: &Path, roots: Op
             } else {
                 let id = name.strip_suffix(".mp4")?;
                 let file = manifest_file(&manifest, Some(id), "mp4")?;
-                if !real_child(roots.video_dir.as_deref()?, &path, Path::new(&file)) {
+                // The build's own folder, or (T-31-ROOM-slim) the room's installed pack `<data>/packs/room.<id>`: the same
+                // manifest file name, pinned to one of two roots Rust derives itself. The sha256 pin is the sidecar's.
+                let in_build = roots.video_dir.as_deref().is_some_and(|dir| real_child(dir, &path, Path::new(&file)));
+                let in_pack = installed_pack_dir(data_dir, &format!("room.{id}"))
+                    .is_some_and(|dir| real_child(&dir, &path, Path::new(&file)));
+                if !in_build && !in_pack {
                     return None;
                 }
             }
             Some(path)
         }
+        Class::Fallback => None,
     }
+}
+
+/// `<data>/packs/<id>` when that pack is installed (its manifest is there) and no remove is pending. Same rule as
+/// tauri/sidecar/room-packs.mjs `installedPackDir`.
+fn installed_pack_dir(data_dir: &Path, id: &str) -> Option<PathBuf> {
+    let packs = data_dir.join("packs");
+    if packs.join(format!("{id}.remove-pending")).exists() {
+        return None;
+    }
+    let dir = packs.join(id);
+    is_regular_file(&dir.join("zumi-pack.json")).then_some(dir)
+}
+
+/// The painted default room's pack (room.night-city) and the one plate of it that room.json does not name.
+const NIGHT_CITY_PACK: &str = "room.night-city";
+const NO_CHAIR_PLATE: &str = "talk-plate-nochair.png";
+
+/// A plain file name a room folder may serve: one segment, ASCII word characters, and a room file's extension.
+fn plain_room_file(name: &str) -> bool {
+    ["png", "json", "glb"].iter().any(|ext| plain_manifest_name(name, ext))
+}
+
+/// T-31-ROOM-slim: where a file the official build no longer embeds lives on disk, or None (the request stays Tauri's).
+///   * `/rooms/default-v2/<file>`: the validated copy of the default room, `<data>/rooms/default-v2/<sha>/<file>`, with
+///     `<sha>` read by Rust from settings.json `defaultRoomV2GoodSha` (written by room-default-v2.mjs after room-check);
+///   * `/chair3d/plate-nochair.png`: an older install's own `<resources>/assets/chair3d/talk-plate-nochair.png` (the updater
+///     overwrites in place and leaves it), else the default room pack's copy.
+/// Every answer is a regular file pinned under its root by `real_child`.
+pub(crate) fn fallback_file(path: &str, data_dir: &Path, resource_dir: Option<&Path>) -> Option<PathBuf> {
+    if let Some(name) = path.strip_prefix("/rooms/default-v2/") {
+        if !plain_room_file(name) {
+            return None;
+        }
+        let sha = read_settings(data_dir)?.get("defaultRoomV2GoodSha")?.as_str()?.to_string();
+        if !is_room_id(&sha) {
+            return None;
+        }
+        let root = data_dir.join("rooms").join("default-v2").join(&sha);
+        let file = root.join(name);
+        return (is_regular_file(&file) && real_child(&root, &file, Path::new(name))).then_some(file);
+    }
+    if path == "/chair3d/plate-nochair.png" {
+        let mut roots: Vec<PathBuf> = Vec::new();
+        if let Some(res) = resource_dir {
+            roots.push(res.join("assets").join("chair3d"));
+        }
+        if let Some(pack) = installed_pack_dir(data_dir, NIGHT_CITY_PACK) {
+            roots.push(pack);
+        }
+        return roots.into_iter().map(|root| (root.join(NO_CHAIR_PLATE), root)).find_map(|(file, root)| {
+            (is_regular_file(&file) && real_child(&root, &file, Path::new(NO_CHAIR_PLATE))).then_some(file)
+        });
+    }
+    None
+}
+
+/// Did Tauri answer with its SPA fallback (index.html) instead of the file? Its asset lookup never says "absent": a missing
+/// `x.png` comes back as `x.png.html`, `x.png/index.html` or `index.html` (tauri manager `get_asset`), always as HTML. The paths
+/// `is_fallback_path` covers are never HTML, so HTML here means the build does not embed the file.
+fn spa_fallback(response: &Response<Cow<'static, [u8]>>) -> bool {
+    response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.to_ascii_lowercase().starts_with("text/html"))
+}
+
+/// The paths `fallback_file` may answer. Tauri's own embedded asset always wins: the fallback runs only when it is absent.
+fn is_fallback_path(path: &str) -> bool {
+    path.starts_with("/rooms/default-v2/") || path == "/chair3d/plate-nochair.png"
 }
 
 /// Ask the sidecar which file an exact app path maps to. `None` while the sidecar is down, slow, or answers null.
@@ -591,6 +670,28 @@ fn route_data_dir(
     }
 }
 
+/// T-31-ROOM-slim: the default room and the no-chair plate are embedded only in builds that carry them. When this build's
+/// frontendDist has no such file (Tauri answered with its SPA page), answer it from disk (`fallback_file`) or with a 404.
+fn serve_fallback(app: &AppHandle, request: &Request<Vec<u8>>, response: &mut Response<Cow<'static, [u8]>>) {
+    let path = request.uri().path();
+    if !spa_fallback(response) {
+        return;
+    }
+    let data_dir = route_data_dir(
+        app.try_state::<crate::guest_cdp::SelfTest>().as_deref(),
+        app.path().app_data_dir().ok().as_deref(),
+    );
+    let file = data_dir
+        .as_deref()
+        .and_then(|dir| fallback_file(path, dir, app.path().resource_dir().ok().as_deref()));
+    let Some(file) = file else { return not_found(response) };
+    if request.method() != Method::GET && request.method() != Method::HEAD {
+        return not_found(response);
+    }
+    let route = Route { class: Class::Fallback, rel: path.trim_start_matches('/').to_string() };
+    respond_file(&file, &route, request, response);
+}
+
 /// Answer one `tauri.localhost` request for the main webview. Anything outside the asset namespaces is left exactly
 /// as Tauri built it (the app's own assets and the SPA fallback keep working).
 pub fn serve(app: &AppHandle, request: &Request<Vec<u8>>, response: &mut Response<Cow<'static, [u8]>>) {
@@ -598,6 +699,10 @@ pub fn serve(app: &AppHandle, request: &Request<Vec<u8>>, response: &mut Respons
     // handler; leave its response alone.
     if request.uri().path() == "/external/test.vrm" {
         return;
+    }
+    // T-31-ROOM-slim: the default room and the no-chair plate, when this build does not embed them (a cheap string test first).
+    if is_fallback_path(request.uri().path()) {
+        return serve_fallback(app, request, response);
     }
     // Perf (T-31 diag): the page makes ~100 small requests that are not this route's (app json, gestures, speech).
     // Classify first so those pay no data-dir / resource-dir / is_dir() work; only a namespace hit resolves them.
@@ -1482,5 +1587,75 @@ mod tests {
         for path in ["/", "/index.html", "/models/a.vrm", "/clips/a.vrma", "/rooms/default-v2/room.json"] {
             assert!(!is_asset_path(path), "{path}");
         }
+    }
+
+    // ---------- T-31-ROOM-slim: rooms from packs, and the files a slim build no longer embeds ----------
+
+    #[test]
+    fn a_video_from_its_room_pack_is_served_and_only_under_that_pack() {
+        let data = tmp("slim-pack-video");
+        let res = tmp("slim-pack-video-res");
+        put(&res.join("assets").join("rooms-video"), "rooms.json", include_bytes!("../../../assets/rooms-video/rooms.json"));
+        let roots = SceneRoots { chair_dir: res.join("assets").join("rooms-video"), video_dir: None };
+        let pack = data.join("packs").join("room.beach-cabin");
+        put(&pack, "zumi-pack.json", b"{}");
+        let video = put(&pack, "06-beach-cabin-studio-2710.mp4", b"v");
+        let route = Route { class: Class::Scene, rel: "scenes/beach-cabin.mp4".into() };
+        let answer = Answer { path: video.to_string_lossy().into_owned(), root: None };
+        assert_eq!(recheck(&route, &answer, &data, Some(&roots)), Some(video.clone()));
+        // the same file under ANOTHER room's pack id is not this room's video
+        let other = Route { class: Class::Scene, rel: "scenes/cozy-study.mp4".into() };
+        assert_eq!(recheck(&other, &answer, &data, Some(&roots)), None);
+        // a pack waiting for removal serves nothing
+        put(&data.join("packs"), "room.beach-cabin.remove-pending", b"");
+        assert_eq!(recheck(&route, &answer, &data, Some(&roots)), None);
+        std::fs::remove_file(data.join("packs").join("room.beach-cabin.remove-pending")).unwrap();
+        // a folder without a manifest is not an installed pack
+        std::fs::remove_file(pack.join("zumi-pack.json")).unwrap();
+        assert_eq!(recheck(&route, &answer, &data, Some(&roots)), None);
+    }
+
+    #[test]
+    fn the_default_room_is_served_from_its_validated_copy_named_in_settings() {
+        let data = tmp("slim-default-room");
+        let copy = data.join("rooms").join("default-v2").join("0123456789ab");
+        let plate = put(&copy, "B-talk-plate.png", b"png");
+        put(&copy, "room.json", b"{}");
+        assert_eq!(fallback_file("/rooms/default-v2/B-talk-plate.png", &data, None), None, "no settings: nothing");
+        settings(&data, serde_json::json!({ "defaultRoomV2GoodSha": "0123456789ab" }));
+        assert_eq!(fallback_file("/rooms/default-v2/B-talk-plate.png", &data, None), Some(plate));
+        assert!(fallback_file("/rooms/default-v2/room.json", &data, None).is_some());
+        for bad in ["/rooms/default-v2/../x.png", "/rooms/default-v2/a/b.png", "/rooms/default-v2/x.exe", "/rooms/default-v2/missing.png", "/rooms/default-v2/"] {
+            assert_eq!(fallback_file(bad, &data, None), None, "{bad}");
+        }
+        settings(&data, serde_json::json!({ "defaultRoomV2GoodSha": "../../etc" }));
+        assert_eq!(fallback_file("/rooms/default-v2/B-talk-plate.png", &data, None), None, "a sha that is not 12 hex is refused");
+    }
+
+    #[test]
+    fn the_no_chair_plate_comes_from_the_old_install_first_then_the_room_pack() {
+        let data = tmp("slim-nochair");
+        let res = tmp("slim-nochair-res");
+        assert_eq!(fallback_file("/chair3d/plate-nochair.png", &data, Some(&res)), None);
+        let pack = data.join("packs").join("room.night-city");
+        put(&pack, "zumi-pack.json", b"{}");
+        let in_pack = put(&pack, "talk-plate-nochair.png", b"p");
+        assert_eq!(fallback_file("/chair3d/plate-nochair.png", &data, Some(&res)), Some(in_pack));
+        let in_install = put(&res.join("assets").join("chair3d"), "talk-plate-nochair.png", b"i");
+        assert_eq!(fallback_file("/chair3d/plate-nochair.png", &data, Some(&res)), Some(in_install));
+        assert_eq!(fallback_file("/chair3d/other.png", &data, Some(&res)), None);
+        assert!(is_fallback_path("/rooms/default-v2/room.json") && is_fallback_path("/chair3d/plate-nochair.png"));
+        assert!(!is_fallback_path("/rooms/0123456789ab/room.glb") && !is_fallback_path("/index.html"));
+    }
+
+    #[test]
+    fn only_tauris_html_fallback_counts_as_a_missing_embedded_file() {
+        let mut html = Response::new(Cow::Borrowed(&b"<!doctype html>"[..]));
+        html.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
+        assert!(spa_fallback(&html));
+        let mut png = Response::new(Cow::Borrowed(&b"png"[..]));
+        png.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("image/png"));
+        assert!(!spa_fallback(&png));
+        assert!(!spa_fallback(&Response::new(Cow::Borrowed(&b""[..]))), "no content type: leave Tauri's answer alone");
     }
 }

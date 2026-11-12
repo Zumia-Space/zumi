@@ -69,6 +69,14 @@ pub fn pending_file(dir: &Path, version: &str) -> Option<PathBuf> {
     plain.then(|| dir.join(format!("{version}.exe")))
 }
 
+/// Where a downloaded update waits for the next start. A launch with its own data dir (`--data-dir`, or the remembered
+/// data-dir pointer) keeps it there: startup clears this folder, so pointing it at %LOCALAPPDATA%\<identifier> let a test or
+/// portable launch delete the installed app's pending update. A normal launch keeps the folder earlier versions used.
+/// `None` = no folder at all (no override and no local data dir): the updater stays off.
+pub fn pending_dir_for(app_local_data_dir: Option<&Path>, data_dir_override: Option<&Path>) -> Option<PathBuf> {
+    data_dir_override.or(app_local_data_dir).map(|base| base.join(PENDING_DIR))
+}
+
 /// Delete everything in the pending folder (startup: a pending update lasts one session). A failed delete is only logged.
 pub fn clear_pending_dir(dir: &Path) -> usize {
     let Ok(entries) = std::fs::read_dir(dir) else { return 0 };
@@ -393,18 +401,19 @@ fn pubkey_from_config(app: &AppHandle) -> String {
 
 /// `setup` calls this once the main guard is up. Decides for this launch, clears the last session's pending file and starts
 /// the check loop on its own thread. `data_dir` is the launch's data dir (`--data-dir` when given, else the app data dir): the
-/// log goes there, so a `--data-dir` launch writes nothing under %APPDATA% (alpha.14 F1).
-pub fn start(app: &AppHandle, flavour_file: bool, self_test: bool, data_dir: Option<PathBuf>) {
+/// log goes there, so a `--data-dir` launch writes nothing under %APPDATA% (alpha.14 F1). `data_dir_override` is that
+/// override alone (`None` on a normal launch): the pending folder follows it, so the launch touches nothing under %LOCALAPPDATA%.
+pub fn start(app: &AppHandle, flavour_file: bool, self_test: bool, data_dir: Option<PathBuf>, data_dir_override: Option<PathBuf>) {
     if !enabled(flavour_file, self_test, &pubkey_from_config(app), cfg!(debug_assertions)) {
         return;
     }
     let state = app.state::<State>();
     *state.log_file.lock().unwrap() = data_dir.map(|d| d.join("logs").join("updater.log"));
-    let Ok(local) = app.path().app_local_data_dir() else {
+    let local = app.path().app_local_data_dir().ok();
+    let Some(dir) = pending_dir_for(local.as_deref(), data_dir_override.as_deref()) else {
         state.log("off: no local data dir");
         return;
     };
-    let dir = local.join(PENDING_DIR);
     let cleared = clear_pending_dir(&dir);
     *state.pending_dir.lock().unwrap() = Some(dir);
     state.on.store(true, Ordering::SeqCst);
@@ -927,6 +936,19 @@ mod tests {
         let text = std::fs::read_to_string(&log).unwrap();
         assert!(text.ends_with("line with break\n") && text.len() < 64, "{text}");
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_launch_with_its_own_data_dir_keeps_the_pending_update_there() {
+        let local = Path::new("D:/real-local/space.zumia.zumi");
+        let own = Path::new("D:/probe-run/data");
+        // --data-dir (or the remembered data-dir pointer): the pending folder, and so the startup clear, stay inside it.
+        assert_eq!(pending_dir_for(Some(local), Some(own)), Some(own.join(PENDING_DIR)));
+        assert!(!pending_dir_for(Some(local), Some(own)).unwrap().starts_with(local), "never the installed app's %LOCALAPPDATA% folder");
+        assert_eq!(pending_dir_for(None, Some(own)), Some(own.join(PENDING_DIR)), "an own data dir needs no local data dir");
+        // a normal launch keeps the folder earlier versions used
+        assert_eq!(pending_dir_for(Some(local), None), Some(local.join(PENDING_DIR)));
+        assert_eq!(pending_dir_for(None, None), None);
     }
 
     #[test]

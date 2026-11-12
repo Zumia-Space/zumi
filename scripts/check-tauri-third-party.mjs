@@ -101,8 +101,8 @@ if (flavour !== 'public') {
   units.push({ path: `models/${pin.file}`, src: null, size: pin.bytes, flavour: 'owner' });
   units.push({ path: `models/${pin.licenceNoticeFile}`, src: null, size: null, flavour: 'owner' });
   const rooms = readJson('assets/rooms-video/rooms.json');
-  // owner / selftest, and since 2026-11-03 the official installer too: the 7 built-in rooms (owner 03-11)
-  for (const r of rooms.rooms) units.push({ path: `${rooms.packagedDir}/${r.file}`, src: null, size: r.bytes, pinSha: r.sha256, flavour: 'owner' });
+  // owner / selftest only: the 7 built-in rooms (owner 03-11). The slim official installer (owner 11-11 mkt-q1) has none: they are packs.
+  if (flavour !== 'official') for (const r of rooms.rooms) units.push({ path: `${rooms.packagedDir}/${r.file}`, src: null, size: r.bytes, pinSha: r.sha256, flavour: 'owner' });
 }
 // frontendDist: what is on disk (untracked files included)
 let uiCount = 0;

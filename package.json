@@ -1,7 +1,7 @@
 {
   "name": "zumi-desktop",
   "productName": "Zumi",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Zumi desktop companion: 3D VRM avatar with a visual reflex engine",
   "main": "src/main/main.js",
   "author": "Zumia Space",
@@ -43,9 +43,12 @@
     "check:speech-text": "node scripts/check-speech-text.mjs",
     "check:speech-natural": "node scripts/check-speech-natural.mjs",
     "check:market-pack": "node scripts/check-market-pack.mjs",
+    "check:market-sign": "node scripts/check-market-sign.mjs",
     "check:market-host": "node scripts/check-market-host.mjs",
     "check:market-ui": "node scripts/check-market-ui.mjs",
     "check:market-e2e": "node scripts/check-market-e2e.mjs",
+    "check:market-store-host": "node scripts/check-market-store-host.mjs",
+    "check:room-packs": "node scripts/check-room-packs.mjs",
     "check:board-step-overlap": "node scripts/check-board-step-overlap.mjs",
     "check:voice-pack": "node scripts/check-voice-pack.mjs",
     "check:soul-address": "node scripts/check-soul-address.mjs",
@@ -335,7 +338,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotesFile": "release-notes/0.3.4.md"
+      "releaseNotesFile": "release-notes/0.3.5.md"
     },
     "electronDist": "node_modules/electron/dist"
   }

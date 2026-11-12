@@ -221,9 +221,9 @@ function main() {
   // 3c5. T-31 3a-3 (GATE-SEC C4): next-ui.json beside the host exe, ONLY when the renderer was built with the next-version UI. The sidecar reads it
   // (fail-closed) to decide whether Brain's three board calls exist. flavour.json and verifyStagedFlavour are not touched.
   stageNextUiFlag(stage, path.join(repo, 'build', 'renderer'));
-  // The official installer carries the same 7 built-in rooms; in CI their source is the asset checkout
-  // (scripts/fetch-official-assets.mjs writes ZUMI_ROOMS_SRC_DIR).
-  if (flavour !== 'public') {
+  // Owner / selftest builds carry the 7 built-in rooms. The official installer carries none since the slim installer (owner 11-11
+  // mkt-q1, T-31-ROOM-slim): they install from the Marketplace as room.<id> packs.
+  if (flavour !== 'public' && flavour !== 'official') {
     try { roomVideos = stageRoomVideos(stage).count; } catch (e) { fail(e.message); }
   }
   const flavourProblems = verifyStagedFlavour(stage, flavour);

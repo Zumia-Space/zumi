@@ -144,7 +144,9 @@ function main() {
     ok(flavourProblems.length === 0, `the bundle matches the ${flavourArg} flavour (flavour.json + room videos; public: no Zumi-only asset)`, flavourProblems.join('; '));
   } else skip('the bundle matches a flavour', '(no --flavour given)');
   if (flavourArg === 'official') {
-    for (const rel of ['resources-pinned/room-v2/B-talk-plate.png', 'resources-pinned/room-v2/room.json', 'LICENSE', 'NOTICE']) ok(fs.existsSync(path.join(bundleDir, rel)), `the official bundle ships ${rel}`);
+    for (const rel of ['LICENSE', 'NOTICE']) ok(fs.existsSync(path.join(bundleDir, rel)), `the official bundle ships ${rel}`);
+    // Slim installer (owner 11-11 mkt-q1, T-31-ROOM-slim): Night City is the room.night-city Marketplace pack.
+    for (const rel of ['resources-pinned/room-v2', 'rooms-video', 'assets/chair3d/talk-plate-nochair.png']) ok(!fs.existsSync(path.join(bundleDir, rel)), `the slim official bundle has no ${rel} (a Marketplace pack)`);
   }
 
   // ---- 3d. the credit files ship (CC BY / Apache-2.0 attribution must reach the user; the Electron 0.2.11 sweep found both missing) ----

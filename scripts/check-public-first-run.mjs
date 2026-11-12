@@ -377,7 +377,8 @@ await attempt('filming', async () => {
 
 // ---------- delta of the third gate ----------
 {
-  ok(/if \(officialFlavour\) fs\.rmSync\([^\n]*PIN-MANIFEST/.test(read('tauri/prep-ui.mjs')), 'G3 the official frontend carries no room manifest either');
+  // Slim installer (owner 11-11 mkt-q1): the official frontend embeds no room at all, so no room manifest either.
+  ok(/else if \(officialFlavour\) console\.log\([^\n]*Marketplace pack/.test(read('tauri/prep-ui.mjs')), 'G3 the official frontend carries no room (and so no room manifest)');
   ok(!/Fable ruling|the owner's own OpenRouter/.test(read('src/main/chat-brain.js').split('\n').slice(0, 3).join('\n')), 'G3 chat-brain opens with no internal words');
   ok(!/CoS ruling/.test(read('src/renderer/next/theme-a.css')), 'G3 shipped CSS names no internal ruling');
   ok(/`export of \$\{/.test(fs.existsSync(path.join(ROOT, 'scripts/check-export.mjs')) ? read('scripts/check-export.mjs') : '`export of ${'), 'G3 the export commit says which tree commit it is');

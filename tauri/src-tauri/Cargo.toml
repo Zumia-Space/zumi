@@ -1,6 +1,6 @@
 [package]
 name = "zumi-preview"
-version = "0.3.4"
+version = "0.3.5"
 description = "T-31 P1a — Zumi Tauri preview shell (reversible scaffolding; Electron 0.2.3 stays the shipped app)"
 authors = ["Zumia Space"]
 edition = "2021"
@@ -59,6 +59,9 @@ png = "0.17"
 base64 = "0.23"
 # Node runtime download check (node_runtime.rs): sha256 of the downloaded archive. Already in Cargo.lock via tauri.
 sha2 = "0.10"
+# MKT (ADR 2026-11-11-pack-system): the Rust host re-verifies the signed store index. minisign-verify 0.3 is already in
+# Cargo.lock through tauri-plugin-updater: an edge, not a crate.
+minisign-verify = "0.3"
 # T-31-MOBILE M3: the phone pairing QR (phone_pair.rs), encoded in the host so the bundle text never reaches the page.
 # SVG renderer only: no image crate.
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }

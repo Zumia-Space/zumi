@@ -45,6 +45,9 @@ mod host_path;
 mod node_runtime;
 mod open_path;
 mod os_signals;
+mod pack_host;
+#[cfg(test)]
+mod pack_host_tests;
 mod phone_pair;
 mod rpc_allow_list;
 mod shell_ops;
@@ -1563,6 +1566,10 @@ pub fn run() {
     let self_test = mode.with_user_data_dir(resolved.dir);
     // Electron's avatar switch, read once here so the sidecar spawn and the /external/test.vrm route agree.
     test_model::init(&argv);
+    // MKT: `--pack-dir <folder>` (owner flavour only, checked in setup) loads one unpacked pack without the store;
+    // `--pack-links-dry` makes links.open log instead of opening the OS browser (test runs). Read once, here.
+    let pack_dir_arg = argv.windows(2).find(|w| w[0] == "--pack-dir").map(|w| PathBuf::from(&w[1]));
+    let pack_links_dry = argv.iter().any(|a| a == "--pack-links-dry");
 
     tauri::Builder::default()
         .manage(client)
@@ -1573,6 +1580,36 @@ pub fn run() {
         .manage(os_signals::OsSignals::default())
         .manage(guest_cdp::RunWatchdog::default())
         .manage(updater::State::default())
+        .manage(pack_host::PackState::default())
+        // MKT: the web-app pack files + bridge (pack_host.rs). The requesting webview's LABEL decides which pack it may
+        // reach; any webview that is not a bound pack guest gets a 404.
+        .register_asynchronous_uri_scheme_protocol(pack_host::SCHEME, |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            let label = ctx.webview_label().to_string();
+            tauri::async_runtime::spawn_blocking(move || {
+                let state = app.state::<pack_host::PackState>();
+                let data_dir = state.data_dir.lock().unwrap().clone();
+                let resource_dir = app.path().resource_dir().ok();
+                let avatar = || pack_host::current_avatar(data_dir.as_deref(), resource_dir.as_deref());
+                let dry = state.links_dry.load(Ordering::SeqCst);
+                let link_app = app.clone();
+                let mut open_link = |url: &str| -> Result<(), String> {
+                    if dry {
+                        pack_host::log_line(data_dir.as_deref(), "links.open dry run (not opened)");
+                        return Ok(());
+                    }
+                    let url = url.to_string();
+                    link_app
+                        .run_on_main_thread(move || {
+                            if let Err(e) = shell_ops::open_external(&url) {
+                                eprintln!("pack: links.open failed {e}");
+                            }
+                        })
+                        .map_err(|e| format!("shell_dispatch:{e}"))
+                };
+                responder.respond(pack_host::handle_request(&state, &label, &request, &avatar, &mut open_link));
+            });
+        })
         // Rust-driven only: no capability grants the plugin's commands to any webview (capabilities/default.json).
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
@@ -1581,7 +1618,8 @@ pub fn run() {
             guest::guest_navigate,
             guest::guest_bounds,
             guest::guest_close,
-            guest_cdp::guest_cdp
+            guest_cdp::guest_cdp,
+            pack_host::pack_list
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -1593,7 +1631,21 @@ pub fn run() {
                     }
                 }
             }
-            let flavour_file = std::env::current_exe().ok().as_deref().and_then(flavour_beside).is_some();
+            let flavour = std::env::current_exe().ok().as_deref().and_then(flavour_beside);
+            let flavour_file = flavour.is_some();
+            {
+                let packs = app.state::<pack_host::PackState>();
+                *packs.data_dir.lock().unwrap() = self_test.data_dir_or(app.path().app_data_dir().ok().as_deref());
+                packs.links_dry.store(pack_links_dry, Ordering::SeqCst);
+                if let Some(dir) = &pack_dir_arg {
+                    if host_owner(flavour.as_ref()) && pack_host::plain_dir(dir) {
+                        *packs.dev_dir.lock().unwrap() = Some(dir.clone());
+                        eprintln!("pack: dev folder on (owner flavour)");
+                    } else {
+                        eprintln!("pack: --pack-dir ignored (owner flavour and an absolute folder only)");
+                    }
+                }
+            }
             // A stranger's build: one app per data folder. Before the sidecar, so a second launch starts nothing and asks nothing.
             #[cfg(windows)]
             if !flavour_file && !self_test.enabled() {
@@ -1645,7 +1697,7 @@ pub fn run() {
                 guest_requests::enable();
             }
             os_signals::start_idle_ticker(handle.clone());
-            updater::start(&handle, flavour_file, self_test.enabled(), self_test.data_dir_or(app.path().app_data_dir().ok().as_deref()));
+            updater::start(&handle, flavour_file, self_test.enabled(), self_test.data_dir_or(app.path().app_data_dir().ok().as_deref()), self_test.user_data_dir().map(Path::to_path_buf));
             Ok(())
         })
         .build(app_context())

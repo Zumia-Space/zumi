@@ -1,0 +1,57 @@
+{
+ "files": [
+  {
+   "path": "LICENSE.txt",
+   "sha256": "189fe2598229581d863a3264ffee8af4ce3a5f9be33e21ecff466d8879b690ca",
+   "bytes": 123
+  },
+  {
+   "path": "ui/canary.js",
+   "sha256": "08f5eee3385d0f8ae89628e05fe0b139ee3b9e1786edcd86a9e0360a64ceacda",
+   "bytes": 5319
+  },
+  {
+   "path": "ui/icon.svg",
+   "sha256": "6b05ef1fc3a131a106da51bf83c9bd67073a8e28854228a9bd04325c278a583e",
+   "bytes": 111
+  },
+  {
+   "path": "ui/index.html",
+   "sha256": "e7cff9b9dad0f43e9c7bbb50dbf1a7b27e356b95b7500e2255ea1494bac268e8",
+   "bytes": 477
+  }
+ ],
+ "format": "zumi-pack/1",
+ "id": "plugin.canary",
+ "kind": "plugin",
+ "version": "1.0.0",
+ "name": {
+  "en": "Canary",
+  "vi": "Canary"
+ },
+ "author": {
+  "name": "Zumia"
+ },
+ "licence": {
+  "spdx": "Apache-2.0",
+  "file": "LICENSE.txt"
+ },
+ "plugin": {
+  "api": 1,
+  "ui": "ui/index.html",
+  "tab": {
+   "label": {
+    "en": "Canary",
+    "vi": "Canary"
+   },
+   "icon": "ui/icon.svg"
+  },
+  "permissions": {
+   "storage": true,
+   "links": {
+    "docs": "https://zumia.space/"
+   },
+   "net": []
+  }
+ }
+}

@@ -51,6 +51,7 @@ import { createShotsFixtures } from './shots-fixtures.mjs';
 import { adoptDefaultOnBoot, createRestoreDefault } from './default-model-boot.mjs';
 import { providerFetch, guardedFetch, PROVIDER_ORIGINS, cloudFetch, mirrorFetch, jevFetch, ttsFetch, marketFetch, selfTestFetch, isSelfTestRun } from './egress.mjs';
 import { createMarketHost } from './market-host.mjs';
+import { STORE_KEYS, storeSource } from './market-keys.mjs';
 import { readOwnerVoiceFlag, voiceProviderPrefs } from '../../src/main/tts-select.js';
 import { phoneAiAndRedact } from './phone-extras.mjs';
 import {
@@ -420,9 +421,11 @@ function buildHandlers(ctx) {
     voiceStateOverride: ctx.shotsFixtures ? () => ctx.shotsFixtures.voiceState() : null,
     log: (m) => process.stderr.write(`[sidecar] ${m}\n`),
   });
-  // Owner 01-11: free voices are add-ons from the Marketplace, not part of the installer.
+  // Owner 01-11: free voices are add-ons from the Marketplace, not part of the installer. Owner 11-11 (mkt-q1): the voice, the
+  // default room and the video rooms all come from the signed store index (T-31-ROOM-slim), never from a list compiled in here.
   const market = createMarketHost({
     dataDir: ctx.dataDir, fetchImpl: marketFetch(baseFetch, egressLog), emit: ctx.emit,
+    store: { source: storeSource(), publicKeys: STORE_KEYS },
     bundled: (id) => id === 'voice.kokoro-82m' && voice.kokoroBundled(),
     model: voice.kokoroModel,
     log: (m) => process.stderr.write(`[sidecar] ${m}\n`),

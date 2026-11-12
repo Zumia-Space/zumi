@@ -93,17 +93,19 @@ const chairSrc = path.join(root, 'assets', 'chair3d');
 if (fs.existsSync(path.join(chairSrc, 'chairs.json'))) {
   const man = JSON.parse(fs.readFileSync(path.join(chairSrc, 'chairs.json'), 'utf8'));
   fs.mkdirSync(path.join(uiDir, 'chair3d'), { recursive: true });
-  if (!publicFlavour && man.noChairPlate && man.noChairPlate.file) fs.copyFileSync(path.join(chairSrc, man.noChairPlate.file), path.join(uiDir, 'chair3d', 'plate-nochair.png'));
+  // The official build embeds no plate either: it is part of the room.night-city pack (asset_route.rs fallback_file serves it).
+  if (!publicFlavour && !officialFlavour && man.noChairPlate && man.noChairPlate.file) fs.copyFileSync(path.join(chairSrc, man.noChairPlate.file), path.join(uiDir, 'chair3d', 'plate-nochair.png'));
   for (const c of man.chairs || []) if (/^[a-z0-9-]+$/.test(c.id)) fs.copyFileSync(path.join(chairSrc, c.file), path.join(uiDir, 'chair3d', `${c.id}.glb`));
 }
 
 // 4. the default v2 room — served (and sha-checked) from the app's own copy in Electron; static here.
 const roomSrc = path.join(root, 'resources-pinned', 'room-v2');
 if (publicFlavour) console.log('prep-ui: public flavour -- no default room, no plates, no bundled .vrm (Zumi-only assets)');
+// Slim official installer (owner 11-11 mkt-q1): Night City is the room.night-city Marketplace pack. The Rust route answers
+// rooms/default-v2/* from its validated copy in the data dir when this frontend does not embed it (asset_route.rs fallback_file).
+else if (officialFlavour) console.log('prep-ui: official flavour -- Night City is a Marketplace pack, not embedded');
 else if (fs.existsSync(roomSrc)) {
   copyDir(roomSrc, path.join(uiDir, 'rooms', 'default-v2'));
-  // stripOfficialUiManifest: the app never reads it, and its notes name a path on the owner's machine.
-  if (officialFlavour) fs.rmSync(path.join(uiDir, 'rooms', 'default-v2', 'PIN-MANIFEST.json'), { force: true });
 }
 else console.warn('prep-ui: resources-pinned/room-v2 missing — the room switch will have no default');
 

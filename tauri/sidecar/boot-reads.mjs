@@ -29,6 +29,7 @@ import {
 } from './adapters.mjs';
 import { voicePrefsOf } from '../../src/main/talk-voice-core.mjs';
 import { defaultSampleDetector } from './default-model-boot.mjs';
+import { NIGHT_CITY_PACK, installedPackDir } from './room-packs.mjs';
 
 // Imported rooms are keyed by roomContentId(): the first 12 hex chars of a sha256 (room-check.mjs).
 export const ROOM_ID = /^[0-9a-f]{12}$/;
@@ -94,9 +95,18 @@ export function createBootReads({ dataDir, settings, saveSettings, log = () => {
   const roomV2Cache = createDefaultRoomV2Cache();
   const roomsStore = () => path.join(dataDir, 'rooms');
   const roomV2Dir = (sha) => path.join(roomsStore(), 'default-v2', sha);
+  // T-31-ROOM-slim: the official installer no longer carries the painted default room; it is the Marketplace pack
+  // room.night-city. The build's pinned copy still wins where it exists (owner builds, and an older install the updater
+  // overwrote in place, which keeps its resources-pinned folder), so an update re-downloads nothing.
+  const roomV2Source = () => {
+    const pinned = where.roomV2Json || roomV2DefaultPath(settings());
+    if (where.roomV2Json || fs.existsSync(pinned)) return pinned;
+    const pack = installedPackDir(dataDir, NIGHT_CITY_PACK);
+    return pack && fs.existsSync(path.join(pack, 'room.json')) ? path.join(pack, 'room.json') : pinned;
+  };
   // The validated copy of the v2 default room that is actually served (and the only file saveView may write).
   function servedRoomV2Json() {
-    const defV2 = ensureDefaultRoomV2Copy(roomV2Cache, where.roomV2Json || roomV2DefaultPath(settings()), roomV2Dir, settingsStore);
+    const defV2 = ensureDefaultRoomV2Copy(roomV2Cache, roomV2Source(), roomV2Dir, settingsStore);
     return defV2.sha ? path.join(roomV2Dir(defV2.sha), 'room.json') : null;
   }
   async function listRooms() {
@@ -108,8 +118,9 @@ export function createBootReads({ dataDir, settings, saveSettings, log = () => {
       try { check = JSON.parse(fs.readFileSync(path.join(roomsStore(), r.id, 'check.json'), 'utf8')); } catch { /* best-effort only */ }
       rooms.push(roomEntry(r.id, r.manifest, { warnings: (check && check.warnings) || [], stats: (check && check.stats) || null, fileBase: r.fileBase }));
     }
-    const defV2 = ensureDefaultRoomV2Copy(roomV2Cache, where.roomV2Json || roomV2DefaultPath(settings()), roomV2Dir, settingsStore);
-    if (defV2.sha) {
+    const defV2 = ensureDefaultRoomV2Copy(roomV2Cache, roomV2Source(), roomV2Dir, settingsStore);
+    // Listed only while its validated copy is on disk: a removed pack (copy deleted) must not leave a room that 404s.
+    if (defV2.sha && fs.existsSync(path.join(roomV2Dir(defV2.sha), 'room.json'))) {
       let name = 'Camera-modes stand-in';
       try { name = JSON.parse(fs.readFileSync(path.join(roomV2Dir(defV2.sha), 'room.json'), 'utf8')).name || name; } catch { /* keep the fallback label */ }
       rooms.push({ id: 'default-v2', source: 'default-v2', schemaVersion: 2, label: name, hasManifest: true, url: 'app://zumi/rooms/default-v2/room.json', warnings: defV2.cacheHit ? [] : [], stats: null });
@@ -128,6 +139,7 @@ export function createBootReads({ dataDir, settings, saveSettings, log = () => {
   const sceneRooms = createSceneRooms({
     manifestPath: where.scenesManifest,
     resolveVideoDir: (manifest) => (sceneVideoDir = roomsVideoDir(manifest)),
+    packVideoDir: (id) => installedPackDir(dataDir, `room.${id}`),
     settings: settingsStore,
     log: (m) => log(`[scenes] ${m}`),
   });
@@ -186,10 +198,12 @@ export function createBootReads({ dataDir, settings, saveSettings, log = () => {
       const rest = rel.slice('scenes/'.length);
       // The same roots boot's sceneRooms was built on: the resolved video folder (env override, else <resources>/rooms-video) for an .mp4, the manifest's own folder
       // for the chair plate. resolvePath already size+sha256 checks a listed video.
+      const file = sceneRooms.resolvePath(rest);
+      // A video from a room pack sits in that pack's own folder (Rust derives the same root from the route id).
+      const packRoot = rest !== 'chair' && file ? installedPackDir(dataDir, `room.${rest.replace(/\.mp4$/, '')}`) : null;
       const root = rest === 'chair'
         ? path.dirname(where.scenesManifest)
-        : sceneVideoDir;
-      const file = sceneRooms.resolvePath(rest);
+        : (file && packRoot && path.dirname(file) === packRoot ? packRoot : sceneVideoDir);
       if (!file || !root || !isRegularFile(file) || path.dirname(file) !== root) return null;
       return { path: file, root };
     }

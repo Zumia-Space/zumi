@@ -14,11 +14,11 @@ Zumi is a desktop companion: an animated 3D character who lives in a room on you
 ## What Zumi does today
 
 - **A 3D character on your desktop.** Zumi is a VRM model rendered with three.js. She idles, gestures in reaction to what you type and moves her mouth while she speaks. You can load your own `.vrm` model from the top bar.
-- **Rooms and camera views.** She sits in a room, with talk, work and room views. The official installer ships the Zumi avatar and its rooms; you can also open a room file of your own.
+- **Rooms and camera views.** She sits in a room, with talk, work and room views. The official installer ships the Zumi avatar; the rooms (Night City and 7 video rooms) are free packs in the Marketplace, and on first start one click installs Night City. You can also open a room file of your own.
 - **Chat with your own AI key.** You bring a key and your messages go straight from your PC to that provider. Built-in presets cover Google Gemini, Groq, OpenRouter and Cloudflare Workers AI, which all have free tiers, plus Mistral as an advanced option. Keys are stored encrypted on your PC (Windows DPAPI).
 - **A personality you can set.** In **Settings > Agent & Soul** you choose her name, how she addresses you, her style and the reply language.
 - **Memory notes.** Notes you write are kept in a local SQLite file and quoted to your AI provider when they matter. Conversations themselves are not stored. You can list, search, delete and export notes.
-- **Voice.** Free Windows voices out of the box. Cloud voices (Gemini, ElevenLabs) with your own key. A local Kokoro-82M voice pack is listed in the Marketplace and marked "Coming soon" until it is published.
+- **Voice.** Free Windows voices out of the box. Cloud voices (Gemini, ElevenLabs) with your own key. A local Kokoro-82M voice (English) is a free Marketplace pack; it downloads its voice model (about 164 MB) once.
 - **Marketplace.** Free packs made by Zumia; each pack is pinned by its sha256 and size before it installs.
 - **Usage view.** **Settings > AI & Usage** shows calls, tokens and estimated cost for today, the last 7 days and the last 30 days.
 - **Three interface languages.** English, Vietnamese and Chinese.
@@ -33,7 +33,7 @@ Zumi is a preview, and parts of it are experimental. Expect rough edges, and exp
 | Windows 10/11 (x64) | Supported, official installer |
 | macOS | Built, untested, testers wanted |
 | Linux | Not started |
-| Kokoro voice pack | Listed, "Coming soon" |
+| Kokoro voice pack | Free in the Marketplace (English only) |
 | Marketplace skills, plugins, agent packs | Not there yet |
 | Code signing | The Windows installer is not Authenticode-signed yet, so SmartScreen warns (updates are still signature-checked) |
 

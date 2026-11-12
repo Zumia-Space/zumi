@@ -20,6 +20,8 @@ fn main() {
             "guest_navigate",
             "guest_bounds",
             "guest_close",
+            // MKT: the tab bar's list of installed web-app packs (pack_host.rs). Main webview only.
+            "pack_list",
             // Parity 12-2: the CDP self-test command. Its permission is never in the shipped capabilities; lib.rs
             // adds capabilities-selftest/selftest.json at runtime ONLY when the host was launched with a self-test
             // CLI flag, so a normal launch cannot reach it (Q5).

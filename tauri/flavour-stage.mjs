@@ -119,11 +119,8 @@ export function verifyStagedFlavour(dir, name, { manifestPath = ROOMS_MANIFEST }
   const want = flavourFileText(name);
   if (want === null) {
     if (fs.existsSync(file)) problems.push(`${FLAVOUR_FILE} present in a public bundle`);
-    // official (2026-11-03): exactly the manifest's 7 room videos, every one pinned; public: none.
-    if (name === 'official') {
-      if (!fs.existsSync(videos)) problems.push(`${manifest.packagedDir} missing from an official bundle`);
-      else problems.push(...verifyStagedRoomVideos(dir, manifest));
-    } else if (fs.existsSync(videos)) problems.push(`${manifest.packagedDir} present in a public bundle`);
+    // public and, since the slim installer (owner 11-11 mkt-q1), official: no room video; the 7 rooms are Marketplace packs.
+    if (fs.existsSync(videos)) problems.push(`${manifest.packagedDir} present in a ${name} bundle`);
     const denied = name === 'official' ? isOfficialDenied : isZumiOnly;
     for (const rel of walkRel(dir)) if (denied(rel)) problems.push(`Zumi-only asset in a ${name} bundle: ${rel}`);
     return problems;
