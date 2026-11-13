@@ -16,7 +16,7 @@ import cloudModule from '../../src/main/cloud.js'; // talk.status (the same crea
 import ttsSelect from '../../src/main/tts-select.js'; // talk.getVoicePrefs: the provider/lang/voice-config fields (0.2.5 talk-mode)
 import { createSceneRooms } from '../../src/main/scene-rooms.mjs';
 import { createChairs } from '../../src/main/chair3d.mjs';
-import { createDefaultRoomV2Cache, ensureDefaultRoomV2Copy } from '../../src/main/room-default-v2.mjs';
+import { createDefaultRoomV2Cache, defaultRoomV2Usable, ensureDefaultRoomV2Copy } from '../../src/main/room-default-v2.mjs';
 import { resolveRoomLaunch, roomPickPatch } from '../../src/main/room-default.mjs';
 // Step 4 (import / save-view): the room checker, unchanged (the same functions main.js loads dynamically).
 import { checkRoomFile, checkRoomJsonFile, roomContentId } from '../../src/main/room-check.mjs';
@@ -33,7 +33,7 @@ export const repoRoot = path.resolve(here, '..', '..');
 
 export {
   providers, openLocalBoard, decideWebviewAttach, decideExternalUrl, appendRefusal,
-  createSceneRooms, createChairs, createDefaultRoomV2Cache, ensureDefaultRoomV2Copy, resolveRoomLaunch, roomPickPatch,
+  createSceneRooms, createChairs, createDefaultRoomV2Cache, defaultRoomV2Usable, ensureDefaultRoomV2Copy, resolveRoomLaunch, roomPickPatch,
   checkRoomFile, checkRoomJsonFile, roomContentId,
 };
 export const { createModels, isVrmFile } = modelsCore;

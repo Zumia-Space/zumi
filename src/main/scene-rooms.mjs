@@ -97,6 +97,11 @@ export function createSceneRooms({ manifestPath, resolveVideoDir, packVideoDir =
   }
 
   function available() { return manifest ? manifest.rooms.filter((r) => fileOk(r)) : []; }
+  /** True when the build's own folder holds this room's pinned video (no pack needed): the Marketplace reads it Built-in. */
+  function builtIn(id) {
+    const r = manifest && videoDir ? manifest.rooms.find((x) => x.id === id) : null;
+    return Boolean(r && pinned(path.join(videoDir, r.file), r));
+  }
 
   function list() {
     const rooms = available();
@@ -124,5 +129,5 @@ export function createSceneRooms({ manifestPath, resolveVideoDir, packVideoDir =
     return r ? fileOk(r) : null;
   }
 
-  return { list, select, resolvePath };
+  return { list, select, resolvePath, builtIn };
 }

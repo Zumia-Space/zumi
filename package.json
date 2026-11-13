@@ -1,7 +1,7 @@
 {
   "name": "zumi-desktop",
   "productName": "Zumi",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Zumi desktop companion: 3D VRM avatar with a visual reflex engine",
   "main": "src/main/main.js",
   "author": "Zumia Space",
@@ -338,7 +338,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotesFile": "release-notes/0.3.5.md"
+      "releaseNotesFile": "release-notes/0.3.6.md"
     },
     "electronDist": "node_modules/electron/dist"
   }

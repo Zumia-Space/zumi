@@ -426,7 +426,7 @@ function buildHandlers(ctx) {
   const market = createMarketHost({
     dataDir: ctx.dataDir, fetchImpl: marketFetch(baseFetch, egressLog), emit: ctx.emit,
     store: { source: storeSource(), publicKeys: STORE_KEYS },
-    bundled: (id) => id === 'voice.kokoro-82m' && voice.kokoroBundled(),
+    bundled: (id) => (id === 'voice.kokoro-82m' && voice.kokoroBundled()) || boot.roomBuiltIn(id),
     model: voice.kokoroModel,
     log: (m) => process.stderr.write(`[sidecar] ${m}\n`),
   });

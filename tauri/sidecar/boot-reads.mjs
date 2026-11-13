@@ -18,6 +18,7 @@ import {
   createChairs,
   createCloud,
   createDefaultRoomV2Cache,
+  defaultRoomV2Usable,
   createModels,
   createSceneRooms,
   ensureDefaultRoomV2Copy,
@@ -98,9 +99,14 @@ export function createBootReads({ dataDir, settings, saveSettings, log = () => {
   // T-31-ROOM-slim: the official installer no longer carries the painted default room; it is the Marketplace pack
   // room.night-city. The build's pinned copy still wins where it exists (owner builds, and an older install the updater
   // overwrote in place, which keeps its resources-pinned folder), so an update re-downloads nothing.
+  // The build's copy wins only while it is usable (defaultRoomV2Usable: room check, every asset, its PIN-MANIFEST where present),
+  // the same answer ensureDefaultRoomV2Copy copies by; a broken one falls through to the pack. Own cache: the copy's check
+  // cache holds one path at a time and would thrash between the two.
+  const roomV2BuiltinCache = createDefaultRoomV2Cache();
+  const roomV2Builtin = () => defaultRoomV2Usable(roomV2BuiltinCache, where.roomV2Json || roomV2DefaultPath(settings())).ok;
   const roomV2Source = () => {
     const pinned = where.roomV2Json || roomV2DefaultPath(settings());
-    if (where.roomV2Json || fs.existsSync(pinned)) return pinned;
+    if (roomV2Builtin()) return pinned;
     const pack = installedPackDir(dataDir, NIGHT_CITY_PACK);
     return pack && fs.existsSync(path.join(pack, 'room.json')) ? path.join(pack, 'room.json') : pinned;
   };
@@ -143,6 +149,13 @@ export function createBootReads({ dataDir, settings, saveSettings, log = () => {
     settings: settingsStore,
     log: (m) => log(`[scenes] ${m}`),
   });
+  // A room pack whose room the build itself provides (the same "the build's copy wins" as above): the Marketplace reads it
+  // Built-in, so an install updated in place is never offered a download of rooms it has, nor a Remove of files it does not own.
+  const roomBuiltIn = (packId) => {
+    if (packId === NIGHT_CITY_PACK) return roomV2Builtin();
+    const m = /^room\.([a-z0-9-]+)$/.exec(String(packId));
+    return Boolean(m) && sceneRooms.builtIn(m[1]);
+  };
   const chairs3d = createChairs({ manifestPath: where.chairsManifest, settings: settingsStore, log: (m) => log(`[chair3d] ${m}`) });
 
   // --- talk.status (main.js:933) ---
@@ -217,6 +230,7 @@ export function createBootReads({ dataDir, settings, saveSettings, log = () => {
     listRooms,
     roomsStore,
     servedRoomV2Json,
+    roomBuiltIn,
     listScenes: () => appUrls(sceneRooms.list()),
     selectScene: (id) => appUrls(sceneRooms.select(String(id))),
     listChairs: () => appUrls(chairs3d.list()),

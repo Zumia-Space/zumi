@@ -186,6 +186,75 @@ const ids = (l) => l.items.map((i) => i.id).sort().join();
   ok(h['market.remove']('room.night-city').ok && !fs.existsSync(path.join(d, 'rooms', 'default-v2')) && !fs.existsSync(path.join(d, 'packs', 'room.night-city')), 'remove deletes the pack and the copy the room was served from');
 }
 
+// ---------- a room the build already has reads Built-in, never Install (update smoke 0.3.4 -> 0.3.5, shot 05) ----------
+// The sidecar's `bundled` answer for a room pack is boot-reads' roomBuiltIn: the same "the build's own copy wins" the loaders use.
+{
+  const { createBootReads } = await import('../tauri/sidecar/boot-reads.mjs');
+  const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..');
+  const manifest = JSON.parse(fs.readFileSync(path.join(repo, 'assets', 'rooms-video', 'rooms.json'), 'utf8'));
+  const video = Buffer.from('the 0.3.4 install video');
+  const m = manifest.rooms.find((r) => r.id === 'beach-cabin'); Object.assign(m, { bytes: video.length, sha256: sha256(video) });
+  const manifestPath = path.join(fresh('m'), 'rooms.json'); fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+  const envV = process.env.ZUMI_ROOMS_VIDEO_DIR;
+  const store = writeStore(fresh('s'), [ROOM]);
+  const builtInHost = (d) => {
+    const settings = () => ({});
+    const boot = createBootReads({ dataDir: d, settings, saveSettings: () => {}, dirs: { scenesManifest: manifestPath } });
+    return host(d, store, { bundled: (id) => typeof boot.roomBuiltIn === 'function' && boot.roomBuiltIn(id) }).handlers;
+  };
+  const stateOf = async (h) => { h['market.list'](); await settle(); return h['market.list']().items.find((i) => i.id === 'room.beach-cabin').state; };
+  // upgraded 0.3.4 layout: the old install's rooms-video holds the room, no pack
+  const own = fresh('own'); const ownFile = path.join(own, m.file); fs.writeFileSync(ownFile, video);
+  process.env.ZUMI_ROOMS_VIDEO_DIR = own;
+  {
+    const d = fresh('d'); const h = builtInHost(d);
+    ok(await stateOf(h) === 'bundled', 'upgraded 0.3.4 layout: the room reads Built-in, not Install', await stateOf(h));
+    const r = await h['market.install']('room.beach-cabin');
+    ok(!r.ok && r.code === 'bundled' && !fs.existsSync(path.join(d, 'packs', 'room.beach-cabin')), 'clicking it downloads nothing', JSON.stringify(r));
+    const rm = h['market.remove']('room.beach-cabin');
+    ok(!rm.ok && rm.code === 'bundled' && fs.readFileSync(ownFile).equals(video), "remove is refused and the old install's file stays", JSON.stringify(rm));
+  }
+  // fresh slim install: no build copy -> Install; then the pack installed -> Installed (removable)
+  process.env.ZUMI_ROOMS_VIDEO_DIR = fresh('novideo');
+  {
+    const d = fresh('d'); const h = builtInHost(d);
+    ok(await stateOf(h) === 'available', 'fresh slim install: the room offers Install');
+    ok((await h['market.install']('room.beach-cabin')).ok && await stateOf(h) === 'installed', 'pack installed: the room reads Installed');
+    ok(h['market.remove']('room.beach-cabin').ok, 'and an installed pack can still be removed');
+  }
+  if (envV === undefined) delete process.env.ZUMI_ROOMS_VIDEO_DIR; else process.env.ZUMI_ROOMS_VIDEO_DIR = envV;
+  // Night City: a good old copy reads Built-in; a broken one (garbage room.json) offers Install and the pack installs
+  const pinnedRoom = path.join(repo, 'resources-pinned', 'room-v2');
+  if (fs.existsSync(path.join(pinnedRoom, 'room.json'))) {
+    const envR = process.env.ZUMI_ROOM_V2_DEFAULT_PATH;
+    const nc = { ...ROOM, manifest: { ...roomManifest, id: 'room.night-city' }, meta: { activates: 'default-v2' } };
+    nc.zip = packZip(nc.manifest, { 'LICENSE.txt': 'Zumia', '06-beach-cabin-studio-2710.mp4': mp4() });
+    nc.manifestOnDisk = await manifestOf(nc.zip);
+    const ncStore = writeStore(fresh('s'), [nc]);
+    const ncHost = (d) => {
+      const boot = createBootReads({ dataDir: d, settings: () => ({}), saveSettings: () => {}, dirs: { scenesManifest: manifestPath } });
+      return host(d, ncStore, { bundled: (id) => typeof boot.roomBuiltIn === 'function' && boot.roomBuiltIn(id) }).handlers;
+    };
+    const ncState = async (h) => { h['market.list'](); await settle(); return h['market.list']().items.find((i) => i.id === 'room.night-city').state; };
+    process.env.ZUMI_ROOM_V2_DEFAULT_PATH = path.join(pinnedRoom, 'room.json');
+    ok(await ncState(ncHost(fresh('d'))) === 'bundled', 'Night City, good old copy: Built-in');
+    const broken = fresh('old'); fs.cpSync(pinnedRoom, broken, { recursive: true }); fs.writeFileSync(path.join(broken, 'room.json'), '{ not a room');
+    process.env.ZUMI_ROOM_V2_DEFAULT_PATH = path.join(broken, 'room.json');
+    const d = fresh('d'); const h = ncHost(d);
+    ok(await ncState(h) === 'available', 'Night City, garbage old room.json: Install is offered (not a stuck Built-in)');
+    ok((await h['market.install']('room.night-city')).ok && fs.existsSync(path.join(d, 'packs', 'room.night-city', 'zumi-pack.json')), '  and Install downloads the pack');
+    // official layout (no PIN-MANIFEST) with a truncated plate: the in-app official hashes catch it
+    const cut = fresh('old'); fs.cpSync(pinnedRoom, cut, { recursive: true }); fs.rmSync(path.join(cut, 'PIN-MANIFEST.json'));
+    const plateFile = path.join(cut, 'B-talk-plate.png'); fs.writeFileSync(plateFile, fs.readFileSync(plateFile).subarray(0, 1000));
+    process.env.ZUMI_ROOM_V2_DEFAULT_PATH = path.join(cut, 'room.json');
+    ok(await ncState(ncHost(fresh('d'))) === 'available', 'Night City, official 0.3.4 layout with a truncated plate: Install is offered');
+    if (envR === undefined) delete process.env.ZUMI_ROOM_V2_DEFAULT_PATH; else process.env.ZUMI_ROOM_V2_DEFAULT_PATH = envR;
+  }
+  // the real sidecar hands that answer to the Marketplace
+  const mainSrc = fs.readFileSync(path.join(repo, 'tauri', 'sidecar', 'main.mjs'), 'utf8');
+  ok(/bundled:\s*\(id\)\s*=>[^\n]*boot\.roomBuiltIn\(id\)/.test(mainSrc), 'sidecar main.mjs: bundled() includes boot.roomBuiltIn(id)');
+}
+
 // ---------- the page: the Start strip and store rows (src/renderer/market.js, pure parts) ----------
 {
   const { startState, buildRows, STARTER } = await import('../src/renderer/market.js');
