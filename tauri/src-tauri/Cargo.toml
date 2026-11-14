@@ -1,6 +1,6 @@
 [package]
 name = "zumi-preview"
-version = "0.3.6"
+version = "0.3.7"
 description = "T-31 P1a — Zumi Tauri preview shell (reversible scaffolding; Electron 0.2.3 stays the shipped app)"
 authors = ["Zumia Space"]
 edition = "2021"

@@ -71,6 +71,10 @@ function assertAllowedUpstream(upstream, allowTestUpstream) {
   throw new Error(`live board egress refused: ${upstream} is not ${LIVE_ORIGIN}${allowTestUpstream ? ' and not an http(s) 127.0.0.1/localhost test override' : ''}`);
 }
 
+// Bridge restart backoff (see ensureBridge): 1 s doubling to 30 s; a bridge that stayed up a minute resets it.
+const BRIDGE_BACKOFF = { baseMs: 1_000, maxMs: 30_000 };
+const BRIDGE_STABLE_MS = 60_000;
+
 /**
  * @param {object} o
  * @param {object} o.safeStorage     Electron's safeStorage (or a test fake with the same 3 methods)
@@ -84,12 +88,15 @@ function assertAllowedUpstream(upstream, allowTestUpstream) {
  * @param {typeof createBridge} [o.createBridgeImpl]  injectable for tests
  * @param {boolean} [o.ownerOps]  owner build only (main.js OWNER_ADMIN): the bridge's page channel may write lane
  *   routing (routing.set/reset, roles.set/reset). The release build leaves it false and keeps the 403.
+ * @param {{baseMs:number, maxMs:number}} [o.bridgeBackoff]  restart delay after the bridge goes down by itself: baseMs,
+ *   doubling per failed restart, capped at maxMs (tests shorten it)
  */
-export function createLiveBoard({ safeStorage, secretsDir, publicDir, now, log = () => {}, upstream = LIVE_UPSTREAM, allowTestUpstream = false, createBridgeImpl = createBridge, ownerOps = false }) {
+export function createLiveBoard({ safeStorage, secretsDir, publicDir, now, log = () => {}, upstream = LIVE_UPSTREAM, allowTestUpstream = false, createBridgeImpl = createBridge, ownerOps = false, bridgeBackoff = BRIDGE_BACKOFF }) {
   assertAllowedUpstream(upstream, allowTestUpstream);
   const rawSecrets = createSecretsController({ safeStorage, dir: secretsDir, now, log });
   let bridge = null;
   let mode = upstream && rawSecrets.status().configured ? 'live' : 'local';
+  log(`live board mode at start: ${mode}`);
   // T-31 0.2.11 auth-401: the live board answered 401 to these credentials. Set ONLY by the bridge at its upstream edge
   // (never by its own `locked`/`unauthorized` 401s); while set, the bridge and board-reader make no upstream call, so a
   // wrong sign-in costs one request, not one every poll forever. Cleared only by a NEW sign-in (configure /
@@ -117,17 +124,49 @@ export function createLiveBoard({ safeStorage, secretsDir, publicDir, now, log =
   function getToken() { const s = secrets.getSecrets(); return s ? s.token : null; }
   const canGoLive = () => { const st = secrets.status(); return Boolean(upstream) && st.configured && !st.locked; };
 
+  // T-31 bridge self-heal (owner report 14-11): the bridge used to be created once and cached forever, so a server that
+  // closed or errored under it left live mode pointing at a dead port until the app restarted. Now a dead bridge is
+  // dropped: replaced at once when anyone asks for it (liveOpen / the reader), and restarted by itself after a backoff
+  // while the board is live. The backoff doubles per restart that dies young and resets once a bridge stayed up.
+  let restartTimer = null;
+  let restartFails = 0;
+  let bridgeStartedAt = 0;
+  function bridgeDown(b, err) {
+    if (b !== bridge) return; // closeBridge() already let go of it, or it was replaced on demand
+    bridge = null;
+    if (Date.now() - bridgeStartedAt >= BRIDGE_STABLE_MS) restartFails = 0;
+    log(`live board bridge went down (${(err && (err.code || err.message)) || 'closed'}); restarting`);
+    if (mode !== 'live' || restartTimer) return;
+    const delay = Math.min(bridgeBackoff.baseMs * 2 ** restartFails, bridgeBackoff.maxMs);
+    restartFails++;
+    restartTimer = setTimeout(() => { restartTimer = null; if (mode === 'live' && !bridge) ensureBridge(); }, delay);
+    restartTimer.unref?.();
+  }
   async function ensureBridge() {
-    if (!bridge) bridge = createBridgeImpl({ upstreamOrigin: upstream, getToken, getBasicAuth, publicDir, ownerOps: ownerOps === true, onAuthRejected, isAuthRejected: () => authRejected, authGeneration: () => authGen, onLog: log });
+    if (bridge && bridge.alive?.() === false) { log('live board bridge is no longer listening; starting a new one'); bridge = null; }
+    if (!bridge) {
+      let b = null;
+      b = createBridgeImpl({ upstreamOrigin: upstream, getToken, getBasicAuth, publicDir, ownerOps: ownerOps === true, onAuthRejected, isAuthRejected: () => authRejected, authGeneration: () => authGen, onLog: log, onDown: (err) => bridgeDown(b, err) });
+      bridge = b;
+      bridgeStartedAt = Date.now();
+      // bridge-heal2: the port each bridge got, so a later "the page holds the old port" can be read from the log.
+      b.port().then((p) => log(`live board bridge up on port ${p}`), () => {});
+    }
     return bridge;
   }
-  async function closeBridge() { if (bridge) { const b = bridge; bridge = null; await b.close(); } }
+  async function closeBridge() {
+    if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
+    restartFails = 0;
+    if (bridge) { const b = bridge; bridge = null; await b.close(); }
+  }
 
   /** Live mode never activates unless the secrets are set AND the app is unlocked (PLAN-live-board.md §1). */
-  async function setMode(next) {
+  // `reason` is for the log only (bridge-heal2): who changed the mode, so a live -> local flip names its cause.
+  async function setMode(next, reason = 'request') {
     if (next !== 'local' && next !== 'live') return { ok: false, error: 'bad_mode' };
     if (next === 'live' && !upstream) return { ok: false, error: 'no_live_board' };
-    if (next === 'live' && !canGoLive()) return { ok: false, error: 'locked_or_unconfigured' };
+    if (next === 'live' && !canGoLive()) { log(`live board mode stays ${mode}: ${next} refused, locked_or_unconfigured (${reason})`); return { ok: false, error: 'locked_or_unconfigured' }; }
+    if (mode !== next) log(`live board mode ${mode} -> ${next} (${reason})`);
     mode = next;
     if (mode === 'live') await ensureBridge(); else await closeBridge();
     return { ok: true, mode };
@@ -143,6 +182,8 @@ export function createLiveBoard({ safeStorage, secretsDir, publicDir, now, log =
     async bridgeHeaders() { return mode === 'live' ? (await ensureBridge()).callerHeaders() : {}; },
     /** The live bridge's loopback port, for the webview to load — null outside live mode. Still 401s while locked. */
     async bridgePort() { return mode === 'live' ? (await ensureBridge()).port() : null; },
+    /** bridge-heal2: whether the page last loaded through a session URL got a 200 board (null outside live mode). */
+    async bridgePageFed() { return mode === 'live' ? (await ensureBridge()).pageFed() : null; },
     /**
      * RELAY channel (T-31 0.2.3 batch C): Zumi relaying one write from the app itself (the HUD answering a board
      * ask), through the SAME live bridge — never a new connection, never a new op (the bridge's RELAY_OPS allowlist

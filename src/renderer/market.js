@@ -29,6 +29,17 @@ function icon(r, cls) {
   return box;
 }
 
+/** A store item's preview (market-host.mjs: verified, a data: URI), else null. */
+const picOf = (r) => (typeof r.preview === 'string' && r.preview.startsWith('data:image/') ? r.preview : null);
+/** The preview picture in place of the glyph; a picture the page cannot load is removed and `fallback` puts the glyph back. */
+function thumb(r, cls, fallback) {
+  const img = el('img', `market-thumb${cls ? ` ${cls}` : ''}`);
+  img.alt = r.name; img.decoding = 'async';
+  img.addEventListener('error', () => { img.remove(); fallback(); }, { once: true });
+  img.src = picOf(r);
+  return img;
+}
+
 /** The packs a fresh slim install offers first (T-31-ROOM-slim): the default room, then the voice. */
 export const STARTER = Object.freeze(['room.night-city', 'voice.kokoro-82m']);
 
@@ -57,7 +68,9 @@ export function buildRows({ market, rooms, models, tr, lang = 'en' }) {
   for (const it of market && Array.isArray(market.items) ? market.items : []) {
     const key = itemKey(it.id);
     if (it.kind === 'room' && it.activates) packed.add(it.activates);
-    rows.push({ ...it, origin: 'catalog', name: trOr(`market.item.${key}.name`, fromIndex(it, 'name') || it.id), desc: trOr(`market.item.${key}.desc`, fromIndex(it, 'desc') || tr('market.room.desc')), note: trOr(`market.item.${key}.note`, '') });
+    // A generic line says "on this PC" only once the item is here; a store room not installed has its own line (bug b).
+    const generic = tr(HAVE.has(it.state) ? 'market.room.desc' : 'market.room.descStore');
+    rows.push({ ...it, origin: 'catalog', name: trOr(`market.item.${key}.name`, fromIndex(it, 'name') || it.id), desc: trOr(`market.item.${key}.desc`, fromIndex(it, 'desc') || generic), note: trOr(`market.item.${key}.note`, '') });
   }
   if (market && market.platform === 'win-x64') {
     rows.push({ id: 'os.voice', kind: 'voice', origin: 'os', source: 'os', state: 'os', needs: ['os-speech'], name: tr('market.os.name'), desc: tr('market.os.desc'), note: tr('market.os.note'), author: 'Microsoft', licence: null });
@@ -145,13 +158,16 @@ export function initMarket({ zumi, openTab, pickers }) {
     const top = el('div', 'market-top');
     const head = el('div', 'market-head');
     head.append(el('div', 'k', r.name), el('div', 'market-by', r.author || t('market.by.you')));
-    top.append(icon(r), head);
+    const pic = picOf(r) ? thumb(r, '', () => top.prepend(icon(r))) : null;
+    if (!pic) top.appendChild(icon(r));
+    top.appendChild(head);
     const foot = el('div', 'market-foot-row');
     const chips = el('div', 'market-chips');
     chips.appendChild(el('span', 'market-chip', t(`market.cat.${r.kind}`)));
     if (r.recommended && r.state !== 'unpublished' && r.state !== 'unpackaged') chips.appendChild(el('span', 'market-chip rec', t('market.pill.recommended'))); // what cannot install is not recommended
     // While installing, the progress bar takes the whole row: the chips would sit under it.
     if (r.state === 'installing' || progress.has(r.id)) foot.append(control(r)); else foot.append(chips, control(r));
+    if (pic) c.appendChild(pic);
     c.append(top, el('div', 'd', r.desc), foot);
     if (errors.has(r.id)) c.appendChild(el('div', 'market-err', errors.get(r.id)));
     return c;
@@ -164,7 +180,9 @@ export function initMarket({ zumi, openTab, pickers }) {
     const head = el('div', 'market-dhead');
     const title = el('div', 'market-dtitle');
     title.append(el('h3', null, r.name), el('div', 'market-by', r.author || t('market.by.you')));
-    head.append(icon(r, 'big'), title);
+    if (picOf(r)) detail.appendChild(thumb(r, 'big', () => head.prepend(icon(r, 'big'))));
+    else head.appendChild(icon(r, 'big'));
+    head.appendChild(title);
     detail.appendChild(head);
     const actions = el('div', 'market-dact');
     actions.appendChild(control(r));

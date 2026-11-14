@@ -287,6 +287,7 @@ select, .ghost, .primary, #msg { border-radius: var(--radius); }
 .market-card.frame:focus-visible { box-shadow: none; outline: 1px solid var(--primary); outline-offset: 2px; }
 .market-icon { border-radius: 0; background: var(--line-faint); border-color: var(--line-dim); clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
 .market-icon svg { filter: drop-shadow(0 0 3px var(--glow-soft)); }
+.market-thumb { border-radius: 0; border-color: var(--line-dim); clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
 .market-chip { border-radius: 0; color: var(--primary); background: var(--line-faint); border-color: var(--line-dim); clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%, 0 6px); }
 .market-chip.rec { color: var(--success); }
 .market-go { border-radius: var(--radius); box-shadow: 0 0 10px var(--glow-soft); letter-spacing: .02em; }

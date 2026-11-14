@@ -87,6 +87,30 @@ const codeCallSites = allCallSites.filter((m) => {
 });
 ok(codeCallSites.length === 2, `exactly 2 real openBoard() call sites in app.js (both gated above), found ${codeCallSites.length}`);
 
+// ---------- 4b. the host call zumi.openBoard() (0.3.7 gate S3: section 4 skips it on purpose) ----------
+// Calling the host directly also reaches the local board. Allowed in exactly two places: the opener itself
+// (`const openBoard = () => ...`, reached only through the two gated sites above) and reloadLocalInPlace(), which the
+// Reload handler calls only for a webview built in local mode (only the gated opener builds one).
+function blockRange(src, fromIndex) {
+  const body = fromIndex > -1 ? blockAt(src, fromIndex) : null;
+  if (!body) return null;
+  const start = src.indexOf('{', fromIndex);
+  return [start, start + body.length];
+}
+const isCode = (src, index) => !src.slice(src.lastIndexOf('\n', index) + 1, index).includes('//');
+{
+  const opener = blockRange(appJs, appJs.indexOf('const openBoard = () =>'));
+  const reloadLocal = blockRange(appJs, appJs.indexOf('function reloadLocalInPlace('));
+  const hostCalls = [...appJs.matchAll(/zumi\.openBoard\(/g)].filter((m) => isCode(appJs, m.index)).map((m) => m.index);
+  const inside = (r, i) => Boolean(r) && i > r[0] && i < r[1];
+  const stray = hostCalls.filter((i) => !inside(opener, i) && !inside(reloadLocal, i));
+  ok(Boolean(opener) && Boolean(reloadLocal) && hostCalls.length === 2 && stray.length === 0,
+    'zumi.openBoard() is called only inside the gated opener and reloadLocalInPlace()', JSON.stringify({ calls: hostCalls.length, stray: stray.map((i) => appJs.slice(appJs.lastIndexOf('\n', i) + 1, appJs.indexOf('\n', i)).trim()) }));
+  const reloadCalls = [...appJs.matchAll(/reloadLocalInPlace\(\)/g)].filter((m) => isCode(appJs, m.index) && !/function\s+$/.test(appJs.slice(m.index - 20, m.index)));
+  ok(reloadCalls.length === 1 && /webviewMode === 'local' && await reloadLocalInPlace\(\)/.test(appJs.slice(appJs.lastIndexOf('\n', reloadCalls[0].index), reloadCalls[0].index + 25)),
+    "reloadLocalInPlace() has one caller, guarded by webviewMode === 'local' on the same line", String(reloadCalls.length));
+}
+
 // ---------- 5. the sign-in card markup exists and starts hidden (never flashes before status arrives) ----------
 const signinMatch = /<div id="board-signin"[^>]*>/.exec(indexHtml);
 ok(Boolean(signinMatch), 'index.html defines #board-signin');

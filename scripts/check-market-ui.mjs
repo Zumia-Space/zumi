@@ -6,6 +6,7 @@
 //   node scripts/check-market-ui.mjs [--shots <dir>]
 import fs from 'node:fs';
 import http from 'node:http';
+import zlib from 'node:zlib';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -37,6 +38,7 @@ const src = fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'market.js'), 'ut
 ok(!/innerHTML/.test(src), 'market.js never uses innerHTML');
 for (const code of ['download_failed', 'offline', 'not_published', 'sha_mismatch', 'invalid_pack', 'model_failed', 'restart_needed', 'not_packaged', 'busy', 'bundled', 'not_installed', 'unknown_item', 'install_failed']) ok(EN[`market.err.${code}`], `error ${code} has a plain sentence`);
 for (const n of ['runs-code', 'model-download', 'data-only', 'os-speech']) ok(EN[`market.need.${n}`], `permission ${n} has words`);
+ok(EN['market.room.descStore'] && !/this PC/i.test(EN['market.room.descStore']), 'a store room that is not here has its own line, not "on this PC"');
 
 // ---------- the page ----------
 execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'build-renderer.mjs')], { cwd: ROOT, stdio: 'ignore', timeout: 300000 });
@@ -68,11 +70,12 @@ let run = 0;
 const browser = await chromium.launch({ executablePath: EXE, headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'], timeout: 60000 });
 
 /** fetchImpl: 'ok' serves the bytes, a number answers that status, 'offline' throws the way fetch does with no network. */
-async function open({ w = 1366, h = 768, lang = 'en', bundled = false, serverBytes = goodZip, net = 'ok', catalog = [item(goodZip)], dataDir: given = null } = {}) {
+// decorate: changes market.list's answer on its way to the page (T-31-mkt-previews: the host's preview data URIs are check:market-store-host).
+async function open({ w = 1366, h = 768, lang = 'en', bundled = false, modelPresent = bundled, serverBytes = goodZip, net = 'ok', catalog = [item(goodZip)], dataDir: given = null, decorate = null } = {}) {
   const dataDir = given || path.join(tmp, `d${++run}`); fs.mkdirSync(dataDir, { recursive: true });
   const page = await browser.newPage({ viewport: { width: w, height: h } });
   const errors = []; page.on('pageerror', (e) => errors.push(String(e.message).split('\n')[0]));
-  let modelHere = bundled;
+  let modelHere = modelPresent;
   const gate = { hold: null, net, serverBytes };
   const host = createMarketHost({
     dataDir, catalog, bundled: (id) => bundled && id === 'voice.kokoro-82m',
@@ -86,7 +89,7 @@ async function open({ w = 1366, h = 768, lang = 'en', bundled = false, serverByt
     emit: (c, p) => { page.evaluate((x) => window.__marketProgress(x), p).catch(() => {}); return true; },
     model: { present: () => modelHere, download: async (cb) => { cb({ loaded: 5, total: 10 }); modelHere = true; return true; }, stop() {}, remove() { modelHere = false; } },
   });
-  await page.exposeFunction('__market', (name, id) => host.handlers[`market.${name}`](id));
+  await page.exposeFunction('__market', async (name, id) => { const r = await host.handlers[`market.${name}`](id); return name === 'list' && decorate ? decorate(r) : r; });
   await page.addInitScript(`window.__uiLang = ${JSON.stringify(lang)};`);
   await page.addInitScript(STUB);
   await page.goto(`http://127.0.0.1:${server.address().port}/index.html`, { waitUntil: 'load' });
@@ -264,8 +267,26 @@ for (const [code, o] of [['download_failed', { net: 404 }], ['sha_mismatch', { s
   ok(!(await detail(page).innerText()).includes(EN['market.item.voice_kokoro_82m.note']), 'owner build: the details do not talk about installing what is already here');
   await page.close();
 }
+/** In the page: every chip whole (inside its row, not under the action), every needs line and every "what it is for" line whole (no ellipsis, no clip). */
+const CUT = () => {
+  const out = [];
+  for (const c of document.querySelectorAll('.market-card')) {
+    const d = c.querySelector(':scope > .d');
+    if (d && (d.scrollHeight > d.clientHeight + 1 || d.scrollWidth > d.clientWidth + 1)) out.push(`description cut in ${c.dataset.id}: ${d.textContent}`);
+    const row = c.querySelector('.market-chips'), ctl = [...c.querySelectorAll('.market-ctl > *')].map((x) => x.getBoundingClientRect());
+    for (const chip of c.querySelectorAll('.market-chip')) {
+      const q = chip.getBoundingClientRect(), b = row.getBoundingClientRect();
+      if (q.right > b.right + 0.5 || q.left < b.left - 0.5 || chip.scrollWidth > chip.clientWidth + 1) out.push(`chip cut in ${c.dataset.id}: ${chip.textContent}`);
+      if (ctl.some((k) => q.left < k.right && k.left < q.right && q.top < k.bottom && k.top < q.bottom)) out.push(`chip under the action in ${c.dataset.id}: ${chip.textContent}`);
+    }
+    const reach = c.querySelector('.market-reach');
+    if (reach && (reach.scrollWidth > reach.clientWidth + 1 || reach.scrollHeight > reach.clientHeight + 1)) out.push(`needs line cut in ${c.dataset.id}: ${reach.textContent}`);
+  }
+  return out;
+};
+
 // ---------- 9. layout: nothing cut, three languages, three sizes ----------
-for (const [w, h] of [[1680, 987], [1366, 768], [900, 600]]) for (const lang of ['en', 'vi', 'zh']) {
+for (const [w, h] of [[1680, 987], [1366, 768], [1280, 800], [900, 600]]) for (const lang of ['en', 'vi', 'zh']) {
   const { page, errors } = await open({ w, h, lang });
   const m = await page.evaluate(() => {
     const out = [];
@@ -277,6 +298,8 @@ for (const [w, h] of [[1680, 987], [1366, 768], [900, 600]]) for (const lang of 
     return { overflow: out, hscroll: c.scrollWidth > c.clientWidth + 1, foot: document.querySelector('.market-foot').getBoundingClientRect().bottom <= innerHeight + 1, side: document.querySelector('.market-side').getBoundingClientRect().height > 60 };
   });
   ok(!m.overflow.length && !m.hscroll && m.foot, `${lang} ${w}x${h}: nothing runs off the window`, m);
+  const cut = await page.evaluate(CUT);
+  ok(!cut.length, `${lang} ${w}x${h}: every chip and needs line is whole`, cut);
   ok(m.side, `${lang} ${w}x${h}: the details stay on screen, so Remove is reachable`, m);
   await page.locator('.market-card').last().scrollIntoViewIfNeeded();
   ok(await page.locator('.market-card').last().isVisible(), `${lang} ${w}x${h}: the last card can be reached`);
@@ -284,6 +307,51 @@ for (const [w, h] of [[1680, 987], [1366, 768], [900, 600]]) for (const lang of 
   if (shotsDir && (lang === 'en' || w === 1366)) await shot(page, `market-store-${lang}-${w}x${h}`);
   await page.close();
 }
+// ---------- 10. T-31-mkt-previews: a store room with a preview shows the picture, the glyph otherwise; Kokoro VI card whole ----------
+{
+  /** A real, decodable PNG (w x h, one colour), so the page can load it. */
+  const png = (w, h, rgb) => {
+    const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const body = Buffer.concat([Buffer.from(type, 'latin1'), data]); const crc = Buffer.alloc(4); crc.writeUInt32BE(zlib.crc32(body) >>> 0); return Buffer.concat([len, body, crc]); };
+    const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
+    const raw = Buffer.alloc((w * 3 + 1) * h); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) raw.set(rgb, y * (w * 3 + 1) + 1 + x * 3);
+    return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+  };
+  const PIC = `data:image/png;base64,${png(48, 27, [200, 120, 40]).toString('base64')}`;
+  // The real serial-19 index texts (index-dryrun/metas-19.json, gate M1): the longest room line and Kokoro's, in en and vi.
+  const ROOM_DESC = { en: 'Space station window: a looping video room behind Zumi while you talk. Switch any time in the room picker.', vi: 'Cửa sổ trạm không gian: phòng video chạy nền sau Zumi khi trò chuyện. Đổi phòng bất cứ lúc nào ở bộ chọn phòng.' };
+  const KOKORO_DESC = { en: 'Lets Zumi read her replies aloud in English. The voice is made on this PC: no key, no account.', vi: 'Cho Zumi đọc to câu trả lời bằng tiếng Anh. Giọng được tạo ngay trên máy: không cần khoá, không cần tài khoản.' };
+  const room = (id, name) => ({ id, kind: 'room', version: '1.0.0', licence: 'LicenseRef-Zumia', author: 'Zumia', name: { en: name, vi: name }, desc: ROOM_DESC, needs: ['data-only'], activates: id.split('.')[1], bytes: 3_700_000, download: { url: `https://github.com/x/packs/${id}.zip`, sha256: sha256(goodZip), bytes: goodZip.length } });
+  const catalog = [item(goodZip, { desc: KOKORO_DESC }), room('room.sky-loft', 'Sky loft'), room('room.harbor-dawn', 'Harbor dawn'), room('room.no-pic', 'No picture')];
+  const decorate = (l) => ({ ...l, items: l.items.map((i) => (i.id === 'room.sky-loft' ? { ...i, preview: PIC } : i.id === 'room.harbor-dawn' ? { ...i, preview: 'data:image/png;base64,AAAA' } : i)) });
+  // 1280x800 = the app's default window (tauri.conf.json); 900x600 = the narrow one.
+  for (const [w, h, lang] of [[1280, 800, 'vi'], [1280, 800, 'en'], [1680, 987, 'vi'], [1366, 768, 'vi'], [900, 600, 'vi'], [900, 600, 'en']]) {
+    const { page, errors } = await open({ w, h, lang, bundled: true, modelPresent: false, catalog, decorate });
+    await page.waitForTimeout(300);
+    const look = await page.$$eval('.market-card[data-id]', (els) => Object.fromEntries(els.map((c) => { const img = c.querySelector('img.market-thumb'); return [c.dataset.id, { img: img ? { src: img.src.slice(0, 22), loaded: img.complete && img.naturalWidth > 0, alt: img.alt } : null, glyph: Boolean(c.querySelector('.market-icon svg path')) }]; })));
+    const at = `${lang} ${w}x${h}`;
+    const sky = look['room.sky-loft'] || {};
+    ok(sky.img && sky.img.loaded && sky.img.src === 'data:image/png;base64,' && !sky.glyph, `${at}: a store room with a preview shows the picture in place of the glyph`, sky);
+    ok(sky.img && sky.img.alt === 'Sky loft', `${at}: the picture is named by the room`, sky);
+    ok(look['room.no-pic'] && !look['room.no-pic'].img && look['room.no-pic'].glyph, `${at}: no preview: the glyph`, look['room.no-pic']);
+    ok(look['room.harbor-dawn'] && !look['room.harbor-dawn'].img && look['room.harbor-dawn'].glyph, `${at}: a preview the page cannot load falls back to the glyph`, look['room.harbor-dawn']);
+    ok(look['voice.kokoro-82m'] && !look['voice.kokoro-82m'].img && look['voice.kokoro-82m'].glyph, `${at}: a voice keeps its glyph`, look['voice.kokoro-82m']);
+    const k = card(page, 'voice.kokoro-82m');
+    ok((await k.locator('button.market-go').innerText()) === TABLES[lang]['market.getModel'] && await k.locator('.market-chip.rec').count() === 1, `${at}: owner build, model missing: Kokoro offers ${TABLES[lang]['market.getModel']} and is Recommended`);
+    // Public 0.3.7 keeps 0.3.6's order: an item's own i18n line comes first (Kokoro has one), then the index line (store rooms).
+    ok((await k.locator(':scope > .d').innerText()) === TABLES[lang]['market.item.voice_kokoro_82m.desc'] && (await card(page, 'room.sky-loft').locator(':scope > .d').innerText()) === ROOM_DESC[lang], `${at}: Kokoro keeps its own line; a store room carries the real index line`);
+    const cut = await page.evaluate(CUT);
+    ok(!cut.length, `${at}: every card shows its whole description and needs line; the Recommended chip is not under the action`, cut);
+    await card(page, 'room.sky-loft').click();
+    const big = await detail(page).evaluate((d) => { const img = d.querySelector('img.market-thumb.big'); return img ? { loaded: img.complete && img.naturalWidth > 0, w: img.getBoundingClientRect().width } : null; });
+    ok(big && big.loaded && big.w > 200, `${at}: the detail panel shows the preview large`, big);
+    await card(page, 'room.no-pic').click();
+    ok(await detail(page).locator('img.market-thumb').count() === 0 && await detail(page).locator('.market-icon svg path').count() > 0, `${at}: no preview: the detail panel keeps the glyph`);
+    ok(!errors.length, `${at}: no page error`, errors.join(' | '));
+    if (shotsDir) { await card(page, 'room.sky-loft').click(); await shot(page, `market-previews-${lang}-${w}x${h}`); }
+    await page.close();
+  }
+}
+
 await browser.close();
 server.close();
 fs.rmSync(tmp, { recursive: true, force: true });

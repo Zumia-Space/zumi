@@ -16,6 +16,8 @@ import { initPhoneCard } from './phone-card.js';
 import { initSettingsTabs } from './settings-tabs.js';
 import { initRhythmCard } from './rhythm-card.js';
 import { initBoardSignin } from './board-signin.js';
+import { planLiveReload } from './board-live-reload.js';
+import { decideLiveWatch, createFailLoadRecovery } from './board-live-watch.js';
 import { initRoomSettings } from './room-settings.js';
 import { sceneLabel } from './room/messages.js';
 import { initUsage } from './usage.js';
@@ -885,6 +887,22 @@ async function main() {
   let webviewMode = null; // 'local' | 'live' | null — which mode `webview` was built for; a mode switch tears it down
   let boardOpening = null; // in-flight openBoard() (local) promise
   let liveOpening = null; // in-flight openLiveBoard() promise
+  let liveOpenedAt = 0; // when the live guest was last (re)loaded through a session URL (board-live-watch.js grace)
+  // bridge-heal2: a live guest whose main-frame load failed is rebuilt on the origin board.liveOpen returns (bounded
+  // backoff, board-live-watch.js). Only that same guest: one torn down meanwhile (lock card, mode switch, Reload) is left alone.
+  let liveFailedGuest = null;
+  const liveFailRecovery = createFailLoadRecovery({
+    liveOpen: () => zumi.board.liveOpen(),
+    // the 30 s slow retry (gate S-b) asks the host only while this failed guest is on screen; watchLiveBoard resumes it
+    active: () => liveFailedGuest === webview && webviewMode === 'live' && isBoardTabActive() && document.visibilityState === 'visible',
+    rebuild: (r) => {
+      if (!liveFailedGuest || liveFailedGuest !== webview || webviewMode !== 'live') return;
+      liveFailedGuest = null;
+      destroyWebview();
+      resetHint();
+      openLiveBoard(r);
+    },
+  });
   let boardStatus = { mode: 'local', configured: false, locked: false };
   const isBoardTabActive = () => document.querySelector('.tab[data-tab="board"]').classList.contains('active');
   // Owner build (coordinator scope-add 07-10): the local/sample board's own pill never applies, so it is hidden
@@ -1012,8 +1030,9 @@ async function main() {
   })());
   // Live mode (T-31 L1): the webview loads the loopback bridge's origin (never the live origin directly, and
   // no token in the URL — see the L1 UI contract), on its own in-memory partition.
-  const openLiveBoard = () => liveOpening || (liveOpening = (async () => {
-    const r = await zumi.board.liveOpen();
+  // `opened`: a board.liveOpen answer the caller already has (Reload, when the bridge came back on a new port).
+  const openLiveBoard = (opened = null) => liveOpening || (liveOpening = (async () => {
+    const r = opened || await zumi.board.liveOpen();
     if (!r || r.error) {
       liveOpening = null;
       // Tauri preview: the live board is waived to P2, and the shim says so with its own code. Name the
@@ -1039,8 +1058,9 @@ async function main() {
     webview.setAttribute('src', withEmbedLang(r.openUrl || homeUrl).href); // openUrl: first load only (bridge caller-auth nonce)
     webview.dataset.home = homeUrl; // the bare origin; embed/lang are re-applied on every (re)load
     webviewMode = 'live';
+    liveOpenedAt = Date.now();
     const wv = webview; // captured per element: a mode switch can tear this one down while an event is in flight
-    wv.addEventListener('did-finish-load', () => { $('board-hint').hidden = true; wv.dataset.loaded = '1'; });
+    wv.addEventListener('did-finish-load', () => { $('board-hint').hidden = true; wv.dataset.loaded = '1'; liveFailRecovery.onLoaded(); });
     // Guest-view attach readiness (J-05 coordinator QC 03-10, GUEST_VIEW_MANAGER_CALL investigation): dom-ready is
     // the signal the board selftest now waits for before its first executeJavaScript() call on this webview --
     // did-finish-load alone was found to occasionally fire before the guest view's internal attach handshake (the
@@ -1049,6 +1069,7 @@ async function main() {
     wv.addEventListener('did-fail-load', (e) => {
       if (e.errorCode === -3) return;
       boardHint(t('board.liveConnectFailed', { error: e.errorDescription || e.errorCode }));
+      if (wv === webview) { liveFailedGuest = wv; liveFailRecovery.onFail(e.errorCode); } // bridge-heal2: re-ask the host, rebuild
     });
     $('board-host').appendChild(webview);
     return webview;
@@ -1114,15 +1135,70 @@ async function main() {
   // Reload: local re-opens the board's own address (with the owner token), so it also re-authenticates a stale
   // session; live just re-loads the bridge origin (it carries no token to begin with). Both go through
   // reloadBoardUrl() so embed=1 and the current language are re-applied, not just the values the tab first loaded.
-  $('board-reload').addEventListener('click', () => {
+  $('board-reload').addEventListener('click', async () => {
+    if (webview && webviewMode === 'live') return reloadLiveBoard();
+    // Local Reload asks the host first too (T-31 local-board self-heal, 0.3.7); a guest it had to drop is rebuilt below.
+    if (webview && webviewMode === 'local' && await reloadLocalInPlace()) return null;
     if (!webview) {
       // Same dispatch as renderBoardTab: an owner build must never reach openBoard() (the sample/local board) from
       // here either -- re-render off the last-known status rather than re-deciding local-vs-live ourselves.
       if (info.ownerAdmin) return renderOwnerBoardTab(boardStatus);
       return boardStatus.mode === 'live' ? openLiveBoard() : openBoard();
     }
-    return webview.loadURL(reloadBoardUrl().href);
+    return null;
   });
+  // Local Reload: zumi.openBoard first, so a local board server that died is replaced by the host. Same origin -> reload in
+  // place (owner token + cache-buster); an error -> shown; another origin -> the guest is dropped (true = handled here,
+  // false = the caller opens a new one through its gated openBoard()).
+  async function reloadLocalInPlace() {
+    const wv = webview;
+    const plan = await planLiveReload({ liveOpen: () => zumi.openBoard(), currentOrigin: new URL(wv.dataset.home).origin });
+    if (wv !== webview) return true; // torn down (lock, mode switch) while the host answered
+    if (plan.action === 'fail') { boardHint(t('board.openFailed', { error: plan.error || t('board.unknownError') })); return true; }
+    if (plan.action === 'navigate') { wv.loadURL(reloadBoardUrl().href); return true; }
+    destroyWebview();
+    resetHint();
+    return false;
+  }
+  // Live Reload asks the host first (board-live-reload.js): a bridge that died is replaced there, and a new port gets a
+  // new board guest instead of a reload of the dead origin.
+  async function reloadLiveBoard() {
+    const wv = webview;
+    const plan = await planLiveReload({ liveOpen: () => zumi.board.liveOpen(), currentOrigin: new URL(wv.dataset.home).origin });
+    if (wv !== webview) return null; // torn down (lock, mode switch) while the host answered
+    if (plan.action === 'fail') return boardHint(t('board.liveConnectFailed', { error: plan.error || t('board.unknownError') }));
+    if (plan.action === 'navigate') return wv.loadURL(withEmbedLang(plan.url).href);
+    destroyWebview();
+    resetHint();
+    return openLiveBoard(plan.r);
+  }
+  // Live watch (T-31 bridge self-heal 2, board-live-watch.js): while the tab shows the live board it asks the host again by
+  // itself, so a restarted sidecar, a bridge on a new port or a page that booted during an outage comes back without a
+  // Reload click. Only while the tab is on screen; a call that fails while the sidecar restarts is simply asked again.
+  let liveWatching = false;
+  async function watchLiveBoard() {
+    if (liveWatching || liveOpening || !isBoardTabActive() || document.visibilityState !== 'visible') return;
+    if (webview ? webviewMode !== 'live' : boardStatus.mode !== 'live') return;
+    if (webview && webview === liveFailedGuest) liveFailRecovery.resume(); // a slow retry parked while the tab was hidden
+    liveWatching = true;
+    try {
+      const wv = webview;
+      const status = await zumi.board.status();
+      const live = status.mode === 'live' && !status.locked && status.authRejected !== true;
+      if (!wv) { if (live) renderBoardTab(status); return; } // a card/overlay or a failed open: re-open once live (never repaint a card mid-PIN)
+      const open = live ? await zumi.board.liveOpen() : null;
+      if (wv !== webview) return; // torn down (Reload, lock, mode switch) while the host answered
+      const plan = decideLiveWatch({ status, open, currentOrigin: new URL(wv.dataset.home).origin, openedAt: liveOpenedAt, now: Date.now() });
+      if (plan.action === 'render') renderBoardTab(status);
+      else if (plan.action === 'navigate') { liveOpenedAt = Date.now(); wv.loadURL(withEmbedLang(plan.url).href); }
+      else if (plan.action === 'reopen') { destroyWebview(); resetHint(); openLiveBoard(plan.r); }
+    } catch (e) {
+      console.warn('[board] live watch: host call failed, retrying next tick', (e && e.message) || e);
+    } finally { liveWatching = false; }
+  }
+  setInterval(watchLiveBoard, 5000);
+  window.addEventListener('zumi:sidecar-ready', watchLiveBoard);
+  document.addEventListener('visibilitychange', watchLiveBoard);
   // One delegated handler, so the tabs web-app packs add later (pack-tabs.js) switch the same way.
   $('sidebar').addEventListener('click', (event) => {
     const tab = event.target.closest('.tab');

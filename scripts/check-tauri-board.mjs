@@ -306,6 +306,7 @@ function hashDir(dir) {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
       const rel = base ? `${base}/${e.name}` : e.name;
       const full = path.join(d, e.name);
+      if (!base && e.name === 'logs') continue; // logs/sidecar.log: append-only diagnostics (secret-free: check-board-bridge-heal2)
       if (e.isDirectory()) walk(full, rel);
       else out[rel] = crypto.createHash('sha256').update(fs.readFileSync(full)).digest('hex');
     }

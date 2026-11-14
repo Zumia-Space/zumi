@@ -61,10 +61,13 @@ async function importLegacy(laneboardDir, root, dir) {
  * @returns {Promise<{ outcome: 'opened'|'seeded'|'migrated', server, board, port, origin, url, dataDir, root, migration? }
  *                  | { outcome: 'refused', refused: { message, violations }, dataDir, root }>}
  *   url carries the owner token in its #fragment; Laneboard's page stores it and removes it from the address.
+ *   alive() is false once the server is gone; close() is the host's own close.
+ * onDown(err|null): called ONCE when the server goes away after listening without close() being called: an 'error'
+ *   (libuv on Windows stops accepting and Node emits it with syscall 'accept') or the server closed under the host.
  */
 // lang: an explicit UI language for the page (#lang=…, stored by the page as this browser's pick); null = the page's
 // own default (English, like the web board) and whatever the viewer picked with its switcher before.
-export async function openLocalBoard({ laneboardDir, root, sampleFixture, lang = null, port: wantPort = 0, onRequest = null }) {
+export async function openLocalBoard({ laneboardDir, root, sampleFixture, lang = null, port: wantPort = 0, onRequest = null, onDown = null }) {
   const dataDir = path.join(root, LANEBOARD_SUBDIR);
   fs.mkdirSync(root, { recursive: true });
   let outcome = 'opened';
@@ -87,6 +90,12 @@ export async function openLocalBoard({ laneboardDir, root, sampleFixture, lang =
   // Laneboard authorises by bearer token; on top of that only this loopback address may reach it (no DNS rebinding).
   const laneboard = createServer(board).listeners('request')[0];
   const server = http.createServer((req, res) => {
+    // local-board FIN-swallow (same root cause as board-bridge.mjs, owner's PC 14-11 06:28Z): a loopback filter (Avast and
+    // others) can eat the FIN this server sends when it closes an idle keep-alive socket; the Board guest's pool (6 per host)
+    // then fills with half-dead sockets and the next load or XHR fails as ERR_CONNECTION_ABORTED. With Connection: close the
+    // guest never pools a socket here. Safe: the page does plain request/response (it polls); the SSE route (/api/v1/events,
+    // external clients) is one long response either way.
+    res.setHeader('Connection', 'close');
     const port = req.socket.localPort;
     if (![`127.0.0.1:${port}`, `localhost:${port}`].includes(req.headers.host)) {
       res.writeHead(403, { 'Content-Type': 'application/json' });
@@ -96,21 +105,44 @@ export async function openLocalBoard({ laneboardDir, root, sampleFixture, lang =
     return laneboard(req, res);
   });
   const listen = (p) => new Promise((resolve, reject) => { server.once('error', reject); server.listen(p, '127.0.0.1', () => { server.removeListener('error', reject); resolve(); }); });
-  try { await listen(wantPort); } catch (e) { if (!wantPort || e.code !== 'EADDRINUSE') throw e; await listen(0); } // taken: any free port
-  const port = server.address().port;
-  const origin = `http://127.0.0.1:${port}`;
+  // T-31 local-board self-heal (0.3.7, same pattern as board-bridge.mjs): listen() removed its only 'error' listener, so
+  // an accept error later was an unhandled 'error' event that killed the whole sidecar. Now any way down that close()
+  // did not ask for closes the handle (nothing half-alive) and tells the host once; the host restarts the board.
+  let down = false, closing = false;
+  const goDown = (err) => {
+    if (down || closing) return;
+    down = true;
+    if (server.listening) server.close();
+    if (onDown) onDown(err || null);
+  };
+  let port, origin;
+  try {
+    try { await listen(wantPort); } catch (e) { if (!wantPort || e.code !== 'EADDRINUSE') throw e; await listen(0); } // taken: any free port
+    port = server.address().port;
+    origin = `http://127.0.0.1:${port}`;
+    server.on('error', (e) => goDown(e));
+    server.on('close', () => goDown(null));
 
-  // First run: only the bootstrap owner event exists. The sample goes in through Laneboard's own seed path (HTTP writes
-  // as the owner), so it is journaled like any other task. Also heals a crash between bootstrap and seeding.
-  if (!migration && board.state.seq === 1) {
-    const { seed } = await load(laneboardDir, 'scripts/seed.mjs');
-    await seed(origin, ownerToken, { fixture: sampleFixture });
-    outcome = 'seeded';
+    // First run: only the bootstrap owner event exists. The sample goes in through Laneboard's own seed path (HTTP writes
+    // as the owner), so it is journaled like any other task. Also heals a crash between bootstrap and seeding.
+    if (!migration && board.state.seq === 1) {
+      const { seed } = await load(laneboardDir, 'scripts/seed.mjs');
+      await seed(origin, ownerToken, { fixture: sampleFixture });
+      outcome = 'seeded';
+    }
+  } catch (e) {
+    // 0.3.7 gate S2: a failed open closes what it opened (the store's journal and mailbox handles, the server); the
+    // host's restart loop retries once per backoff step, so each failed try used to leak them.
+    closing = true;
+    if (server.listening) server.close();
+    board.close();
+    throw e;
   }
 
   return {
     outcome, server, board, port, origin, dataDir, root, migration,
     url: `${origin}/#token=${encodeURIComponent(ownerToken)}${lang ? `&lang=${encodeURIComponent(lang)}` : ''}`,
-    close() { server.close(); board.close(); },
+    alive() { return !down && !closing && server.listening; },
+    close() { closing = true; server.close(); board.close(); },
   };
 }

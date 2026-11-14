@@ -59,7 +59,7 @@ async function manifestOf(zip) {
 const kokoroZip = packZip(voiceManifest(), RUNTIME);
 const kokoroOnDisk = await manifestOf(kokoroZip);
 const roomOnDisk = await manifestOf(roomZip);
-const KOKORO = { manifest: voiceManifest(), zip: kokoroZip, manifestOnDisk: kokoroOnDisk, meta: { recommended: true, langs: ['en'], platforms: ['win-x64'], modelBytes: 100, needs: ['runs-code', 'model-download'], author: 'hexgrad' } };
+const KOKORO = { manifest: voiceManifest(), zip: kokoroZip, manifestOnDisk: kokoroOnDisk, meta: { recommended: true, langs: ['en'], platforms: ['win-x64'], modelBytes: 100, needs: ['runs-code', 'model-download'], author: 'hexgrad', desc: { en: 'Reads replies aloud.', vi: 'Đọc to câu trả lời.' } } };
 const ROOM = { manifest: roomManifest, zip: roomZip, manifestOnDisk: roomOnDisk, meta: { activates: 'beach-cabin' } };
 
 function fakeModel() { let here = false; return { present: () => here, calls: 0, download(cb) { this.calls++; cb({ loaded: 5, total: 10 }); here = true; return Promise.resolve(true); }, stop() {}, remove() { here = false; } }; }
@@ -78,6 +78,7 @@ const ids = (l) => l.items.map((i) => i.id).sort().join();
   ok(l.store && l.store.state === 'ok' && l.store.serial === 1, 'the list says where the store stands', JSON.stringify(l.store));
   const k = l.items.find((i) => i.id === 'voice.kokoro-82m');
   ok(k.state === 'available' && k.version === '1.2.1' && k.modelBytes === 100 && k.recommended === true && k.sha256 === sha256(kokoroZip), 'an item carries the version, pin and facts the index lists', JSON.stringify(k));
+  ok(k.desc && k.desc.vi === 'Đọc to câu trả lời.' && k.desc.en === 'Reads replies aloud.' && k.needs.join() === 'runs-code,model-download', 'the signed index meta.desc {en, vi} and meta.needs reach the list', JSON.stringify(k));
   ok(fs.existsSync(path.join(d, 'market', 'index.json')) && fs.existsSync(path.join(d, 'market', 'index.json.minisig')), 'the verified index is cached where the Rust pack host re-checks it');
   const r = await h['market.install']('voice.kokoro-82m');
   ok(r.ok, 'Kokoro installs from the store', JSON.stringify(r));
@@ -172,6 +173,76 @@ const ids = (l) => l.items.map((i) => i.id).sort().join();
   ok(h['market.list']().store.state === 'ok', 'an https store verifies through redirects', JSON.stringify(h['market.list']().store));
   ok((await h['market.install']('voice.kokoro-82m')).ok, 'and installs a pack from it');
   ok(seen.includes('https://github.com/Zumia-Space/zumi-market/releases/latest/download/voice.kokoro-82m-1.2.1.zip'), 'the zip url is resolved against the store origin', seen.join(' '));
+}
+
+// ---------- T-31-mkt-previews: meta.preview, pinned by the signed index, reaches the list as a data URI ----------
+// The host fetches the file beside the zips, refuses it on size, sha256, magic or a size that is not the pinned w x h, caches it at
+// <data>/market/previews/<sha256>.<ext>, and fills `preview` asynchronously (one market:progress done). No preview = null (the glyph).
+{
+  /** A WebP header (VP8X chunk carries the canvas size) plus filler: enough for the magic and size checks, never decoded here. */
+  const webp = (w, h, fill = 7, pad = 300) => { const b = Buffer.alloc(30 + pad, fill); b.write('RIFF', 0, 'latin1'); b.writeUInt32LE(b.length - 8, 4); b.write('WEBPVP8X', 8, 'latin1'); b.writeUInt32LE(10, 16); b.writeUInt32LE(0, 20); b.writeUIntLE(w - 1, 24, 3); b.writeUIntLE(h - 1, 27, 3); return b; };
+  const good = webp(480, 270);
+  const pinOf = (buf, over = {}) => ({ file: 'room.beach-cabin.preview-1.webp', sha256: sha256(buf), bytes: buf.length, w: 480, h: 270, ...over });
+  const withPreview = (pin, file = good, name = pin.file) => { const s = writeStore(fresh('s'), [{ ...ROOM, meta: { ...ROOM.meta, preview: pin } }]); if (file) fs.writeFileSync(path.join(s, path.basename(String(name))), file); return s; };
+  const previewAfter = async (d, s, o = {}) => {
+    const emitted = [];
+    const h = host(d, s, { emit: (c, p) => { emitted.push(p.id); return true; }, ...o }).handlers;
+    h['market.list'](); await settle();
+    const first = h['market.list']().items.find((i) => i.id === 'room.beach-cabin');
+    for (let i = 0; i < 20 && !emitted.includes('room.beach-cabin'); i++) await settle();
+    const later = h['market.list']().items.find((i) => i.id === 'room.beach-cabin');
+    return { first, later, emitted, h };
+  };
+  const uri = `data:image/webp;base64,${good.toString('base64')}`;
+  const cached = (d, buf = good) => path.join(d, 'market', 'previews', `${sha256(buf)}.webp`);
+
+  const s = withPreview(pinOf(good));
+  const d = fresh('d');
+  const r = await previewAfter(d, s);
+  ok(r.first && r.first.preview === null, 'preview: the first list does not wait for the file (null, the glyph shows)', JSON.stringify(r.first && r.first.preview));
+  ok(r.later && r.later.preview === uri && r.emitted.includes('room.beach-cabin'), 'preview: a good file reaches the list as a data URI and repaints the page once', String(r.later && r.later.preview).slice(0, 40));
+  ok(fs.existsSync(cached(d)) && fs.readFileSync(cached(d)).equals(good), 'preview: the verified file is cached at <data>/market/previews/<sha256>.webp');
+  ok(r.later && !('previewPin' in r.later) && r.later.desc !== undefined, 'preview: the list carries the image, not the pin');
+  // offline, cache: the cached index and the cached file still show the picture
+  const off = await previewAfter(d, path.join(s, 'gone'));
+  ok(off.first && off.first.preview === uri, 'preview offline with a cache: the cached picture shows at once', String(off.first && off.first.preview).slice(0, 40));
+  // a cache file changed on disk is not trusted
+  fs.mkdirSync(path.dirname(cached(d)), { recursive: true }); fs.writeFileSync(cached(d), webp(480, 270, 9));
+  const poisoned = await previewAfter(d, path.join(s, 'gone'));
+  ok(poisoned.later && poisoned.later.preview === null, 'preview: a cached file that no longer matches its sha256 is refused (glyph)', String(poisoned.later && poisoned.later.preview).slice(0, 40));
+  // offline, no cache
+  const none = await previewAfter(fresh('d'), withPreview(pinOf(good), null));
+  ok(none.later && none.later.preview === null && none.later.state === 'available', 'preview: the file missing from the store (offline, no cache) gives null, the item still lists', JSON.stringify(none.later && none.later.preview));
+  // refusals: each one gives null and caches nothing
+  const refusals = [
+    ['a file whose sha256 differs from the pin', pinOf(good), webp(480, 270, 8)],
+    ['a file larger than the pinned bytes', pinOf(good), Buffer.concat([good, Buffer.from([1])])],
+    ['a pin over the 64 KiB cap', pinOf(webp(480, 270, 7, 70 * 1024)), webp(480, 270, 7, 70 * 1024)],
+    ['a file that is not an image (bad magic)', pinOf(Buffer.alloc(330, 7)), Buffer.alloc(330, 7)],
+    ['an image whose size is not the pinned w x h', pinOf(webp(100, 100)), webp(100, 100)],
+    ['a webp named .png in the pin', pinOf(good, { file: 'room.beach-cabin.preview-1.png' }), good],
+    ['a pin file that leaves the store folder', pinOf(good, { file: '../room.beach-cabin.preview-1.webp' }), good],
+  ];
+  for (const [what, pin, file] of refusals) {
+    const dd = fresh('d');
+    const x = await previewAfter(dd, withPreview(pin, file));
+    ok(x.later && x.later.preview === null && !fs.existsSync(path.join(dd, 'market', 'previews', `${pin.sha256}.webp`)) && !fs.existsSync(path.join(dd, 'market', 'previews', `${pin.sha256}.png`)), `preview refused: ${what}`, String(x.later && x.later.preview).slice(0, 40));
+  }
+  // an https store: the file comes through the same guarded fetch and redirects as the index
+  const hs = withPreview(pinOf(good));
+  const seen = [];
+  const fake = async (url) => {
+    seen.push(url);
+    if (url.startsWith('https://github.com/')) return { ok: false, status: 302, headers: new Headers({ location: `https://release-assets.githubusercontent.com/x/${path.basename(url)}` }), body: null };
+    const f = path.join(hs, path.basename(url));
+    if (!fs.existsSync(f)) return { ok: false, status: 404, headers: new Headers(), body: null };
+    return { ok: true, status: 200, headers: new Headers(), body: new Blob([fs.readFileSync(f)]).stream() };
+  };
+  const hx = await previewAfter(fresh('d'), 'https://github.com/Zumia-Space/zumi-market/releases/latest/download/', { fetchImpl: fake });
+  ok(hx.later && hx.later.preview === uri && seen.includes('https://github.com/Zumia-Space/zumi-market/releases/latest/download/room.beach-cabin.preview-1.webp'), 'preview: an https store serves it through the guarded fetch, resolved against the store origin', seen.join(' '));
+  // no meta.preview at all: null, never fetched
+  const plain = await previewAfter(fresh('d'), writeStore(fresh('s'), [ROOM]));
+  ok(plain.later && plain.later.preview === null && !plain.emitted.includes('room.beach-cabin'), 'no meta.preview: null (the glyph), nothing fetched');
 }
 
 // ---------- removing the default room's pack takes its served copy with it ----------
@@ -304,6 +375,24 @@ const ids = (l) => l.items.map((i) => i.id).sort().join();
   ok(rows.find((r) => r.id === 'room.night-city').name === 'Night City', 'a store item with its own i18n key uses it');
   ok(rows.find((r) => r.id === 'room.beach-cabin').name === 'Nhà gỗ biển' && rows.find((r) => r.id === 'room.beach-cabin').origin === 'catalog', 'a store room without a key takes its name from the index, in the UI language');
   ok(rows.filter((r) => r.id === 'room.beach-cabin').length === 1 && rows.some((r) => r.id === 'room.zen-garden' && r.origin === 'room'), 'a video room that came as a pack shows once (its pack row); one on this PC from elsewhere keeps its own row');
+  // T-31-mkt-desc-1411, 0.3.7 cut (bugs a and b only): an index line reaches the card when the item has no i18n line;
+  // a store room that is not here never says "on this PC". The item i18n line still comes first, as in 0.3.6.
+  const KEYED = { 'market.item.room_night_city.desc': 'Night City i18n line.', 'market.room.desc': 'A room on this PC.', 'market.room.descStore': 'A room from the store.' };
+  const tk = (k) => KEYED[k] || k;
+  const CABIN = { en: 'A cabin by the sea.', vi: 'Nhà gỗ bên biển.' };
+  const dRows = (lang) => buildRows({ market: { store: { state: 'ok' }, items: [
+    item('room.night-city', 'available', { activates: 'default-v2' }),
+    item('room.cozy-study', 'available', { activates: 'cozy-study' }),
+    item('room.zen-garden', 'installed', { activates: 'zen-garden' }),
+    item('room.beach-cabin', 'available', { activates: 'beach-cabin', desc: CABIN }),
+  ] }, rooms: [], models: [], tr: tk, lang });
+  const dv = dRows('vi'), dz = dRows('zh');
+  const row = (rs, id) => rs.find((r) => r.id === id);
+  ok(row(dv, 'room.night-city').desc === 'Night City i18n line.', 'an item with its own i18n line keeps it, as in 0.3.6', row(dv, 'room.night-city').desc);
+  ok(row(dv, 'room.beach-cabin').desc === CABIN.vi, 'bug a: the index meta.desc reaches the card of an item with no i18n line, in the UI language', row(dv, 'room.beach-cabin').desc);
+  ok(row(dz, 'room.beach-cabin').desc === CABIN.en, 'a language the index lacks falls back to its English line', row(dz, 'room.beach-cabin').desc);
+  ok(row(dv, 'room.cozy-study').desc === 'A room from the store.', 'bug b: a store room not installed, with no line of its own, never says "on this PC"', row(dv, 'room.cozy-study').desc);
+  ok(row(dv, 'room.zen-garden').desc === 'A room on this PC.', 'an installed store room with no line of its own is on this PC', row(dv, 'room.zen-garden').desc);
 }
 
 // ---------- the app's own store settings ----------

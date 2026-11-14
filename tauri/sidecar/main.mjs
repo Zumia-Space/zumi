@@ -42,6 +42,7 @@ import { createSpeechHost } from './speech-host.mjs';
 import { createAgentCore } from '../../src/main/agent-core.mjs';
 import { createVoiceHost } from './voice-host.mjs';
 import { createBoardHost } from './board-host.mjs';
+import { createSidecarLog, createClockGapWatch } from './sidecar-log.mjs';
 import { createHudHost, createHostOpen, hudPollMs } from './hud-host-tauri.mjs';
 import { createBrainReads } from './board-reads-host.mjs';
 import { createHostCalls } from './host-calls.mjs';
@@ -379,6 +380,61 @@ function buildHandlers(ctx) {
   });
   ctx.library = lib; // the probe fixture (startEventFixture) pushes model:changed through it
 
+  // The local board's open (board:open + startBoard, main.js:895 / :548). Root is <dataDir>/board-data ONLY — never
+  // Electron's userData (<root>/Zumi-data), never a Zumi-data folder. The port comes from the preview settings.json
+  // (settings.boardPort) and is saved back when it had to move, exactly as startBoard does for the Electron settings.json.
+  function startLocalBoard() {
+    if (!boardStarting) {
+      boardStarting = (async () => {
+        const root = boardDataRoot(ctx.dataDir);
+        // A self-test/demo run takes any free port (main.js:551 runDir ? 0) and records the board's HTTP answers
+        // for selftest.boardLog; a normal run keeps the stable origin from settings.
+        const wantPort = st.runDir ? 0 : Number(settings().boardPort) || 0;
+        let b = null;
+        b = await openLocalBoard({ laneboardDir: laneboardDir(), root, sampleFixture: boardSamplePath(), port: wantPort, onRequest: st.onBoardRequest, onDown: (err) => localBoardDown(b, err) });
+        if (!st.runDir && b.port && b.port !== wantPort) saveSettings(ctx.dataDir, { boardPort: b.port });
+        boardOutcome = b.outcome;
+        if (b.outcome !== 'refused') { board = b; boardStartedAt = Date.now(); } // a refused import wrote nothing; retry next open
+        return b;
+      })().finally(() => { boardStarting = null; });
+    }
+    return boardStarting;
+  }
+  // T-31 local-board self-heal (0.3.7, same pattern as board-live.mjs's bridge restart): the opened board used to be
+  // cached forever, so a server that closed or errored left the Board tab on a dead origin until an app restart. Now a
+  // dead board is dropped (its store closed, so the restart reopens the same journal), restarted by itself after a
+  // backoff (1 s doubling to 30 s, reset once a board stayed up a minute), and replaced at once when openBoard asks.
+  const BOARD_BACKOFF = { baseMs: 1_000, maxMs: 30_000 };
+  const BOARD_STABLE_MS = 60_000;
+  let boardRestartTimer = null;
+  let boardRestartFails = 0;
+  let boardStartedAt = 0;
+  // The app log gets an error CODE only (a message can carry a user path).
+  const errorCode = (e) => (e && typeof e.code === 'string' && /^[A-Z][A-Z0-9_]*$/.test(e.code) ? e.code : 'error');
+  function scheduleBoardRestart() {
+    if (boardRestartTimer) return;
+    const delay = Math.min(BOARD_BACKOFF.baseMs * 2 ** boardRestartFails, BOARD_BACKOFF.maxMs);
+    boardRestartFails++;
+    boardRestartTimer = setTimeout(() => {
+      boardRestartTimer = null;
+      if (board || boardStarting) return; // openBoard already replaced it
+      startLocalBoard().catch((e) => { process.stderr.write(`[sidecar] local board restart failed: ${errorCode(e)}
+`); scheduleBoardRestart(); });
+    }, delay);
+    boardRestartTimer.unref?.();
+  }
+  function localBoardDown(b, err) {
+    // b is null while openLocalBoard has not returned (a server lost during the first-run seed, 0.3.7 gate S1): that open
+    // fails and closes its own store; a board that came back dead anyway is replaced by openBoard's alive() check.
+    if (!b || b !== board) return; // not ours, already dropped or replaced
+    board = null;
+    b.close();
+    if (Date.now() - boardStartedAt >= BOARD_STABLE_MS) boardRestartFails = 0;
+    process.stderr.write(`[sidecar] local board server went down (${err ? errorCode(err) : 'closed'}); restarting
+`);
+    scheduleBoardRestart();
+  }
+
   // board:open's reply shape, mirroring src/main/main.js:895-905.
   const boardResponse = (b) => {
     const core = { laneboard: laneboardVersion(), root: b.root, dataDir: b.dataDir };
@@ -462,6 +518,15 @@ function buildHandlers(ctx) {
   const handlers = {
     ...speech.handlers,
     ...signals.handlers,
+    // bridge-heal2: HOST ONLY (not in the inventory, so the renderer's rpc can never send it): the Rust host reports each
+    // guest's did-fail-load (guest_guard.rs push_guest_load_failed) so the raw WebView2 status lands in sidecar.log.
+    '__host.guestLoadFailed': (info) => {
+      const o = info && typeof info === 'object' ? info : {};
+      const word = (v) => String(v == null ? '-' : v).replace(/[^\w.:-]/g, '').slice(0, 64);
+      process.stderr.write(`[guest] load failed: ${word(o.label)} code ${word(o.errorCode)} ${word(o.errorDescription)} webErrorStatus ${word(o.webErrorStatus)}
+`);
+      return true;
+    },
     ...voice.handlers,
     // launch-scope memory (memory-notes.mjs): the user's notes. Recall is not an rpc: chat-host.mjs reads it per turn.
     'memory.status': () => memory.handlers['memory.status'](),
@@ -668,27 +733,12 @@ function buildHandlers(ctx) {
     'shots.seedUsage': () => st.handlers['shots.seedUsage'](), // shots:seed-usage, :2143
     'probe.finish': (report) => st.handlers['probe.finish'](report), // probe:finish, :2092
 
-    // board:open + startBoard (main.js:895 / :548). Root is <dataDir>/board-data ONLY — never
-    // Electron's userData (<root>/Zumi-data), never a Zumi-data folder. The port comes from the
-    // preview settings.json (settings.boardPort) and is saved back when it had to move, exactly as
-    // startBoard does for the Electron settings.json.
+    // board:open (main.js:895): the cached local board, replaced when it no longer listens (startLocalBoard above).
     openBoard: async () => {
       try {
+        if (board && !board.alive()) localBoardDown(board, Object.assign(new Error('not listening'), { code: 'NOT_LISTENING' }));
         if (board) return boardResponse(board);
-        if (!boardStarting) {
-          boardStarting = (async () => {
-            const root = boardDataRoot(ctx.dataDir);
-            // A self-test/demo run takes any free port (main.js:551 runDir ? 0) and records the board's HTTP answers
-            // for selftest.boardLog; a normal run keeps the stable origin from settings.
-            const wantPort = st.runDir ? 0 : Number(settings().boardPort) || 0;
-            const b = await openLocalBoard({ laneboardDir: laneboardDir(), root, sampleFixture: boardSamplePath(), port: wantPort, onRequest: st.onBoardRequest });
-            if (!st.runDir && b.port && b.port !== wantPort) saveSettings(ctx.dataDir, { boardPort: b.port });
-            boardOutcome = b.outcome;
-            if (b.outcome !== 'refused') board = b; // a refused import wrote nothing; retry next open
-            return b;
-          })().finally(() => { boardStarting = null; });
-        }
-        return boardResponse(await boardStarting);
+        return boardResponse(await startLocalBoard());
       } catch (e) {
         const message = String((e && e.message) || e);
         // The app log gets the error CODE only: the message can carry the user's home path (a missing import) or a snippet of the board file (a corrupt projection). The caller still gets the full message below.
@@ -806,7 +856,7 @@ function buildHandlers(ctx) {
 
   // Called when stdin closes (the host is quitting): stop the scheduler tick and the hosts so nothing lingers.
   if (!isSelfTestRun(ctx.selfTest)) agent.start(); // T-31 alpha.12: the once-a-minute idle sample into the rhythm's active buckets (unref'd timer)
-  const dispose = () => { hud.dispose(); boardHost.dispose(); speech.dispose(); agent.dispose(); chatHost.dispose(); voice.dispose(); };
+  const dispose = () => { clearTimeout(boardRestartTimer); boardRestartTimer = null; hud.dispose(); boardHost.dispose(); speech.dispose(); agent.dispose(); chatHost.dispose(); voice.dispose(); };
 
   return { handlers, dispose, signals, ai, chatHost, speech };
 }
@@ -857,6 +907,19 @@ function startEventFixture(emit, library) {
 
 function main(measureStubModule = null) {
   const dataDir = parseDataDir(process.argv.slice(2));
+  // bridge-heal2 (field report 14-11): the one log that survives a release build (stderr goes nowhere there). Board lines,
+  // this process's start/exit/crash (a host respawn shows as a new start line) and wall-clock gaps. Secret-free.
+  const sidecarLog = createSidecarLog({ dataDir });
+  // Every stderr line (each module's own log) is kept in sidecar.log too, scrubbed; the host still gets it on stderr.
+  const rawStderrWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (chunk, ...rest) => {
+    for (const line of String(chunk).split(/\r?\n/)) if (line.trim()) sidecarLog.write(line);
+    return rawStderrWrite(chunk, ...rest);
+  };
+  sidecarLog.write(`[sidecar] start pid ${process.pid} node ${process.version}`);
+  process.on('uncaughtExceptionMonitor', (e, origin) => sidecarLog.write(`[sidecar] crash (${origin}): ${(e && (e.code || e.name)) || 'error'} ${String((e && e.message) || e).slice(0, 160)}`));
+  process.on('exit', (code) => sidecarLog.write(`[sidecar] exit code ${code}`));
+  createClockGapWatch({ log: (m) => sidecarLog.write(`[sidecar] ${m}`) }).start();
   // Step 7-1: in a bundled run the host names the resource root, so the Electron-parity modules resolve the voice
   // modules from `<resources>/voice-modules`. Never override a value the runtime already provides.
   const resourcesDir = parseResourcesDir(process.argv.slice(2));
@@ -895,7 +958,7 @@ function main(measureStubModule = null) {
     dataDir, hostDir, version: parseAppVersion(process.argv.slice(2)) || appVersion(), settings: () => readSettings(dataDir), emit,
     now: fixedNow === null ? Date.now : () => fixedNow,
     testModelPath: parseTestModel(process.argv.slice(2)), voicePrefetch: parseVoicePrefetch(process.argv.slice(2)),
-    safeStorage, secretStores, flavour, hostCalls, selfTest, shotsFixtures,
+    safeStorage, secretStores, flavour, hostCalls, selfTest, shotsFixtures, sidecarLog,
     measureStub: measureStubModule ? measureStubModule.installMeasureStub({ table: providers.PROVIDERS, dataDir, safeStorage }) : null,
   };
   const { handlers, dispose } = buildHandlers(ctx);

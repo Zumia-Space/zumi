@@ -139,7 +139,7 @@ export function createBoardHost({ safeStorage, dataDir, flavour, settings, saveS
       if (pin !== undefined && pin !== null && typeof pin !== 'string') return { ok: false, error: 'bad_request' };
       const r = liveBoard.secrets.signOut(pin == null ? undefined : pin);
       // 'io' = the memory copy is already gone but a file delete failed: still stop the live board, report the error.
-      if (r.ok || r.error === 'io') { await liveBoard.setMode('local'); liveBridgeOrigin = null; }
+      if (r.ok || r.error === 'io') { await liveBoard.setMode('local', r.ok ? 'sign-out' : 'sign-out, file delete failed'); liveBridgeOrigin = null; }
       return r;
     },
     // main.js:1369: the bare preference only, refused once secrets exist (the envelope's own `type` is then the truth;
@@ -151,7 +151,7 @@ export function createBoardHost({ safeStorage, dataDir, flavour, settings, saveS
     },
     // main.js:1375 + :1431: leaving live mode also drops liveBridgeOrigin so the board guest stops being recognised.
     'board.setMode': async (mode) => {
-      const r = await liveBoard.setMode(mode);
+      const r = await liveBoard.setMode(mode, 'board.setMode');
       if (r.ok && mode === 'local') liveBridgeOrigin = null;
       return r;
     },
@@ -163,7 +163,9 @@ export function createBoardHost({ safeStorage, dataDir, flavour, settings, saveS
       const port = await liveBoard.bridgePort();
       if (!port) return { error: 'not_live' };
       liveBridgeOrigin = `http://127.0.0.1:${port}`;
-      return { origin: liveBridgeOrigin, partition: BOARD_LIVE_PARTITION, openUrl: await liveBoard.bridgeSessionUrl() };
+      // `fed` (bridge-heal2): the Board tab's watch (src/renderer/board-live-watch.js) re-loads a page that never got its board.
+      const fed = await liveBoard.bridgePageFed();
+      return { origin: liveBridgeOrigin, partition: BOARD_LIVE_PARTITION, openUrl: await liveBoard.bridgeSessionUrl(), fed };
     },
     // ---- T-31-MOBILE M3 phone pairing: OWNER BUILD ONLY (GATE-M3 fix 8d: pairing exports the shared board password) ----
     // `phone.status` is the renderer's read (no secret). The two `__host.*` names are host-only: the Rust host calls them

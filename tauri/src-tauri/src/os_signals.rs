@@ -75,6 +75,12 @@ pub fn on_sidecar_ready(app: &AppHandle) {
     }
 }
 
+/// bridge-heal2: a guest webview's main-frame load failed (guest_guard.rs, next to its `did-fail-load` emit). The sidecar
+/// writes it to its persistent log, so a dead Board tab leaves the raw WebView2 status on disk (codes only, no URL).
+pub fn push_guest_load_failed(app: &AppHandle, label: &str, code: i32, description: &str, web_error_status: i32) {
+    notify(app, "__host.guestLoadFailed", vec![json!({ "label": label, "errorCode": code, "errorDescription": description, "webErrorStatus": web_error_status })]);
+}
+
 /// Forward an OS event the window subclass saw.
 pub fn push_os_event(app: &AppHandle, name: &str) {
     notify(app, "__host.osEvent", vec![json!(name)]);

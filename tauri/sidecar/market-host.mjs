@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { MANIFEST_FILE, validatePackZip } from './market-standard.mjs';
+import { checkPreview, previewDataUri, previewPin } from './market-preview.mjs';
 import { pickVersion, verifyIndex } from './market-store.mjs';
 
 // Kokoro's runtime pack, built by scripts/market-pack-kokoro.mjs; the build's own sha and size go here. Every shipped item has a
@@ -39,6 +40,14 @@ const INDEX_MAX = 4 * 1024 * 1024;
 const isHttps = (source) => /^https:\/\//.test(source);
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 
+/** The index's one line, `{ <lang>: text }` (strings only) or a plain string; anything else is no line (the page falls back to i18n). */
+function storeDesc(desc) {
+  if (typeof desc === 'string') return desc || null;
+  if (!desc || typeof desc !== 'object' || Array.isArray(desc)) return null;
+  const out = Object.fromEntries(Object.entries(desc).filter(([, v]) => typeof v === 'string' && v));
+  return Object.keys(out).length ? out : null;
+}
+
 /** One store item from a verified index entry, or null when no version fits this host (it is then not offered). */
 function storeItem(pack, source) {
   const pick = pickVersion(pack);
@@ -52,6 +61,7 @@ function storeItem(pack, source) {
     langs: Array.isArray(meta.langs) ? meta.langs : undefined, platforms: Array.isArray(meta.platforms) ? meta.platforms : undefined,
     needs: Array.isArray(meta.needs) ? meta.needs : [], modelBytes: Number.isInteger(meta.modelBytes) ? meta.modelBytes : 0,
     bytes: Number.isInteger(meta.bytes) ? meta.bytes : v.bytes, activates: typeof meta.activates === 'string' ? meta.activates : null,
+    desc: storeDesc(meta.desc), previewPin: previewPin(meta.preview),
     download: isHttps(source)
       ? { url: new URL(v.url, source).href, sha256: v.sha256, bytes: v.bytes, manifestSha256: v.manifestSha256 }
       : { file: path.join(source, name), url: `file:${name}`, sha256: v.sha256, bytes: v.bytes, manifestSha256: v.manifestSha256 },
@@ -70,6 +80,7 @@ export function createMarketHost({ dataDir, catalog = CATALOG, store = null, fet
   const storeView = { index: null, state: 'none', at: 0, pending: null };
   const installedFile = path.join(packsDir, 'installed.json');
   const busy = new Map(); // id -> last progress
+  const previews = new Map(); // preview sha256 -> { uri } once verified, or { at, pending? } while fetching / after a failure
   const published = new Map(); // id -> { yes, at }, for a download marked releaseAsset
   const packDir = (id) => path.join(packsDir, id);
   const pendingRemoval = (id) => path.join(packsDir, `${id}.remove-pending`);
@@ -188,6 +199,47 @@ export function createMarketHost({ dataDir, catalog = CATALOG, store = null, fet
     probePublished(c).then((p) => { if (p.yes || p.offline !== Boolean(last && last.offline)) emit('market:progress', { id: c.id, phase: 'done', loaded: 0, total: 0 }); });
   }
 
+  // ---- previews (meta.preview): pinned by the signed index, verified, cached at <data>/market/previews/<sha256>.<ext> ----
+  const previewFile = (pin) => path.join(marketDir, 'previews', `${pin.sha256}.${pin.type}`);
+  /** The bytes, never more than the pin allows: a local store file, or the store origin through the guard. */
+  async function readPreview(pin) {
+    if (!isHttps(store.source)) {
+      const f = path.join(store.source, pin.file);
+      return fs.statSync(f).size > pin.bytes ? null : fs.readFileSync(f);
+    }
+    const res = await getFollow(new URL(pin.file, store.source).href);
+    if (!res.ok || !res.body) return null;
+    const parts = [];
+    let got = 0;
+    for await (const chunk of res.body) { got += chunk.length; if (got > pin.bytes) return null; parts.push(Buffer.from(chunk)); }
+    return Buffer.concat(parts);
+  }
+  async function fetchPreview(c, pin) {
+    let buf = null;
+    try { buf = await readPreview(pin); } catch (e) { log(`[market] preview id=${c.id} unreachable ${e.code || 'error'}`); }
+    const bad = buf ? checkPreview(buf, pin) : { code: 'preview_unreachable' };
+    if (bad) { if (buf) log(`[market] preview id=${c.id} refused ${bad.code}`); previews.set(pin.sha256, { at: Date.now() }); return; }
+    const dest = previewFile(pin);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(`${dest}.tmp`, buf);
+    fs.renameSync(`${dest}.tmp`, dest);
+    previews.set(pin.sha256, { uri: previewDataUri(buf, pin) });
+    emit('market:progress', { id: c.id, phase: 'done', loaded: 0, total: 0 });
+  }
+  /** The picture for a list item now, or null (the page shows the glyph) while it is fetched, or when it is refused or out of reach. */
+  function previewOf(c, pin) {
+    const seen = previews.get(pin.sha256);
+    if (seen && seen.uri) return seen.uri;
+    if (seen && (seen.pending || Date.now() - seen.at < REPROBE_MS)) return null;
+    try { // a cached file is checked again before it is trusted: the data folder is not signed
+      const buf = fs.readFileSync(previewFile(pin));
+      if (!checkPreview(buf, pin)) { const uri = previewDataUri(buf, pin); previews.set(pin.sha256, { uri }); return uri; }
+    } catch { /* not cached yet */ }
+    previews.set(pin.sha256, { at: Date.now(), pending: true });
+    fetchPreview(c, pin).catch((e) => { previews.set(pin.sha256, { at: Date.now() }); log(`[market] preview id=${c.id} failed ${e.code || 'error'}`); });
+    return null;
+  }
+
   function list() {
     if (store && !storeView.pending && (!storeView.at || Date.now() - storeView.at > (storeView.state === 'ok' ? STORE_REFRESH_MS : STORE_RETRY_MS))) refreshStore();
     const installed = readInstalled();
@@ -195,9 +247,10 @@ export function createMarketHost({ dataDir, catalog = CATALOG, store = null, fet
       platform: process.platform === 'win32' ? 'win-x64' : process.platform,
       store: store ? { state: storeView.pending && storeView.state === 'none' ? 'loading' : storeView.state, serial: storeView.index ? storeView.index.serial : null } : null,
       items: items().map((c) => {
-        const { download, ...rest } = c;
+        const { download, previewPin: pin, ...rest } = c;
         return {
           ...rest,
+          preview: pin ? previewOf(c, pin) : null,
           state: itemState(c),
           source: download ? (download.file ? 'store' : new URL(download.url).host) : null,
           needs: rest.needs || [],

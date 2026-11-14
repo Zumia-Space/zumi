@@ -1,7 +1,7 @@
 {
   "name": "zumi-desktop",
   "productName": "Zumi",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "Zumi desktop companion: 3D VRM avatar with a visual reflex engine",
   "main": "src/main/main.js",
   "author": "Zumia Space",
@@ -21,6 +21,14 @@
     "check:next-ui-off": "node scripts/check-next-ui-boots-without-next.mjs",
     "check:board": "node scripts/check-board.mjs",
     "check:board-bridge": "node scripts/check-board-bridge.mjs",
+    "check:board-bridge-heal": "node scripts/check-board-bridge-heal.mjs",
+    "check:tauri-board-bridge-heal": "node scripts/check-tauri-board-bridge-heal.mjs",
+    "check:board-bridge-heal2": "node scripts/check-board-bridge-heal2.mjs",
+    "check:tauri-board-bridge-heal2": "node scripts/check-tauri-board-bridge-heal2.mjs",
+    "check:local-board-heal": "node scripts/check-local-board-heal.mjs",
+    "check:tauri-local-board-heal": "node scripts/check-tauri-local-board-heal.mjs",
+    "check:board-bridge-finswallow": "node scripts/check-board-bridge-finswallow.mjs",
+    "check:local-board-finswallow": "node scripts/check-local-board-finswallow.mjs",
     "check:board-bridge-stats": "node scripts/check-board-bridge-stats.mjs",
     "check:reflex-toast-dev-only": "node scripts/check-reflex-toast-dev-only.mjs",
     "check:board-open": "node scripts/check-board-open.mjs",
@@ -338,7 +346,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotesFile": "release-notes/0.3.6.md"
+      "releaseNotesFile": "release-notes/0.3.7.md"
     },
     "electronDist": "node_modules/electron/dist"
   }

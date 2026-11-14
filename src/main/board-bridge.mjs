@@ -125,6 +125,7 @@ const isReadRoute = (p, method) => READ_ROUTES.has(p) || READ_ROUTE_PATTERNS.som
 export const CALLER_HEADER = 'x-zumi-bridge-token';
 const SESSION_PATH = '/__bridge-session';
 const SESSION_NONCE_TTL_MS = 60_000;
+const SESSION_NONCE_MAX = 64; // live nonces at once; the 5 s watch alone keeps ~12 inside one TTL
 const safeEqual = (a, b) => {
   const x = Buffer.from(String(a ?? ''), 'utf8'), y = Buffer.from(String(b ?? ''), 'utf8');
   return x.length === y.length && crypto.timingSafeEqual(x, y);
@@ -181,16 +182,23 @@ function buildAuthHeaders(auth, forWrite) {
   return { Authorization: `Bearer ${auth && auth.bearer}` };
 }
 
-/** One upstream call. `redirect: 'manual'` turns any 3xx into a hard error so the auth is never re-sent. */
-async function upstreamFetch(upstreamOrigin, pathname, { method, auth, body } = {}) {
-  const res = await fetch(new URL(upstreamOrigin + pathname), {
-    method,
-    redirect: 'manual',
-    headers: { ...buildAuthHeaders(auth, method !== 'GET' && method !== 'HEAD'), ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    ...(body ? { body } : {}),
-    signal: AbortSignal.timeout(15000),
-  });
-  if (res.status >= 300 && res.status < 400) throw Object.assign(new Error('upstream redirect'), { status: 502, code: 'upstream_redirect' });
+/**
+ * One upstream call. `redirect: 'manual'` turns any 3xx into a hard error so the auth is never re-sent. `note` (bridge-heal2)
+ * hears each outcome: null = answered below 500, else a failure code (a network error's code, `status 5xx`, the redirect).
+ */
+async function upstreamFetch(upstreamOrigin, pathname, { method, auth, body, note = () => {} } = {}) {
+  let res;
+  try {
+    res = await fetch(new URL(upstreamOrigin + pathname), {
+      method,
+      redirect: 'manual',
+      headers: { ...buildAuthHeaders(auth, method !== 'GET' && method !== 'HEAD'), ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      ...(body ? { body } : {}),
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (e) { note(String((e.cause && e.cause.code) || e.code || e.name || 'error')); throw e; }
+  if (res.status >= 300 && res.status < 400) { note('upstream_redirect'); throw Object.assign(new Error('upstream redirect'), { status: 502, code: 'upstream_redirect' }); }
+  note(res.status >= 500 ? `status ${res.status}` : null);
   return res;
 }
 
@@ -215,8 +223,11 @@ async function upstreamFetch(upstreamOrigin, pathname, { method, auth, body } = 
  *   (no network): a rejected sign-in is not retried until the host clears the latch (new sign-in / sign-out).
  * @param {(line: string) => void} [o.onLog]  one line per error answer the bridge gives itself
  *   (`bridge refused <METHOD> <path> <status> <code>`): no query string, header, body or secret
+ * @param {(err: Error|null) => void} [o.onDown]  called ONCE when the listener goes away without close() being called:
+ *   a failed listen, an 'error' after listening (libuv on Windows stops accepting and Node emits it with syscall
+ *   'accept'), or the server closed under the bridge. The host (board-live.mjs) restarts a new bridge from it.
  */
-export function createBridge({ upstreamOrigin, getToken, getBasicAuth, publicDir, host = '127.0.0.1', onRefused, ownerOps = false, onAuthRejected, isAuthRejected, authGeneration, onLog, hostTheme = false } = {}) {
+export function createBridge({ upstreamOrigin, getToken, getBasicAuth, publicDir, host = '127.0.0.1', onRefused, ownerOps = false, onAuthRejected, isAuthRejected, authGeneration, onLog, hostTheme = false, onDown } = {}) {
   const dir = path.resolve(publicDir);
   const base = upstreamOrigin.replace(/\/+$/, '');
   // null while locked/unconfigured (either source), so one check covers local mode (bearer only) and live mode
@@ -244,6 +255,21 @@ export function createBridge({ upstreamOrigin, getToken, getBasicAuth, publicDir
     if (hit === null) return false;
     nonces.delete(hit);
     return true;
+  }
+
+  // bridge-heal2 (field report 14-11): upstream health, logged on change only (codes, never a URL or a header), and whether the
+  // page last loaded through a session URL has had a 200 board yet. The vendored page polls only once it has a board,
+  // so a page that booted while the upstream was down sits empty for good; the Board tab re-loads it when this is false.
+  let upstreamFailing = null, upstreamFails = 0, pageFed = false;
+  function noteUpstream(failure) {
+    if (failure) {
+      upstreamFails++;
+      if (!upstreamFailing) onLog?.(`upstream failing: ${failure}`);
+      upstreamFailing = failure;
+    } else if (upstreamFailing) {
+      onLog?.(`upstream ok again after ${upstreamFails} failed call(s) (last: ${upstreamFailing})`);
+      upstreamFailing = null; upstreamFails = 0;
+    }
   }
 
   let pageTheme = null; // hostTheme only: the app theme the page was last loaded with (?zumiTheme=), one board page per bridge
@@ -274,13 +300,19 @@ export function createBridge({ upstreamOrigin, getToken, getBasicAuth, publicDir
     if (!a) throw Object.assign(new Error('locked'), { status: 401, code: 'locked' });
     if (isAuthRejected?.()) throw Object.assign(new Error('auth rejected'), { status: 401, code: 'auth_rejected' });
     const body = JSON.stringify({ ...rawBody, version: 1, op, request_id: `${channel === 'relay' ? 'zumi-relay-' : 'zumi-ui-'}${reqId}` });
-    const res = await upstreamFetch(base, '/api/v1/write', { method: 'POST', auth: a, body });
+    const res = await upstreamFetch(base, '/api/v1/write', { method: 'POST', auth: a, body, note: noteUpstream });
     if (res.status === 401) onAuthRejected?.(gen);
     const text = await res.text();
     return { status: res.status, text };
   }
 
   const server = http.createServer(async (req, res) => {
+    // bridge-finswallow (root cause, owner's PC 14-11 06:28Z): every answer closes its socket. A loopback filter ate the FIN
+    // the bridge sent when it closed an idle keep-alive socket, so the guest's pool (6 per host) filled with sockets that were
+    // Established on its side only, and the next load or XHR on one failed as ERR_CONNECTION_ABORTED. With Connection: close
+    // the client never pools a bridge socket, whatever happens to the FIN. Safe: the bridge carries plain request/response
+    // only (no SSE, WebSocket upgrade or long-poll; the page polls every 15 s), and a loopback connect costs nothing.
+    res.setHeader('Connection', 'close');
     let url, p = '-';
     // Every answer the bridge itself gives with an error status is logged as method, path, status and code. The path has
     // no query string, so file names and ids stay out of the log; headers and bodies never go in.
@@ -296,6 +328,7 @@ export function createBridge({ upstreamOrigin, getToken, getBasicAuth, publicDir
       // ---- session bootstrap: a single-use nonce (minted by the host via sessionUrl()) swaps for the caller cookie ----
       if (req.method === 'GET' && p === SESSION_PATH) {
         if (!takeNonce(url.searchParams.get('n'))) return json(res, 401, { error: 'unauthorized' });
+        pageFed = false; // a new page load: it has no board until its own first 200
         url.searchParams.delete('n');
         res.writeHead(302, {
           'Set-Cookie': `${cookieName}=${callerToken}; Path=/; HttpOnly; SameSite=Strict`,
@@ -320,10 +353,13 @@ export function createBridge({ upstreamOrigin, getToken, getBasicAuth, publicDir
       if ((req.method === 'GET' || req.method === 'HEAD') && isReadRoute(p, req.method)) {
         if (!a) return json(res, 401, { error: 'locked' });
         if (isAuthRejected?.()) return json(res, 401, { error: 'auth_rejected' });
-        const up = await upstreamFetch(base, p + url.search, { method: req.method, auth: a });
+        const up = await upstreamFetch(base, p + url.search, { method: req.method, auth: a, note: noteUpstream });
         if (up.status === 401) onAuthRejected?.(gen); // upstream (nginx Basic / Laneboard token) refused these credentials
         let buf = Buffer.from(await up.arrayBuffer());
-        if (req.method === 'GET' && p === '/api/v1/state' && up.status === 200) buf = pageState(buf);
+        if (req.method === 'GET' && p === '/api/v1/state' && up.status === 200) {
+          buf = pageState(buf);
+          if (!safeEqual(req.headers[CALLER_HEADER], callerToken)) pageFed = true; // the page (cookie), not an in-process reader
+        }
         res.writeHead(up.status, { 'Content-Type': up.headers.get('content-type') || 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
         return res.end(buf);
       }
@@ -404,22 +440,57 @@ export function createBridge({ upstreamOrigin, getToken, getBasicAuth, publicDir
     }
   });
 
-  const ready = new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, host, () => { cookieName = `zumi_bridge_${server.address().port}`; resolve(); }); });
+  // T-31 bridge self-heal (owner report 14-11): the server used to have only a `once('error', reject)` for listen, so an
+  // error or close after listening left a dead bridge that port() kept handing out (or threw on) until an app restart.
+  // Now any way down that close() did not ask for closes the handle (no half-alive listener) and tells the host once.
+  let down = false, closing = false, listened = false;
+  const goDown = (err) => {
+    if (down || closing) return;
+    down = true;
+    if (server.listening) server.close();
+    onDown?.(err || null);
+  };
+  server.on('close', () => goDown(null));
+  // No keep-alive tuning: every answer is Connection: close (top of the handler), so no idle socket is left to time out.
+  server.requestTimeout = 0; // per-request time stays bounded by the upstream's own 15 s / upload timeouts
+  const ready = new Promise((resolve, reject) => {
+    server.on('error', (e) => { reject(e); goDown(e); });
+    server.listen(0, host, () => { listened = true; cookieName = `zumi_bridge_${server.address().port}`; resolve(); });
+  });
+  // A failed listen is reported through onDown (the host logs and retries) and through port() to whoever awaits it;
+  // without this, a listen failure nobody awaited yet would be an unhandled rejection that kills the sidecar.
+  ready.catch(() => {});
+  const livePort = async () => {
+    await ready;
+    if (down || closing || !server.listening) throw Object.assign(new Error('bridge down'), { code: 'bridge_down' });
+    return server.address().port;
+  };
 
   return {
-    /** Resolves to the ephemeral port once listening. */
-    async port() { await ready; return server.address().port; },
+    /** Resolves to the ephemeral port once listening; rejects `bridge_down` once the listener is gone. */
+    port: livePort,
+    /** False once the listener is gone (down, closed, or no longer listening after it did); the host then replaces it. */
+    alive() { return !down && !closing && (!listened || server.listening); },
     /** HOST ONLY: the one URL the app's own board webview loads first. Its single-use nonce (60 s) swaps for the
      *  HttpOnly caller cookie and redirects to `/`; the URL is dead after that load, so logging it leaks nothing. */
     async sessionUrl() {
-      await ready;
+      const port = await livePort();
       const n = crypto.randomBytes(32).toString('hex');
-      nonces.set(n, Date.now() + SESSION_NONCE_TTL_MS);
-      return `http://127.0.0.1:${server.address().port}${SESSION_PATH}?n=${n}`;
+      // gate S-a (GATE-OPUS-HEAL2 S1): the Board tab's 5 s live watch mints one per tick and loads none of them, so prune
+      // expired ones here too, and drop the oldest past the cap (insertion order = mint order).
+      const now = Date.now();
+      for (const [k, exp] of nonces) if (exp < now) nonces.delete(k);
+      while (nonces.size >= SESSION_NONCE_MAX) nonces.delete(nonces.keys().next().value);
+      nonces.set(n, now + SESSION_NONCE_TTL_MS);
+      return `http://127.0.0.1:${port}${SESSION_PATH}?n=${n}`;
     },
+    /** HOST ONLY (diagnostics, gate S-a): how many session nonces are live. */
+    pendingNonces() { return nonces.size; },
+    /** HOST ONLY (bridge-heal2): true once the page loaded through the last session URL got a 200 board. */
+    pageFed() { return pageFed; },
     /** HOST ONLY: header for in-process readers (board-reader, HUD) that call the bridge over loopback. */
     callerHeaders() { return { [CALLER_HEADER]: callerToken }; },
-    close() { return new Promise((resolve) => server.close(resolve)); },
+    close() { closing = true; return new Promise((resolve) => server.close(resolve)); },
     /**
      * HOST ONLY (T-31-MOBILE M3 pairing, GATE-BRIDGE-OPUS F4, GATE-M3 fix 8): mint ONE device token for a phone. Not a
      * channel: no page, relay or op name reaches it (PAGE_OPS / OWNER_OPS / RELAY_OPS are unchanged and still refuse
@@ -434,7 +505,7 @@ export function createBridge({ upstreamOrigin, getToken, getBasicAuth, publicDir
       const day = now.toISOString().slice(0, 10).replace(/-/g, '');
       const name = `phone-${day}-${crypto.randomBytes(2).toString('hex')}`;
       const body = JSON.stringify({ version: 1, op: 'token.issue', request_id: `zumi-host-${crypto.randomUUID()}`, target_id: name, data: { role: 'owner', device: true, label: PHONE_TOKEN_LABEL } });
-      const res = await upstreamFetch(base, '/api/v1/write', { method: 'POST', auth: a, body });
+      const res = await upstreamFetch(base, '/api/v1/write', { method: 'POST', auth: a, body, note: noteUpstream });
       const out = await res.json().catch(() => ({}));
       if (!res.ok || typeof out.token !== 'string' || typeof out.id !== 'string') return { ok: false, status: res.status, error: String(out.error || 'issue_failed') };
       return { ok: true, id: out.id, name, token: out.token };
@@ -443,7 +514,7 @@ export function createBridge({ upstreamOrigin, getToken, getBasicAuth, publicDir
     async listTokens() {
       const a = auth();
       if (!a) return { ok: false, status: 401, error: 'locked' };
-      const res = await upstreamFetch(base, '/api/v1/tokens', { method: 'GET', auth: a });
+      const res = await upstreamFetch(base, '/api/v1/tokens', { method: 'GET', auth: a, note: noteUpstream });
       const out = await res.json().catch(() => null);
       if (!res.ok || !Array.isArray(out)) return { ok: false, status: res.status, error: String((out && out.error) || 'list_failed') };
       return { ok: true, tokens: out.map((t) => ({ id: t.id, name: t.name, role: t.role, label: t.label ?? null, device: t.device === true, revoked_at: t.revoked_at ?? null })) };
@@ -464,7 +535,7 @@ export function createBridge({ upstreamOrigin, getToken, getBasicAuth, publicDir
       const a = auth();
       if (!a) return { ok: false, status: 401, error: 'locked' };
       const body = JSON.stringify({ version: 1, op: 'token.revoke', request_id: `zumi-host-${crypto.randomUUID()}`, target_id: id, data: {} });
-      const res = await upstreamFetch(base, '/api/v1/write', { method: 'POST', auth: a, body });
+      const res = await upstreamFetch(base, '/api/v1/write', { method: 'POST', auth: a, body, note: noteUpstream });
       const out = await res.json().catch(() => ({}));
       if (res.ok) return { ok: true, revoked: id, cascade: Array.isArray(out.cascade) ? out.cascade : [] };
       if ((res.status === 404 && out.error === 'token_not_found') || (res.status === 409 && out.error === 'already_revoked')) return { ok: true, gone: out.error };

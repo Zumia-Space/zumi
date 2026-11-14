@@ -489,9 +489,14 @@ select:disabled { opacity: .55; }
 .market-head, .market-dtitle { min-width: 0; }
 .market-head .k { font-size: var(--s-body); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .market-by { margin-top: 2px; font-size: var(--s-meta); color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.market-card > .d { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; min-height: 2.8em; overflow: hidden; font-size: var(--s-meta); line-height: 1.4; color: var(--muted-foreground); }
-.market-foot-row { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
-.market-chips { display: flex; gap: 6px; min-width: 0; overflow: hidden; }
+.market-card > .d { min-height: 2.8em; font-size: var(--s-meta); line-height: 1.4; color: var(--muted-foreground); } /* never clamped: the card says in full what the item is for (owner 14-11, gate M1) */
+/* The action wraps to its own line (right side) instead of covering the chips when both do not fit. */
+.market-foot-row { margin-top: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
+.market-chips { display: flex; gap: 6px; min-width: 0; }
+.market-foot-row > .market-ctl { margin-left: auto; }
+/* T-31-mkt-previews: a store item's preview (16:9) in place of the glyph, on the card and large in the details. */
+.market-thumb { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: var(--muted); }
+.market-detail > .market-thumb { flex: none; }
 .market-chip { flex: none; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); font-size: 11px; line-height: 18px; color: var(--muted-foreground); white-space: nowrap; }
 .market-chip.rec { color: var(--success); border-color: color-mix(in srgb, var(--success) 40%, transparent); background: color-mix(in srgb, var(--success) 12%, transparent); }
 .market-ctl { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; }

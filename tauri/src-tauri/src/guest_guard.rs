@@ -563,6 +563,7 @@ unsafe fn install_guard_inner(platform: PlatformWebview, app: AppHandle, id: u64
                     // It is probe instrumentation: the driver records it so a code can be attributed to
                     // an enum row instead of guessed (the P1c1 spare-PC run got -2 for a stopped server).
                     let _ = completed_app.emit_to(MAIN_LABEL, "guest:event", json!({ "id": id, "type": "did-fail-load", "errorCode": code, "errorDescription": description, "webErrorStatus": web_error.0 }));
+                    crate::os_signals::push_guest_load_failed(&completed_app, &completed_label, code, &description, web_error.0);
                     wake(&completed_app, &completed_label, Err(format!("guest_load_failed:{code}")));
                 }
             }
