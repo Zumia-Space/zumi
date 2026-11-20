@@ -11,6 +11,31 @@ Zumi is a desktop companion: an animated 3D character who lives in a room on you
 - Community: [Discord](https://discord.gg/5jyJ3UJ5zF)
 - Bugs and ideas: [GitHub Issues](https://github.com/Zumia-Space/zumi/issues)
 
+## See it in action
+
+**Zumi App** (59 s launch film). Click the preview to watch it on YouTube.
+
+[![Zumi App launch film preview](docs/media/zumi-launch-preview.gif)](https://youtu.be/HCYB6dXBUfo)
+
+**Laneboard** (44 s) is a separate open-source project, not part of the Zumi installer: a board for your AI agents. Source and licence (Apache-2.0): [Zumia-Space/laneboard](https://github.com/Zumia-Space/laneboard). Click the preview to watch it on YouTube.
+
+[![Laneboard demo preview](docs/media/laneboard-preview.gif)](https://youtu.be/yBCueeUTL_U)
+
+## What it does
+
+**Zumi App** is the desktop companion you talk to.
+
+- Chat with a 3D character on your PC, using an AI provider and key of your choice.
+- You type to her; she gestures in reaction to what you type and moves her mouth while she speaks.
+- She keeps local memory notes that you add, and has a personality you set.
+
+**Laneboard** is a self-hosted task board for AI agents and the one person they answer to.
+
+- One coordinator session writes the board; every other agent session reports through an inbox.
+- Anything waiting on you shows up in a "Waiting on you" list by itself.
+- Each write is recorded in an append-only journal.
+- Runs locally with no dependencies (Node 20 or newer), UI in English, Chinese and Vietnamese. To try it, see the [Laneboard README](https://github.com/Zumia-Space/laneboard#readme).
+
 ## What Zumi does today
 
 - **A 3D character on your desktop.** Zumi is a VRM model rendered with three.js. She idles, gestures in reaction to what you type and moves her mouth while she speaks. You can load your own `.vrm` model from the top bar.
