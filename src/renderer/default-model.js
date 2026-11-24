@@ -11,12 +11,14 @@ export const DEFAULT_MODEL_FILE = 'zumi-default-0910.vrm';
 const baseName = (p) => String(p || '').replace(/\\/g, '/').split('/').pop().toLowerCase();
 
 /**
- * True when the model list main returned is ALREADY showing the default file, so the menu item hides: the 'user' slot
+ * True when the menu item hides: the list offers the default models itself (round 8), or it is ALREADY showing the default file: the 'user' slot
  * (id 'user', source 'user') whose file name is the default's. A built-in model or a test --model is NOT the default.
  * @param {{ models?: Array<{id:string, source?:string, path?:string}>, selected?: string|null }} list
  */
 export function isDefaultModelActive(list) {
   if (!list || !Array.isArray(list.models)) return false;
+  // round 8: the picker itself offers Zumi's default models (source 'default', tauri/sidecar/default-pair.mjs): nothing to go back to
+  if (list.models.some((x) => x && x.source === 'default')) return true;
   const m = list.models.find((x) => x && x.id === list.selected);
   return Boolean(m && m.id === 'user' && m.source === 'user' && baseName(m.path) === DEFAULT_MODEL_FILE);
 }

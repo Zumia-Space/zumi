@@ -3,7 +3,7 @@
 // `update: null` keeps the updater pill (which reads a stub as "repair needed") off the shots.
 export const MARKET_STUB = `(() => {
   const deep = () => new Proxy(function () {}, { get: (t, k) => (k === 'then' ? undefined : k === Symbol.toPrimitive ? () => '' : deep()), apply: () => Promise.resolve(deep()) });
-  const withFallback = (o) => new Proxy(o, { get: (t, k) => (k in t ? t[k] : (k === 'then' || k === 'memory' ? undefined : deep())) });
+  const withFallback = (o) => new Proxy(o, { get: (t, k) => (k in t ? t[k] : (k === 'then' || k === 'memory' || k === 'stt' ? undefined : deep())) });
   const info = { version: 'check', packaged: true, disabledViews: [], ownerAdmin: true, boardPartition: 'b', boardLivePartition: 'bl', demo: false, selftest: false, minWidth: 600, minHeight: 400 };
   const models = { models: [{ id: 'zumi-default', label: 'Zumi default', source: 'bundled', isDefault: true }, { id: 'other', label: 'Second model', source: 'bundled' }, { id: 'user', label: 'Model from this PC', source: 'user' }], selected: 'zumi-default', bundledCount: 2 };
   const sceneList = { selected: 'current', geometry: null, rooms: [{ id: 'cozy-study', label: 'Cozy study' }, { id: 'zen-garden', label: 'Zen garden room' }] };

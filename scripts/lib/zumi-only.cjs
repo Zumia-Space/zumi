@@ -78,13 +78,29 @@ const PUBLIC_REPO_EXCLUDE = Object.freeze([
   'tauri/stage-preview-kit.ps1', // the owner's preview-kit release staging
   'tauri/verify/VAULT-BOX-RUNBOOK.md', // render-box runbook
   'scripts/box/**', // render-box job scripts (the box's own folder layout)
+  // The Room (T-31-ROOM): Zumia-licensed code (no redistribution) plus owner tooling with owner drive paths (room/zumi2 bakers); its
+  // pack is built only for the owner installer (tauri/build.ps1 -> packs/room-preview/prepare-seed.mjs), never for a public source build.
+  'room/**',
+  'packs/room-preview/**',
+  'scripts/check-room-pack-delivery.mjs', // runs prepare-seed.mjs, which is excluded above
+  'scripts/check-room-assets-lock.mjs', // checks room/, excluded above
+  'scripts/check-room-pack-export.mjs', // exports the private tree and runs build.ps1 in it
+  'scripts/check-room-public-clean.mjs', // checks room/, excluded above
   'tauri/verify/vault-fixture-writer.cjs', // box-only fixture writer (spare PC); its output and runbook are excluded above
   'BUG_PATTERNS_KNOWN.md', // internal incident log
   'RELEASE-0.2.11.md', // internal release record
   'scripts/fixtures/float-holo/toe-*.png', // crops of the default avatar in the default room (SCAN-1 S3)
   'docs/migration/*.md', // migration reports and plans (internal process records). The .json files stay: gen-allowlist and the shim read them
+  // run evidence of the T-31 gates (red/green check logs, probe logs, mutation runners): they print the owner's drive paths, same class as docs/maus/**
+  'docs/migration/a95/**', 'docs/migration/a96/**', 'docs/migration/a97/**', 'docs/migration/b2-vendor/**',
+  'docs/migration/board-poll-1511/**', 'docs/migration/slowpoll-1511/**',
   'docs/agents/**', // the owner's agent workflow
   'docs/decisions/**', // internal decision records
+  // T-31 Maus lane (RC1 triage): run evidence (live-run logs and summaries with the owner's paths, 1301 files) and the lane's own
+  // drivers (spare-console guard, box locks, mail, live runs). No npm script names a scripts/maus-* file, so nothing is dropped from package.json.
+  'docs/maus/**',
+  'scripts/maus-*',
+  'scripts/bench-foreground-unlock.*',
   'docs/MAINTAINERS-preview-kit.md', // internal TODOs
   'scripts/check-kokoro-live-precond.mjs', // names the owner's hosts
   // need the guard list above, which is owner-only; they run from the maintainers' tree, on the export
@@ -95,11 +111,48 @@ const PUBLIC_REPO_EXCLUDE = Object.freeze([
   // release notes that speak to the owner; the current version's are written for the public and the gate reads them
   'release-notes/0.2.*.md',
   ...Array.from({ length: 13 }, (_, i) => `release-notes/0.3.0-alpha.${i + 1}.md`),
+  // OSS-02 push plan HOLD (23-11): the alpha notes speak to the owner; the public gets one rewritten 0.3.8 note instead
+  'release-notes/0.3.5-alpha.*.md',
+  // CT-01 the Content tab: owner build only (names the owner's channels). The two files the app imports ship as stubs
+  // (PUBLIC_REPO_STUBS below), so a public build still bundles.
+  'src/main/content-plan/**',
+  'src/renderer/content.js',
+  'tauri/sidecar/content-host.mjs',
+  'scripts/content-plan/**',
+  'scripts/fixtures/content-plan/**',
+  'scripts/check-content-*.mjs',
+  'scripts/lib/content-fixture.mjs',
+  'scripts/check-owner-merge-035.mjs', // owner merge gate: runs the content checks above
+  'scripts/fixtures/owner-merge-035-pre-existing.json', // its fixture (names the held content-plan files); gate MF-5
+  'scripts/public-stubs/**', // the stubs themselves: exported at their target path, not here
+  // zumi-stt test clips with no generator script beside them (origin unconfirmed; the t58-20/ clips have make-fixtures.sh). HOLD
+  // until they are remade with that script. tests/t58.rs and tests/wav_wer.rs read them, so a public cargo test needs them back.
+  'tauri/zumi-stt/tests/fixtures/en-open-the-project-board.wav',
+  'tauri/zumi-stt/tests/fixtures/vi-chi-tiet-muc-nay.wav',
+  'tauri/zumi-stt/tests/fixtures/vi-chon-phuong-an-mot.wav',
+  // The redaction parity corpora (upstream OpenMausBot test vectors + a seeded fuzz: synthetic, but provider-shaped tokens that the
+  // public repo's secret-scanning push protection rejects) and the two tests that read them. HOLD until the corpus is built at
+  // test time from a seed. scripts/maus-redact-parity-gen.mjs, which writes it, is already held by scripts/maus-*.
+  'tauri/zumi-agent-loop/tests/data/redact-parity.json',
+  'tauri/zumi-agent-loop/tests/data/redact-extra.json',
+  'tauri/zumi-agent-loop/tests/redact_parity.rs',
+  'scripts/check-memory-redact.mjs',
+  // checks of the held Room code (room/**, packs/room-preview/**): they import it, so a public run can only fail
+  'scripts/check-room-light.mjs', 'scripts/check-stage-client.mjs', 'scripts/check-room-guest-core.mjs', 'scripts/check-stage-producer.mjs', 'scripts/check-room-manifest.mjs',
 ]);
 const REPO_RES = PUBLIC_REPO_EXCLUDE.map(globToRe);
+// Excluded files the app still imports: the public source export writes the stub (right) at the excluded path (left).
+const PUBLIC_REPO_STUBS = Object.freeze({
+  'src/renderer/content.js': 'scripts/public-stubs/content.js',
+  'tauri/sidecar/content-host.mjs': 'scripts/public-stubs/content-host.mjs',
+});
 // ...except the two Laneboard scripts the app runs (src/main/laneboard-host.mjs: first-run seed, v0.2 import); every build
 // ships them, so the public source keeps them too (check:public-payload E9).
-const PUBLIC_REPO_KEEP = Object.freeze(['vendor/laneboard/scripts/seed.mjs', 'vendor/laneboard/scripts/migrate-from-legacy.mjs']);
+// ...and the stage contract schema under docs/decisions/: src-tauri's stage_tests.rs include_str!s it (check:public-payload X13).
+const PUBLIC_REPO_KEEP = Object.freeze(['vendor/laneboard/scripts/seed.mjs', 'vendor/laneboard/scripts/migrate-from-legacy.mjs',
+  'docs/decisions/room-live-b/stage-contract.v1.schema.json',
+  // check:board-supervisor imports it; the same file is already public in the Laneboard repo
+  'vendor/laneboard/scripts/scan-served-assets.mjs']);
 
 /** Is this payload path (posix or Windows separators) a Zumi-only asset? */
 function isZumiOnly(p) {
@@ -119,4 +172,4 @@ function isPublicRepoExcluded(p) {
   return !PUBLIC_REPO_KEEP.includes(s) && REPO_RES.some((re) => re.test(s));
 }
 
-module.exports = { ZUMI_ONLY, isZumiOnly, PUBLIC_REPO_EXCLUDE, isPublicRepoExcluded, isOfficialDenied, OFFICIAL_ROOM_VIDEOS };
+module.exports = { ZUMI_ONLY, isZumiOnly, PUBLIC_REPO_EXCLUDE, PUBLIC_REPO_STUBS, isPublicRepoExcluded, isOfficialDenied, OFFICIAL_ROOM_VIDEOS };

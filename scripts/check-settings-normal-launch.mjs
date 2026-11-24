@@ -12,6 +12,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { assertElectronHost } from './lib/electron-guard.cjs';
+import { notRunOnBoxRefusal } from './lib/check-outcome.cjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 let pass = 0, fail = 0;
@@ -45,9 +46,13 @@ for (const re of FIXTURES) {
 ok(guarded.length >= 2 && stray.length === 0, `main: every fixture use is behind settingsShotsDir (${guarded.length} guarded blocks)`, JSON.stringify(stray));
 ok(/if \(roomShotsDir \|\| boardStressDir \|\| settingsShotsDir\) registerShotsIpc\(\);/.test(main), 'main: the shots IPC (seed usage, voice state, provider switch) is registered only in a shots run');
 
+// A static FAIL is a product fault whatever this PC can run: it ends the check here, before the render-box refusal below can turn it into NOT RUN (gate LIVE-2011 R1).
+if (fail) { console.log(`
+${pass} passed, ${fail} failed`); console.log(`FAIL check-settings-normal-launch — ${fail} failed`); process.exit(1); }
+
 // ---------- 2. runtime: a normal launch ----------
 // Starts electron.exe: render box only (scripts/lib/electron-guard.cjs). On anh's main PC part 1 above still runs, then this throws.
-assertElectronHost('check-settings-normal-launch.mjs part 2 (electron . --settings-probe)');
+notRunOnBoxRefusal(() => assertElectronHost('check-settings-normal-launch.mjs part 2 (electron . --settings-probe)'));
 const electron = path.join(ROOT, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
 if (!fs.existsSync(electron)) {
   ok(false, 'electron binary present for the runtime probe', electron);

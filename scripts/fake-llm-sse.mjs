@@ -33,7 +33,8 @@ const sseLine = (o) => `data: ${JSON.stringify(o)}\n\n`;
 export async function startFakeLlm({ host = '127.0.0.1', port = 0, firstMs = 400, intervalMs = 60, text = DEFAULT_TEXT, chunkChars = 8, log = (o) => process.stderr.write(`${JSON.stringify(o)}\n`) } = {}) {
   if (!LOOPBACK.has(host)) throw new Error(`fake-llm-sse: refusing to bind ${host} (loopback only)`);
   if (!(firstMs >= 0) || !(intervalMs >= 0)) throw new Error('fake-llm-sse: firstMs and intervalMs must be >= 0');
-  const pieces = splitText(String(text), chunkChars);
+  // `text` may also be a function (request body) -> the reply text for that request, or { status } for an HTTP error: a scripted model for checks.
+  const pieces = splitText(typeof text === 'function' ? '' : String(text), chunkChars);
   const requests = [];
   let seq = 0;
 
@@ -65,20 +66,42 @@ export async function startFakeLlm({ host = '127.0.0.1', port = 0, firstMs = 400
       const model = typeof body.model === 'string' ? body.model : 'fixture-model';
       rec.stream = body.stream === true;
       rec.model = model;
+      let reply = text;
+      let toolCalls = null;
+      let replyPieces = pieces;
+      if (typeof text === 'function') {
+        const r = text(body);
+        if (r && typeof r === 'object' && Number.isInteger(r.status)) { res.writeHead(r.status, { 'content-type': 'application/json' }); res.end('{"error":{"message":"fake-llm-sse: scripted failure"}}'); return; }
+        // { toolCalls: [{ name, arguments }] } = the model answers with tool calls and no text (R6f: the reply model's memory_update).
+        if (r && typeof r === 'object' && Array.isArray(r.toolCalls)) toolCalls = r.toolCalls.map((c, i) => ({ index: i, id: `call_${i}`, type: 'function', function: { name: c.name, arguments: typeof c.arguments === 'string' ? c.arguments : JSON.stringify(c.arguments || {}) } }));
+        else { reply = String(r); replyPieces = splitText(reply, chunkChars); }
+      }
+      if (toolCalls) {
+        const usage = { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 };
+        if (!rec.stream) { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ id: 'fixture', object: 'chat.completion', model, provider: 'Fixture', choices: [{ index: 0, message: { role: 'assistant', content: null, tool_calls: toolCalls }, finish_reason: 'tool_calls' }], usage })); return; }
+        res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
+        // The arguments arrive in two pieces, as a real provider streams them.
+        const head = toolCalls.map((c) => ({ ...c, function: { name: c.function.name, arguments: c.function.arguments.slice(0, 8) } }));
+        const tail = toolCalls.map((c) => ({ index: c.index, function: { arguments: c.function.arguments.slice(8) } }));
+        at(arrivedAt + firstMs, () => { rec.firstChunkAtMs = epochNowMs(); res.write(sseLine({ id: 'fixture', model, choices: [{ index: 0, delta: { role: 'assistant', content: null, tool_calls: head }, finish_reason: null }] })); });
+        at(arrivedAt + firstMs + intervalMs, () => { res.write(sseLine({ id: 'fixture', model, choices: [{ index: 0, delta: { tool_calls: tail }, finish_reason: null }] })); });
+        at(arrivedAt + firstMs + 2 * intervalMs, () => { rec.doneAtMs = epochNowMs(); res.write(sseLine({ id: 'fixture', model, choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }], usage })); res.end('data: [DONE]\n\n'); });
+        return;
+      }
       if (!rec.stream) {
         // The schedule is anchored on the request's ARRIVAL, not on the body being read.
         at(arrivedAt + firstMs, () => {
           const now = epochNowMs();
           rec.firstChunkAtMs = rec.doneAtMs = now;
           res.writeHead(200, { 'content-type': 'application/json' });
-          res.end(JSON.stringify({ id: 'fixture', object: 'chat.completion', model, provider: 'Fixture', choices: [{ index: 0, message: { role: 'assistant', content: text }, finish_reason: 'stop' }], usage: { prompt_tokens: 20, completion_tokens: pieces.length, total_tokens: 20 + pieces.length } }));
+          res.end(JSON.stringify({ id: 'fixture', object: 'chat.completion', model, provider: 'Fixture', choices: [{ index: 0, message: { role: 'assistant', content: reply }, finish_reason: 'stop' }], usage: { prompt_tokens: 20, completion_tokens: replyPieces.length, total_tokens: 20 + replyPieces.length } }));
           log({ ev: 'done', seq: rec.seq, atMs: now, stream: false });
         });
         return;
       }
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
       res.flushHeaders();
-      pieces.forEach((piece, i) => {
+      replyPieces.forEach((piece, i) => {
         at(arrivedAt + firstMs + i * intervalMs, () => {
           const now = epochNowMs();
           if (i === 0) { rec.firstChunkAtMs = now; log({ ev: 'first', seq: rec.seq, atMs: now, sinceArrivalMs: now - arrivedAt }); }
@@ -86,10 +109,10 @@ export async function startFakeLlm({ host = '127.0.0.1', port = 0, firstMs = 400
           res.write(sseLine({ id: 'fixture', object: 'chat.completion.chunk', model, provider: 'Fixture', choices: [{ index: 0, delta: i === 0 ? { role: 'assistant', content: piece } : { content: piece }, finish_reason: null }] }));
         });
       });
-      at(arrivedAt + firstMs + pieces.length * intervalMs, () => {
+      at(arrivedAt + firstMs + replyPieces.length * intervalMs, () => {
         const now = epochNowMs();
         rec.doneAtMs = now;
-        res.write(sseLine({ id: 'fixture', object: 'chat.completion.chunk', model, provider: 'Fixture', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 20, completion_tokens: pieces.length, total_tokens: 20 + pieces.length } }));
+        res.write(sseLine({ id: 'fixture', object: 'chat.completion.chunk', model, provider: 'Fixture', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 20, completion_tokens: replyPieces.length, total_tokens: 20 + replyPieces.length } }));
         res.end('data: [DONE]\n\n');
         log({ ev: 'done', seq: rec.seq, atMs: now, stream: true, chunks: rec.chunks });
       });

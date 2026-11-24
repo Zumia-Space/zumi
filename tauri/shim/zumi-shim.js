@@ -261,6 +261,13 @@
   })();
 
   window.zumi = {
+    "agent": {
+      "confirm": function (id, allow) { return $invoke("agent.confirm", [id, allow]); },
+      "onEvent": function (cb) { return $subscribe("agent:event", function (p) { cb(p); }); },
+      "start": function (sentence) { return $invoke("agent.start", [sentence]); },
+      "status": function (a0) { return $invoke("agent.status", [a0]); },
+      "stop": function (a0) { return $invoke("agent.stop", [a0]); }
+    },
     "ai": {
       "openKeyPage": function () { return $invoke("ai.openKeyPage", []); },
       "presetList": function () { return $invoke("ai.presetList", []); },
@@ -298,6 +305,18 @@
       "list": function () { return $invoke("chairs.list", []); },
       "select": function (id) { return $invoke("chairs.select", [id]); }
     },
+    "content": {
+      "approve": function (id, hash) { return $invoke("content.approve", [id, hash]); },
+      "approveMany": function (items) { return $invoke("content.approveMany", [items]); },
+      "list": function (filter) { return $invoke("content.list", [filter]); },
+      "markFailed": function (id, reason) { return $invoke("content.markFailed", [id, reason]); },
+      "markPosted": function (id, url) { return $invoke("content.markPosted", [id, url]); },
+      "media": function (sha256) { return $invoke("content.media", [sha256]); },
+      "openCompose": function (channel) { return $invoke("content.openCompose", [channel]); },
+      "reject": function (id, reason) { return $invoke("content.reject", [id, reason]); },
+      "today": function (date) { return $invoke("content.today", [date]); },
+      "week": function (week) { return $invoke("content.week", [week]); }
+    },
     "demo": {
       "capture": function (name) { return $invoke("demo.capture", [name]); },
       "finish": function (report) { return $invoke("demo.finish", [report]); },
@@ -330,13 +349,15 @@
       "remove": function (id) { return $invoke("market.remove", [id]); }
     },
     "memory": {
-      "add": function (text) { return $invoke("memory.add", [text]); },
+      "add": function (text, a1) { return $invoke("memory.add", [text, a1]); },
       "delete": function (id) { return $invoke("memory.delete", [id]); },
-      "deleteAll": function () { return $invoke("memory.deleteAll", []); },
       "exportFile": function () { return $invoke("memory.exportFile", []); },
+      "journal": function (a0) { return $invoke("memory.journal", [a0]); },
       "list": function (query) { return $invoke("memory.list", [query]); },
       "setEnabled": function (on) { return $invoke("memory.setEnabled", [on]); },
-      "status": function () { return $invoke("memory.status", []); }
+      "status": function () { return $invoke("memory.status", []); },
+      "undo": function (rowId) { return $invoke("memory.undo", [rowId]); },
+      "update": function (id, text) { return $invoke("memory.update", [id, text]); }
     },
     "onGesture": function (handler) { return $subscribe("gesture:play", function (p) { var reqId = p && p.reqId; Promise.resolve().then(function () { return handler(p && p.command); }).then(null, function (e) { return { ok: false, errors: [String((e && e.message) || e)] }; }).then(function (result) { return $invoke("gesture:result", [reqId, JSON.parse(JSON.stringify(result || null))]); }).catch(function () {}); }); },
     "onModelChanged": function (cb) { return $subscribe("model:changed", function (p) { cb(p); }); },
@@ -380,6 +401,12 @@
         "saveView": function (id, view, camera) { return $invoke("rooms.v2.saveView", [id, view, camera]); }
       }
     },
+    "routines": {
+      "add": function (form) { return $invoke("routines.add", [form]); },
+      "delete": function (id) { return $invoke("routines.delete", [id]); },
+      "history": function (a0) { return $invoke("routines.history", [a0]); },
+      "list": function () { return $invoke("routines.list", []); }
+    },
     "scenes": {
       "list": function () { return $invoke("scenes.list", []); },
       "select": function (id) { return $invoke("scenes.select", [id]); }
@@ -416,10 +443,23 @@
       "save": function (input) { return $invoke("soul.save", [input]); },
       "undo": function () { return $invoke("soul.undo", []); }
     },
+    "stage": {
+      "onFallback": function (cb) { return $subscribe("stage:fallback", function (p) { cb(p); }); },
+      "produce": function (op, payload) { return $invoke("stage.produce", [op, payload]); }
+    },
+    "stt": {
+      "audio": function (wavBase64) { return $invoke("stt.audio", [wavBase64]); },
+      "install": function (action) { return $invoke("stt.install", [action]); },
+      "onEvent": function (cb) { return $subscribe("stt:event", function (p) { cb(p); }); },
+      "ptt": function (phase) { return $invoke("stt.ptt", [phase]); },
+      "set": function (settings) { return $invoke("stt.set", [settings]); },
+      "state": function () { return $invoke("stt.state", []); }
+    },
     "talk": {
       "brainInfo": function () { return $invoke("talk.brainInfo", []); },
       "checkProviderKey": function (id, raw) { return $invoke("talk.checkProviderKey", [id, raw]); },
       "clearProviderKey": function (id) { return $invoke("talk.clearProviderKey", [id]); },
+      "composeMotion": function (brief) { return $invoke("talk.composeMotion", [brief]); },
       "gesture": function (p) { return $invoke("talk.gesture", [p]); },
       "getSpeakTypedWhenMicOff": function () { return $invoke("talk.getSpeakTypedWhenMicOff", []); },
       "getTalkPrefs": function () { return $invoke("talk.getTalkPrefs", []); },
@@ -461,10 +501,12 @@
       "getDevTools": function () { return $invoke("ui.getDevTools", []); },
       "getLang": function (fallback) { return $invoke("ui.getLang", [fallback]); },
       "getLookTuning": function () { return $invoke("ui.getLookTuning", []); },
+      "getRoomEv": function (roomId) { return $invoke("ui.getRoomEv", [roomId]); },
       "getSendClientNames": function () { return $invoke("ui.getSendClientNames", []); },
       "setDevTools": function (on) { return $invoke("ui.setDevTools", [on]); },
       "setLang": function (lang) { return $invoke("ui.setLang", [lang]); },
       "setLookTuning": function (overrides) { return $invoke("ui.setLookTuning", [overrides]); },
+      "setRoomEv": function (roomId, ev) { return $invoke("ui.setRoomEv", [roomId, ev]); },
       "setSendClientNames": function (on) { return $invoke("ui.setSendClientNames", [on]); }
     },
     "update": {

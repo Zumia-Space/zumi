@@ -1,0 +1,79 @@
+[package]
+name = "zumi-packs"
+version = "0.0.1"
+description = "T-31-MAUS R7 (K0a): the power-pack broker. A pack helper may spawn, read, write, connect and listen only inside its declared manifest scope; consent, audit, kill and uninstall. No tauri dependency."
+authors = ["Zumia Space"]
+edition = "2021"
+rust-version = "1.90"
+license = "AGPL-3.0-only"
+publish = false
+
+# Standalone crate like its siblings. Rule 3.7 (no new crate): Cargo.lock here is a SUBSET of tauri/src-tauri/Cargo.lock,
+# same versions and checksums; `node scripts/check-zumi-hands-lock.mjs tauri/zumi-packs/Cargo.lock` proves it.
+[dependencies]
+serde_json = "1"
+# Crates of this repository: the host MAC and the audit hashing (HB-2), and the one door for sockets (the egress guard, the listener).
+zumi-audit = { path = "../zumi-audit" }
+zumi-egress = { path = "../zumi-egress" }
+
+[target.'cfg(windows)'.dependencies]
+# Job object (kill the helper's whole tree), the native consent box, the user's SID. `windows` 0.62 is already in the app lock; features only.
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Security_Cryptography",
+  "Win32_Security_Isolation",
+  "Win32_Storage_FileSystem",
+  "Win32_System_JobObjects",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Pipes",
+  "Win32_System_StationsAndDesktops",
+  "Win32_System_SystemServices",
+  "Win32_System_Threading",
+  "Win32_System_Memory",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+zumi-egress = { path = "../zumi-egress", features = ["fixture"] }
+
+[features]
+# The test-only canary helper (power.canary): a helper that tries every out-of-scope thing. Never part of the app.
+canary = []
+
+[[bin]]
+name = "zumi-pack-canary"
+path = "src/bin/zumi-pack-canary.rs"
+required-features = ["canary"]
+
+# R7c: the UI attacker of the re-gate (tests/r7c_ui.rs), test only like the canary.
+[[bin]]
+name = "zumi-pack-attacker"
+path = "testbin/zumi-pack-attacker.rs"
+required-features = ["canary"]
+
+# Tests that start the real canary helper process.
+[[test]]
+name = "kill"
+required-features = ["canary"]
+
+[[test]]
+name = "uninstall"
+required-features = ["canary"]
+
+[[test]]
+name = "canary_helper"
+required-features = ["canary"]
+
+[[test]]
+name = "r7c_ui"
+required-features = ["canary"]
+
+[[test]]
+name = "r7d_failclosed"
+required-features = ["canary"]
+
+[profile.release]
+codegen-units = 1

@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { checkRoomJsonFile } from '../src/main/room-check.mjs';
 import { ownerPath } from './lib/owner-paths.mjs';
+import { notRun } from './lib/check-outcome.cjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..');
@@ -53,7 +54,7 @@ const seatCushionLine = view.seat_cushion_line; // [[x1,y1],[x2,y2]] plate pixel
 if (!seatCushionLine) console.error(`WARNING: views.${viewName}.seat_cushion_line is not authored -- the seat-contact check is skipped`);
 
 const PW_SOURCE = ownerPath('playwrightCore', 'node_modules/playwright-core');
-if (!fs.existsSync(PW_SOURCE)) { console.error(`SKIP: no vendored playwright-core at ${PW_SOURCE} and installing one is not allowed here`); process.exit(0); }
+if (!fs.existsSync(PW_SOURCE)) notRun('precondition', `check-work-fit: no vendored playwright-core at ${PW_SOURCE} and installing one is not allowed here`);
 const { chromium } = createRequire(path.join(PW_SOURCE, 'package.json'))(PW_SOURCE);
 
 const PLAYER_HTML = `<!doctype html>

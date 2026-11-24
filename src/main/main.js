@@ -98,7 +98,7 @@ const REFLEX_JEV_CALL_LEDGER = process.env.ZUMI_TEST_JEV_CALL_LEDGER || null;
 const REFLEX_JEV_CALL_CAP = Number(process.env.ZUMI_TEST_JEV_CALL_CAP || 0) || null;
 // Owner-admin (T-31 owner-admin + usage, Fable ruling 05-10): same pattern as ZUMI_TEST_FLAG above — the owner's
 // own internal build carries `zumiOwnerAdmin: true` (scripts/builder-selftest.cjs's extraMetadata). The release
-// package.json has no such field, so a release build's chat daily cap is unchanged. No backend call, no other tier.
+// package.json has no such field. No backend call, no other tier.
 const OWNER_ADMIN = (() => { try { const p = JSON.parse(fs.readFileSync(path.join(APP_ROOT, 'package.json'), 'utf8')); return Boolean(p.zumiOwnerAdmin); } catch { return false; } })();
 // Next-UI host calls (T-31 3a-3, GATE-SEC C4): on only when THIS build was built with the next-version UI. The flag is a build artefact
 // (scripts/build-renderer.mjs writes build/renderer/next-ui.json from the same resolution as __ZUMI_NEXT_UI__); a runtime env var
@@ -295,7 +295,7 @@ const defaultSampleDetector = createDefaultSampleDetector({ fs, crypto });
 const { isVrmFile, readManifest, externalPaths, listModels } = createModels({ modelsDir: MODELS_DIR, loadSettings, getTestModelPath: () => testModelPath, isDefaultSample: (f) => defaultSampleDetector.isDefaultSample(f) });
 
 // ---------- rooms: one setting, like models (PLAN-room.md §3 "Storage" / "UI") ----------
-// Sidecar manifest: Vesta's own default room ships it as <basename>.json beside <basename>.glb (room.glb/room.json),
+// Sidecar manifest: the room author's own default room ships it as <basename>.json beside <basename>.glb (room.glb/room.json),
 // which is the convention actually used on disk; <basename>.room.json is also accepted (the plan prose's literal
 // spelling) so a user room named that way still gets its manifest.
 function roomManifestPath(glbPath) {
@@ -715,7 +715,7 @@ ipcMain.handle('chairs:select', (_e, id) => (chairs3d ? chairs3d.select(String(i
 // room standard v2 registration tool (T-31 camera modes, coordinator ruling 03-10): dev-only -- the renderer's own
 // button is hidden without the Developer-tools setting, but the handler enforces it independently too (never
 // trust a renderer-side gate alone for a disk write). Scoped to the one v2 room this task ships (id 'default-v2');
-// a real Vesta room B gets its own save path once v2 rooms can be imported, same as v1's import flow today.
+// a real room author's room B gets its own save path once v2 rooms can be imported, same as v1's import flow today.
 ipcMain.handle('rooms:v2:save-view', (e, id, view, camera) => {
   if (!fromAppPage(e)) return { error: 'forbidden' };
   if (!(app.isPackaged === false || loadSettings().developerMode === true)) return { error: 'dev_tools_off' };
@@ -725,7 +725,7 @@ ipcMain.handle('rooms:v2:save-view', (e, id, view, camera) => {
   const isVec3 = (v) => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
   if (!isVec3(pos) || !isVec3(target) || typeof fov !== 'number' || !Number.isFinite(fov)) return { error: 'bad_camera' };
   if (!ensureDefaultRoomV2CopyFn) return { error: 'not_ready' };
-  // Edits land on the SERVED COPY (defaultRoomV2Dir), never Vesta's own source at roomV2DefaultPath() -- same
+  // Edits land on the SERVED COPY (defaultRoomV2Dir), never the room author's own source at roomV2DefaultPath() -- same
   // "the app's own validated copy, never the live source directly" posture as v1's room pipeline.
   const defV2 = ensureDefaultRoomV2CopyFn(defaultRoomV2CacheObj, roomV2DefaultPath(), defaultRoomV2Dir, { get: loadSettings, set: saveSettings });
   if (!defV2.sha) return { error: 'missing_view' };
@@ -735,7 +735,7 @@ ipcMain.handle('rooms:v2:save-view', (e, id, view, camera) => {
   if (!json.views || !json.views[view] || !json.views[view].camera || !json.views[view].camera.three) return { error: 'missing_view' };
   const before = JSON.stringify(json);
   // MERGE, never overwrite the whole camera object: pos/target/three.fov are the only fields the registration
-  // tool's keyboard nudges touch -- fovDeg/focalPx/principalPointPx/yawDeg/aspect/viewOffset are Vesta's own
+  // tool's keyboard nudges touch -- fovDeg/focalPx/principalPointPx/yawDeg/aspect/viewOffset are the room author's own
   // solve output and stay exactly as she wrote them.
   json.views[view].camera.pos = pos;
   json.views[view].camera.target = target;
@@ -792,7 +792,7 @@ ipcMain.handle('ui:set-send-client-names', (e, on) => {
 });
 // Look-tuning panel (T-31 camera modes, owner priority shift 03-10): per-view camera/grading overrides, a user
 // file in userData -- NEVER written into room.json / the shipped room files (a v2 room's own numbers are
-// Vesta's; this is purely a local, personal QC override, same "the app's own file, not the source" posture as
+// the room author's; this is purely a local, personal QC override, same "the app's own file, not the source" posture as
 // room-default-v2.mjs's copy). Dev-gated like every other control behind the Developer toggle.
 function lookTuningPath() { return path.join(runDir || app.getPath('userData'), 'look-tuning.json'); }
 ipcMain.handle('ui:get-look-tuning', (e) => {
@@ -1241,9 +1241,11 @@ ipcMain.handle('talk:voiceState', (e) => {
   return kokoroTts.status();
 });
 // Barge-in (item 6): stop synthesizing further Kokoro chunks for an abandoned turn. Fire-and-forget, no
-// retryable/ack semantics -- the renderer already silenced playback itself before this ever arrives.
+// retryable/ack semantics -- the renderer already silenced playback itself before this ever arrives. The same turn id
+// also cuts the LLM stream (T-31-ROOM-live-b P1 item 3), so the abandoned reply stops being generated and billed.
 ipcMain.handle('talk:ttsAbandon', (e, p) => {
   if (fromAppPage(e) && kokoroTts && p && p.turnId) kokoroTts.abandon(p.turnId);
+  if (fromAppPage(e) && chatBrain && p && typeof p.turnId === 'string') chatBrain.abortTurn(p.turnId);
   return true;
 });
 // Settings line only: which voice this build speaks EN replies with. `voice` is a plain OS/model voice name,
@@ -1433,7 +1435,7 @@ let defaultRoomV2CacheObj = null;
 // the checker+copy now runs exactly ONCE, off the hot path, right after it is wired up in app.whenReady(); every
 // caller awaits this SAME promise (getDefaultRoomV2) instead of re-invoking the checker, so concurrent callers
 // coalesce onto one run instead of each paying the full cost. Dev builds (or developerMode on) still re-check live --
-// Vesta's rooms:v2:save-view round-trip needs that -- only the packaged owner build is pinned to the one warm-up.
+// The room author's rooms:v2:save-view round-trip needs that -- only the packaged owner build is pinned to the one warm-up.
 let defaultRoomV2Ready = null; // Promise<{sha, refused, cacheHit, ms}>, set once below
 // ---------- talk-camera HUD (T-31 hud-react): prefs, the renderer's "listening" signal, and consent answers ----------
 // hudHost is created in app.whenReady (hud-host.mjs). The renderer never names a file or URL: it answers an offer id.
@@ -1935,7 +1937,7 @@ app.whenReady().then(async () => {
   // rebuildChatBrain re-runs this when the provider changes in Settings, so the
   // switch takes effect from the next turn with no restart.
   const buildChatBrain = () => createChatBrain({
-    safeStorage, dir: app.getPath('userData'), ownerAdmin: OWNER_ADMIN, appVersion: app.getVersion(),
+    safeStorage, dir: app.getPath('userData'), appVersion: app.getVersion(),
     onKeyResult: (check, usedLast4) => { if (brainKey) brainKey.noteChatResult(check, usedLast4); },
     // T-31 fix round item 3: in "Dùng miễn phí" the free table ids are always sent (incl. a legacy OpenRouter user),
     // so the paid `chatModel` is withheld; it applies only in "Tự nhập khoá" (byok). The label then matches the model.

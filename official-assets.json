@@ -8,8 +8,12 @@
     "sha256": "70a721833ca0aa8da8a5dcded8abee8a43c284f55a93b4952a339cc4fe22c071"
   },
   "assets/models/zumi-default-0910.vrm": {
-    "bytes": 9141588,
-    "sha256": "d1183bcf27bac3a587de7e383bcd8f6f4e0068e0a7c56653fa3e731e1460c372"
+    "bytes": 9363180,
+    "sha256": "c8b80938584339a78d880c85079696224dcdb9fad9c4ccaf1eae268715c034ff"
+  },
+  "assets/models/zumi-default-look4.vrm": {
+    "bytes": 9137164,
+    "sha256": "c4ced5acfe1f10f4771edc5d92a0b888e4ddac2779b737b3957be7c7de240bcc"
   },
   "assets/pricing/pricing-zumi.webp": {
     "bytes": 68050,
@@ -20,8 +24,8 @@
     "sha256": "8dedd74552d2362ff8c8bd8b43f2513baa6ad5ad2e62659a4a453bfe24f82b1e"
   },
   "resources-pinned/default-model/LICENSE-zumi-default.txt": {
-    "bytes": 2735,
-    "sha256": "c5d205d79eaa3fef8e544133198d35798b9963009b71873a2283bc7c39823ad5"
+    "bytes": 2852,
+    "sha256": "449dc5d18ac9eb609196d93e257f93486168714e65c4cc5f1eb851fa8dcf2598"
   },
   "resources-pinned/room-v2/B-room-plate.png": {
     "bytes": 3317931,

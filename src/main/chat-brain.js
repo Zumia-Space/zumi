@@ -71,6 +71,15 @@ const emotionPreset = (tag) => EMOTION_PRESETS[tag] || null;
 // Tag stripping: only a KNOWN gesture or emotion tag leaves the display and the voice, leading or inside. Any other bracket is what the model wrote ("[A] là đúng",
 // "[docs](https://a.com)", "arr[i]") and stays. A tag a model invents therefore shows as written.
 const LEAD_TAG = /^\s*\[\s*([a-z][a-z-]*)\s*\]/i;
+// Motion (T-31-ROOM motion P4): the agent may lead with ONE `[move: words]` tag (the room's seated motion: src/renderer/reflex/seated-motion.js
+// parseMotionText, the same grammar as the chat's /move command). It is stripped from the display and the voice wherever it stands; only
+// a leading one counts. The text goes back to the renderer as `motion`, which validates it; nothing here interprets it.
+const COMPOSE_MAX_TOKENS = 900; // a seated motion's JSON (src/main/motion-compose.js: at most 8 s of elements) fits well under it
+const MOVE_LEAD = /^\s*\[\s*move\s*:\s*([^\]\n]{1,200})\]/i;
+const MOVE_TAG = /[ \t]*\[\s*move\s*:[^\]\n]{0,200}\]/gi;
+const MOVE_RULE = 'In the 3D room you sit at your desk. To move, you may START a reply with one tag [move: words] (it is never shown or spoken). '
+  + 'Words: stretch, nod, shake, shrug, wave, think, lean-back, hover, mouse, chin, glance@board, point@board (also @user @screen @keys @window @left @right), '
+  + 'an activity (typing, reading, thinking, idle) and energy=low|mid|high. Use it only when a movement fits, at most once per reply.';
 const KNOWN_TAG = /[ \t]*\[\s*(?:greet|agree|disagree|point-screen|think|celebrate|explain|joy|sad|surprised|angry|neutral)\s*\]/gi;
 // Fallback rule over the reply (and the owner's line for board questions). Order matters: first match wins.
 const INTENT_RULES = [
@@ -94,7 +103,10 @@ function parseReplyIntent(raw, message) {
   let rest = text;
   let intentTag = null;
   let emotionTag = null;
-  for (let i = 0; i < 2; i++) {
+  let motion = null;
+  for (let i = 0; i < 3; i++) {
+    const mv = MOVE_LEAD.exec(rest);
+    if (mv && !motion) { motion = mv[1].trim(); rest = rest.slice(mv[0].length); continue; }
     const m = LEAD_TAG.exec(rest);
     if (!m) break;
     const k = m[1].toLowerCase();
@@ -105,13 +117,14 @@ function parseReplyIntent(raw, message) {
   }
   const reply = cleanReply(rest);
   const emotion = emotionPreset(emotionTag);
-  if (intentTag) return { reply, intent: intentTag, by: 'tag', emotion };
-  return { reply, intent: ruleIntent(reply, message), by: 'rules', emotion };
+  const moved = motion ? { motion } : {};
+  if (intentTag) return { reply, intent: intentTag, by: 'tag', emotion, ...moved };
+  return { reply, intent: ruleIntent(reply, message), by: 'rules', emotion, ...moved };
 }
 const gestureFor = (intent, emotion = null) => ({ intent, brief: intent, energy: 'mid', deixis: intent === 'point-screen' ? 'board' : 'none', emotion });
 // Strip any known gesture/emotion tag, leaving other bracketed text alone
 // (T-31 0.2.3 B1 item 1). Nothing else changes on screen, spacing included.
-const cleanReply = (t) => String(t || '').replace(KNOWN_TAG, '').trim();
+const cleanReply = (t) => String(t || '').replace(KNOWN_TAG, '').replace(MOVE_TAG, '').trim();
 
 // Streaming twin of parseReplyIntent(): raw model deltas in, tag-free text out, never a half tag. A trailing
 // unclosed "[agr" is held back until it closes (stripped) or stops looking like a tag (released). lead()/emotion():
@@ -122,6 +135,7 @@ function createReplyParser() {
   let clean = '';
   let lead;
   let emotion;
+  let motion = null;
   function decideLead() {
     if (lead !== undefined) return;
     let s = raw.replace(/^\s+/, '');
@@ -131,6 +145,12 @@ function createReplyParser() {
     let foundEmotion = null;
     let consumedAny = false;
     for (;;) {
+      if (/^\s*\[\s*move\s*:/i.test(s)) { // a move tag: wait for its "]" (up to its length cap), then take it
+        const mv = MOVE_LEAD.exec(s);
+        if (!mv) { if (s.length <= 220 && !s.includes('\n')) return; lead = null; emotion = null; return; }
+        if (!motion) motion = mv[1].trim();
+        s = s.slice(mv[0].length); consumedAny = true; continue;
+      }
       const m = /^\s*\[\s*([a-z][a-z-]*)\s*\]/i.exec(s);
       if (!m) break;
       const k = m[1].toLowerCase();
@@ -141,7 +161,7 @@ function createReplyParser() {
       s = s.slice(m[0].length);
       consumedAny = true;
     }
-    if (foundIntent || foundEmotion) {
+    if (foundIntent || foundEmotion || motion) {
       const more = s.replace(/^\s+/, '');
       // A second leading tag (emotion behind gesture, or vice versa) may still be streaming in: finalize only once
       // real text follows, or the next "[" clearly is not a tag; end() finalizes a reply that is nothing but tags.
@@ -154,6 +174,7 @@ function createReplyParser() {
   function safeRaw() {
     const i = raw.lastIndexOf('[');
     if (i >= 0 && raw.indexOf(']', i) < 0 && raw.length - i <= 16 && /^\s*\[\s*[a-z-]*\s*$/.test(raw.slice(i))) return raw.slice(0, i);
+    if (i >= 0 && raw.indexOf(']', i) < 0 && raw.length - i <= 220 && /^\[\s*move\s*:[^\n]*$/i.test(raw.slice(i))) return raw.slice(0, i); // a move tag still streaming
     return raw;
   }
   function advance(next) {
@@ -165,7 +186,7 @@ function createReplyParser() {
   return {
     push(delta) { raw += delta; decideLead(); return advance(cleanReply(safeRaw())); },
     end() { if (lead === undefined) { lead = null; emotion = null; } return advance(cleanReply(raw)); },
-    lead: () => lead, emotion: () => emotion, clean: () => clean, raw: () => raw,
+    lead: () => lead, emotion: () => emotion, motion: () => motion, clean: () => clean, raw: () => raw,
   };
 }
 
@@ -187,6 +208,17 @@ function createLiveReply() {
     end(fin) { subs.clear(); resolveFinal(fin); },
     check(c) { resolveChecked(c || null); },
   };
+}
+
+// Barge-in (T-31-ROOM-live-b P1 item 3): the renderer's turn id owns the streamed request's AbortController, so the
+// same id that stops playback and Kokoro (talk:ttsAbandon) also cuts the LLM request. Module-level on purpose: the
+// Tauri sidecar rebuilds the brain on a provider change while a turn may still be streaming.
+const activeTurns = new Map(); // turnId -> AbortController, only while that turn's stream is running
+function abortTurn(turnId) {
+  const ctl = typeof turnId === 'string' ? activeTurns.get(turnId) : null;
+  if (!ctl || ctl.signal.aborted) return false;
+  ctl.abort();
+  return true;
 }
 
 const ALLOWED_ORIGIN = 'https://openrouter.ai';
@@ -244,12 +276,39 @@ const CHECK_PROMPT = 'You review an assistant reply. Reply exactly `OK`, or one 
 // OpenRouter web search (docs features/web-search, read 10-10): Exa engine, 5 results, $0.007 per request. The custom
 // search_prompt keeps links out of the reply text, so the voice never reads a URL; the app shows the sources itself.
 const WEB_PLUGIN = [{ id: 'web', engine: 'exa', max_results: SOURCES_MAX, search_prompt: 'A web search was run just now. Use these results in your reply. Write plain text with no links, URLs or citation marks; the app shows the sources separately.' }];
-const DAILY_CAP = 200;
-const CAP_MESSAGE_VI = 'You have used all 200 chats for today — come back tomorrow.';
 const MESSAGE_MAX_CHARS = 2000;
-// The host's notes block (memory-notes.mjs recall: about 800 estimated tokens, measured worst case ~3100 chars); a hard ceiling.
+// The host's memory block (memory-notes.mjs recall: notes about 800 estimated tokens, worst case ~3100 chars, then up to 4 matching past turns in 2400 chars); a hard ceiling.
 const MEMORY_BLOCK_MAX_CHARS = 6000;
+const VOICE_NOTE_MAX_CHARS = 300; // the host's anti-repeat note (voice-note.mjs): a short hint, never a block
+const TOOLS_REFUSED_STATUS = new Set([400, 404, 422]); // what a provider answers when the model has no tool use (OpenRouter: 404 'No endpoints found that support tool use')
 const HISTORY_MAX = 6;
+// R6c C item 5: images attached to ONE message. They go to the model in that request's last user message and nowhere else: not into the
+// history the page sends back, not into memory, not into a log. The limits are checked here, whatever the page says.
+const IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+const IMAGE_MAX_COUNT = 4;
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
+/** The page's `images` -> [{ mime, data }] (base64, no prefix), [] when there are none, or null when anything is wrong with them. */
+function cleanImages(raw) {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || raw.length > IMAGE_MAX_COUNT) return null;
+  const out = [];
+  for (const x of raw) {
+    if (!x || typeof x !== 'object' || !IMAGE_MIMES.includes(x.mime) || typeof x.data !== 'string' || x.data.length < 8 || !BASE64_RE.test(x.data)) return null;
+    if (Math.floor((x.data.length * 3) / 4) > IMAGE_MAX_BYTES) return null;
+    out.push({ mime: x.mime, data: x.data });
+  }
+  return out;
+}
+// Can this model read images? Only from what we know: OpenRouter's own list says so per model (architecture.input_modalities), Gemini
+// models do, Groq names its vision models. Anything else, or a model nobody lists, is "no": never send an image to a model that may refuse it.
+function modelReadsImages(providerId, modelId, listEntry) {
+  const id = String(modelId || '').toLowerCase();
+  if (providerId === 'openrouter') return Boolean(listEntry && listEntry.images === true);
+  if (providerId === 'gemini') return /^gemini-/.test(id);
+  if (providerId === 'groq') return /vision|llama-4-(scout|maverick)/.test(id);
+  return false;
+}
 // The first system message (T-31 alpha.12 soul): built from the user's soul by soul-prefs.js. SYSTEM_PROMPT is the default
 // soul's text, the alpha.10 literal plus the companion rule (scripts/check-soul.mjs pins it against the alpha.10 source); the
 // "cannot act" sentence, the companion rule and the gesture/emotion tag contract are fixed in soul-prefs.js and always follow the user's text.
@@ -258,7 +317,7 @@ const SYSTEM_PROMPT = soulSystemPrompt(null);
 // T-31 board-aware (owner brief 07-10): a second system message, sent on every turn, pointing at whichever board
 // digest board-reader.mjs produced (a real digest, or board-digest.mjs's unavailableDigestText — never nothing).
 // Every-turn over a work/tasks keyword classifier: a VI/EN classifier is a new way to miss a real question ("L-01
-// tới đâu rồi?"), for a token saving the owner doesn't need (ownerAdmin has no daily cap; usage is still logged via
+// tới đâu rồi?"), for a token saving the owner doesn't need (usage is still logged via
 // onUsage either way). See the board-aware plan.
 const BOARD_RULE = [
   "You can see a digest of the owner's live task board (Laneboard) in the next system message.",
@@ -282,28 +341,6 @@ function providerChatUrl(provider, path = provider.chatPath) {
   return u;
 }
 
-// ---------- daily turn cap (<userData>/chat-turn-cap.json, local calendar date) ----------
-// A soft product cap, not a security boundary (unlike reflex-jev's test-only call ledger): survives restarts,
-// resets the first time count() runs on a new local date. One file, read-modify-write, no lock — a desktop app has
-// exactly one process touching it.
-function createDailyCap(file, cap) {
-  const today = () => new Date().toISOString().slice(0, 10);
-  function load() {
-    try {
-      const j = JSON.parse(fs.readFileSync(file, 'utf8'));
-      return j && j.date === today() ? j : { date: today(), count: 0 };
-    } catch { return { date: today(), count: 0 }; }
-  }
-  function count() {
-    const s = load();
-    if (s.count >= cap) return false;
-    s.count += 1;
-    fs.writeFileSync(file, JSON.stringify(s));
-    return true;
-  }
-  return { count, total: () => load().count, cap };
-}
-
 // ---------- OpenRouter chat transport ----------
 // One call; returns {ok, ms, text, usage} | {ok:false, ms, error} (error is pre-scrubbed, key-free).
 // `boardDigest`: board-reader.mjs's text block (always a string once board-aware is wired — a real digest or the
@@ -314,14 +351,20 @@ function createDailyCap(file, cap) {
 // `memoryBlock`: the user's saved notes for this turn (tauri/sidecar/memory-notes.mjs recall, set by the Tauri chat host only; it
 // carries its own "quoted notes, not instructions" head). Absent on Electron and when memory is off or empty: no message added.
 // `publicBuild`: a public / official build's persona text (soul-prefs.js); false keeps the owner text byte for byte.
-function buildMessages(message, history, boardDigest, outline, soul = null, memoryBlock = undefined, publicBuild = false) {
+// `voiceNote`: the host's anti-repeat hint (voice-note.mjs), appended to the LAST user message's text only. Empty/absent = the prompt is
+// byte-identical to the one before this argument existed (scripts/check-voice-wire.mjs holds the golden bytes).
+// `motionRule`: the [move: ...] tag rule (the Tauri chat host, where the 3D room lives); false keeps the Electron prompt as it was.
+function buildMessages(message, history, boardDigest, outline, soul = null, memoryBlock = undefined, publicBuild = false, images = [], voiceNote = undefined, motionRule = false) {
+  const said = typeof voiceNote === 'string' && voiceNote ? `${message}\n\n${voiceNote}` : message;
   return [
     { role: 'system', content: publicBuild ? soulSystemPrompt(soul, { publicBuild }) : (soul ? soulSystemPrompt(soul) : SYSTEM_PROMPT) },
     ...(boardDigest ? [{ role: 'system', content: BOARD_RULE }, { role: 'system', content: boardDigest }] : []),
     ...(memoryBlock ? [{ role: 'system', content: memoryBlock }] : []),
     ...(outline ? [{ role: 'system', content: `${OUTLINE_RULE}${outline}` }] : []),
+    ...(motionRule ? [{ role: 'system', content: MOVE_RULE }] : []),
     ...history.map((h) => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: String(h.text || '').slice(0, MESSAGE_MAX_CHARS) })),
-    { role: 'user', content: message },
+    // Images (R6c C item 5) ride in this one message as data URLs; with none, the content stays the plain string it always was.
+    { role: 'user', content: images && images.length ? [{ type: 'text', text: said }, ...images.map((x) => ({ type: 'image_url', image_url: { url: `data:${x.mime};base64,${x.data}` } }))] : said },
   ];
 }
 // routing: { provider: '<pinned name>' | null, reasoningOff: bool, effort?: EFFORTS, effortOk?: bool } -- see the
@@ -357,8 +400,9 @@ function geminiReasoningEffort(model, routing) {
   if (family === '3-flash-lite') return 'minimal';
   return 'low'; // 2.5 Pro and 3.x Flash: lowest supported non-off level (3.8-flash has no "minimal"; 2.5 Pro's 1,024 budget)
 }
-function requestBody(model, messages, routing, stream, { maxTokens = 500, plugins = null, provider = PROVIDERS.openrouter } = {}) {
+function requestBody(model, messages, routing, stream, { maxTokens = 500, plugins = null, provider = PROVIDERS.openrouter, tools = null, toolChoice = 'auto' } = {}) {
   const b = { model, messages, temperature: 0.7, max_tokens: maxTokens };
+  if (tools && tools.length) { b.tools = tools; b.tool_choice = toolChoice; } // R6f: the reply model's memory tool (turnStream only)
   // `usage: {include}` is OpenRouter-only too: Google's OpenAI-compatible endpoint answers HTTP 400 to it (measured live 22-10 on the
   // spare PC with a Gemini key: every streamed turn was refused until the field was dropped), so their stream body stays plain.
   if (stream) { b.stream = true; if (provider.id === 'openrouter') b.usage = { include: true }; }
@@ -397,7 +441,8 @@ async function fetchModelList(fetchImpl = fetch, provider = PROVIDERS.openrouter
       const params = Array.isArray(m.supported_parameters) ? m.supported_parameters : null;
       const name = typeof m.name === 'string' && m.name.trim() ? m.name.trim().slice(0, 80) : m.id;
       const router = Boolean(m.architecture && m.architecture.tokenizer === 'Router');
-      models.push({ id: m.id, name, reasoning: params ? params.includes('reasoning') : null, router });
+      const inputs = m.architecture && Array.isArray(m.architecture.input_modalities) ? m.architecture.input_modalities : null;
+      models.push({ id: m.id, name, reasoning: params ? params.includes('reasoning') : null, router, images: inputs ? inputs.includes('image') : null });
     }
     return { ok: true, models };
   } catch (e) {
@@ -406,8 +451,40 @@ async function fetchModelList(fetchImpl = fetch, provider = PROVIDERS.openrouter
   }
 }
 
-async function callChat(message, history, key, { fetchImpl = fetch, boardDigest, outline, soul = null, memoryBlock, model = MODEL, routing = null, provider = PROVIDERS.openrouter, publicBuild = false } = {}) {
-  return postChat(buildMessages(message, history, boardDigest, outline, soul, memoryBlock, publicBuild), key, { fetchImpl, model, routing, provider });
+async function callChat(message, history, key, { fetchImpl = fetch, boardDigest, outline, soul = null, memoryBlock, voiceNote, images = [], model = MODEL, routing = null, provider = PROVIDERS.openrouter, publicBuild = false, motionRule = false } = {}) {
+  return postChat(buildMessages(message, history, boardDigest, outline, soul, memoryBlock, publicBuild, images, voiceNote, motionRule), key, { fetchImpl, model, routing, provider });
+}
+// T-31-MAUS P3: ONE model call with tool definitions, for the Rust agent loop (host-only `__host.modelTurn`). It is the model
+// call only: the reply's tool calls come back as data and NOTHING is executed here; the loop runs them through its own gate.
+// Failure is a code word (never the key, a header or the body). The loop writes the usage ledger itself, so no onUsage here.
+const MODEL_TURN_MAX_MESSAGES = 200;
+const MODEL_TURN_TIMEOUT_MS = 60000;
+async function postModelTurn(messages, tools, key, { fetchImpl = fetch, model, provider, maxTokens = 1000, signal = null }) {
+  const t0 = Date.now();
+  try {
+    const body = JSON.stringify({ model, messages, tools, tool_choice: tools.length ? 'auto' : undefined, temperature: 0.2, max_tokens: maxTokens });
+    const res = await fetchImpl(providerChatUrl(provider).href, { method: 'POST', redirect: 'error', headers: headersFor(provider, key), body, signal: signal ? AbortSignal.any([AbortSignal.timeout(MODEL_TURN_TIMEOUT_MS), signal]) : AbortSignal.timeout(MODEL_TURN_TIMEOUT_MS) });
+    if (!res.ok) return { ok: false, error: classifyUpstreamError(res.status).code, status: res.status, ms: Date.now() - t0 };
+    const j = await res.json().catch(() => null);
+    const msg = j && j.choices && j.choices[0] && j.choices[0].message;
+    if (!msg) return { ok: false, error: 'bad_response', ms: Date.now() - t0 };
+    const toolCalls = [];
+    for (const c of Array.isArray(msg.tool_calls) ? msg.tool_calls : []) {
+      const f = c && c.function;
+      let args;
+      try { args = JSON.parse(f && typeof f.arguments === 'string' ? f.arguments : '{}'); } catch { return { ok: false, error: 'bad_tool_args', ms: Date.now() - t0 }; }
+      if (!f || typeof f.name !== 'string' || !args || typeof args !== 'object' || Array.isArray(args)) return { ok: false, error: 'bad_tool_args', ms: Date.now() - t0 };
+      toolCalls.push({ id: typeof c.id === 'string' ? c.id : `call-${toolCalls.length}`, name: f.name, args });
+    }
+    const u = j.usage;
+    // No usage = no cost: the loop cannot enforce its cap on a turn it cannot price, so this is an error, not a zero.
+    if (!u || !Number.isFinite(u.prompt_tokens) || !Number.isFinite(u.completion_tokens)) return { ok: false, error: 'no_usage', ms: Date.now() - t0 };
+    return { ok: true, text: typeof msg.content === 'string' ? msg.content.slice(0, 4000) : '', toolCalls, usage: { in: u.prompt_tokens, out: u.completion_tokens, total: u.total_tokens || (u.prompt_tokens + u.completion_tokens) }, model, ms: Date.now() - t0 };
+  } catch (e) {
+    if (signal && signal.aborted) return { ok: false, error: 'cancelled', ms: Date.now() - t0 };
+    const timeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
+    return { ok: false, error: timeout ? 'timeout' : 'upstream', ms: Date.now() - t0 };
+  }
 }
 // One non-streamed call with ready-made messages (the reply's fallback, and the Plan / Check role calls).
 async function postChat(messages, key, { fetchImpl = fetch, model = MODEL, routing = null, maxTokens, timeoutMs = TIMEOUT_MS, provider = PROVIDERS.openrouter } = {}) {
@@ -473,7 +550,8 @@ function classifyUpstreamError(status, insufficient = false) {
 // are ignored. `plugins` (Look up): the web plugin; its url_citation annotations come back as `sources`.
 // -> { ok:true, ms, headersMs, firstTokenMs, text, usage, provider, reasoningTokens, sources }
 //  | { ok:false, ms, headersMs?, firstTokenMs?, status?, reasoningRefused?, error, gotContent, sources } (error pre-scrubbed).
-async function streamChat(messages, key, { fetchImpl = fetch, model = MODEL, routing = null, plugins = null, onDelta = () => {}, provider = PROVIDERS.openrouter, firstTokenTimeoutMs = FIRST_TOKEN_MS, idleTimeoutMs = IDLE_MS } = {}) {
+const THOUGHT_SIGNATURE_MAX = 20000; // a Gemini thought signature is a few KB of base64; anything far larger is not one
+async function streamChat(messages, key, { fetchImpl = fetch, model = MODEL, routing = null, plugins = null, onDelta = () => {}, provider = PROVIDERS.openrouter, firstTokenTimeoutMs = FIRST_TOKEN_MS, idleTimeoutMs = IDLE_MS, tools = null, toolChoice = 'auto', signal: turnSignal = null } = {}) {
   const t0 = Date.now();
   const url = providerChatUrl(provider);
   let headersMs;
@@ -482,6 +560,7 @@ async function streamChat(messages, key, { fetchImpl = fetch, model = MODEL, rou
   let usage = null;
   let upProvider = null; // the upstream provider name reported in the SSE (distinct from the BYOK `provider` descriptor)
   const sources = [];
+  const calls = []; // R6f: tool calls, assembled from the deltas by index ({ id, name, args: the JSON text so far })
   const fail = (error, extra = {}) => ({ ok: false, ms: Date.now() - t0, headersMs, firstTokenMs, error: scrub(error, key), gotContent: text.length > 0, text, provider: upProvider, sources, ...extra });
   // One controller enforces both limits (see FIRST_TOKEN_MS / IDLE_MS). `timeoutKind` names which one fired, so the
   // caller sees `timeout_first_token` vs `timeout_idle` instead of the old generic `timeout`.
@@ -493,13 +572,19 @@ async function streamChat(messages, key, { fetchImpl = fetch, model = MODEL, rou
     timer = setTimeout(() => { timeoutKind = kind; ctrl.abort(); }, ms);
     if (timer.unref) timer.unref(); // like AbortSignal.timeout: never hold the process open
   };
+  // `turnSignal` (barge-in, see activeTurns): aborting it cuts the request like a timeout does, with its own kind.
+  const onTurnAbort = () => { timeoutKind = 'aborted'; ctrl.abort(); };
   try {
+    if (turnSignal) {
+      if (turnSignal.aborted) return fail('aborted'); // before any request: nothing was sent
+      turnSignal.addEventListener('abort', onTurnAbort, { once: true });
+    }
     arm(firstTokenTimeoutMs, 'timeout_first_token'); // starts before fetch: headers are part of the first-token budget
     const res = await fetchImpl(url.href, {
       method: 'POST',
       redirect: 'error',
       headers: { ...headersFor(provider, key), accept: 'text/event-stream' },
-      body: requestBody(model, messages, routing, true, { plugins, provider }),
+      body: requestBody(model, messages, routing, true, { plugins, provider, tools, toolChoice }),
       signal: ctrl.signal,
     });
     headersMs = Date.now() - t0;
@@ -512,6 +597,8 @@ async function streamChat(messages, key, { fetchImpl = fetch, model = MODEL, rou
     let buf = '';
     let done = false;
     for await (const piece of res.body) {
+      // A chunk already buffered when the barge-in landed must not reach the voice or the stored reply.
+      if (turnSignal && turnSignal.aborted) return fail('aborted');
       // Any arriving chunk proves the stream is alive; after the first content delta the gap between chunks is what
       // IDLE_MS bounds (a keep-alive also counts as a chunk).
       if (firstTokenMs !== null) arm(idleTimeoutMs, 'timeout_idle');
@@ -532,6 +619,20 @@ async function streamChat(messages, key, { fetchImpl = fetch, model = MODEL, rou
         const delta = choice && choice.delta;
         addSources(sources, delta && delta.annotations);
         addSources(sources, choice && choice.message && choice.message.annotations);
+        for (const c of delta && Array.isArray(delta.tool_calls) ? delta.tool_calls : []) {
+          if (firstTokenMs === null) { firstTokenMs = Date.now() - t0; arm(idleTimeoutMs, 'timeout_idle'); }
+          // A delta names its call by `index`; Gemini's OpenAI-compatible stream sends none, so a call with a new id is a new slot and one with no id
+          // continues the last one (a call joined into slot 0 would drop both).
+          let at = Number.isInteger(c && c.index) ? c.index : -1;
+          if (at < 0) { at = c && typeof c.id === 'string' && c.id ? calls.findIndex((x) => x && x.id === c.id) : calls.length - 1; if (at < 0) at = calls.length; }
+          const slot = calls[at] || (calls[at] = { id: '', name: '', args: '' });
+          if (c && typeof c.id === 'string') slot.id = c.id;
+          // Gemini 3 hands each call's thought signature as extra_content.google.thought_signature and answers 400 when the confirmation request does not echo it.
+          const sig = c && c.extra_content && c.extra_content.google && c.extra_content.google.thought_signature;
+          if (typeof sig === 'string' && sig && sig.length <= THOUGHT_SIGNATURE_MAX) slot.extra = { google: { thought_signature: sig } };
+          if (c && c.function && typeof c.function.name === 'string') slot.name += c.function.name;
+          if (c && c.function && typeof c.function.arguments === 'string' && slot.args.length < 4000) slot.args += c.function.arguments;
+        }
         const piece2 = delta && typeof delta.content === 'string' ? delta.content : '';
         if (piece2) {
           if (firstTokenMs === null) { firstTokenMs = Date.now() - t0; arm(idleTimeoutMs, 'timeout_idle'); }
@@ -540,15 +641,22 @@ async function streamChat(messages, key, { fetchImpl = fetch, model = MODEL, rou
       }
     }
     if (!done) return fail(text ? 'stream_cut' : 'stream_ended_empty');
-    if (!text.trim()) return fail('bad_response');
+    const toolCalls = [];
+    for (const c of calls) { // a call whose arguments are not a JSON object is dropped, never half applied
+      let args = null;
+      try { args = JSON.parse(c && c.args ? c.args : '{}'); } catch { args = null; }
+      if (c && c.name && args && typeof args === 'object' && !Array.isArray(args)) toolCalls.push({ id: c.id || `call-${toolCalls.length}`, name: c.name, args, ...(c.extra ? { extra: c.extra } : {}) });
+    }
+    if (!text.trim() && !toolCalls.length) return fail('bad_response');
     const u = usage ? { in: usage.prompt_tokens || 0, out: usage.completion_tokens || 0, total: usage.total_tokens || 0 } : null;
-    return { ok: true, ms: Date.now() - t0, headersMs, firstTokenMs, text, usage: u, provider: upProvider, reasoningTokens: reasoningTokensOf(usage), sources };
+    return { ok: true, ms: Date.now() - t0, headersMs, firstTokenMs, text, usage: u, provider: upProvider, reasoningTokens: reasoningTokensOf(usage), sources, toolCalls };
   } catch (e) {
     if (timeoutKind) return fail(timeoutKind);
     const timeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
     return fail(timeout ? 'timeout' : (e && e.message) || String(e));
   } finally {
     if (timer) clearTimeout(timer);
+    if (turnSignal) turnSignal.removeEventListener('abort', onTurnAbort);
   }
 }
 // OpenRouter url_citation annotations (they can repeat across deltas) -> [{url, title}], http(s) only, deduped by
@@ -573,11 +681,10 @@ function parseCheck(raw) {
 }
 
 // ---------- the module main.js wires to IPC (talk:status / talk:turn, in place of cloud.js, only when a key exists) ----------
-// opts: { safeStorage, dir, fetchImpl, log, ownerAdmin, onUsage }
-//   ownerAdmin: true (owner build) turns
-//     the daily turn cap OFF for this build. Absent/false (every non-owner build) -> unchanged DAILY_CAP behaviour.
+// opts: { safeStorage, dir, fetchImpl, log, onUsage }
+//   No daily turn cap on any build (owner 12-11 "Bỏ hạn mức đi nhé"; BYOK: the user's own key pays).
 //   onUsage({model, kind:'chat'|'plan'|'check'|'lookup', in, out, total, ms, ok}): called once per REAL call attempt
-//     (success or failure), never for a no-key refusal or a cap-blocked turn (no call was made). Swallowed here -- a
+//     (success or failure), never for a no-key refusal (no call was made). Swallowed here -- a
 //     usage-ledger problem must never surface as a chat failure.
 //   model: the owner's model id (settings.json `chatModel`, applied on OpenRouter ONLY -- fix round 2); absent/invalid/
 //     Claude -> the provider TABLE's free Do id when a provider is passed (BYOK, fix r item 2), else the legacy MODEL.
@@ -596,6 +703,7 @@ function createChatBrain(opts = {}) {
   // The other roles' text reaches the owner too (the Check correction is shown, the Plan outline shapes the reply), so they carry the same words.
   // opts.publicBuild (the Tauri chat host: not ownerAdmin): the persona and address rule say "the user", with no board sentence.
   const publicBuild = opts.publicBuild === true;
+  const motionRule = opts.motionRule === true; // T-31-ROOM motion P4: the Tauri host asks for the [move: ...] tag rule
   const withAddress = (prompt) => { const soul = soulOf(); const rule = addressRule(soulPrefs({ soul }), { publicBuild }); return rule ? `${prompt} ${rule}` : prompt; };
   // T-31 BYOK: the active provider descriptor (accepts an id or a descriptor). Absent/unknown -> OpenRouter, which is
   // exactly today's behaviour, so every existing path and check is unchanged; main.js always passes the resolved one.
@@ -630,8 +738,6 @@ function createChatBrain(opts = {}) {
   // everything else keeps today's generic 'upstream'. Each error carries the matching `retryable` flag: a refused key
   // or an empty account is NOT retryable; a busy provider and a generic upstream failure are.
   const failureOf = (r) => classifyUpstreamError(r.status, r.insufficient === true);
-  const cap = createDailyCap(path.join(opts.dir, 'chat-turn-cap.json'), DAILY_CAP);
-  const ownerAdmin = Boolean(opts.ownerAdmin);
   // T-31 fix round 2 item 2: `chatModel` is the pre-BYOK OpenRouter model id (there is no picker UI for it). Apply it
   // ONLY on OpenRouter -- otherwise the OpenRouter-only `deepseek/...` id would be POSTed to Groq/Gemini after a switch.
   const storedDefaultModel = provider.id === 'openrouter' && modelOk(opts.model) ? opts.model : null;
@@ -674,6 +780,34 @@ function createChatBrain(opts = {}) {
   // opts.cliLoginKey (OpenCode Go only, chat-host.mjs): null = not chosen, '' = chosen but not logged in. Chosen never falls back to a pasted key.
   const readKey = () => { const cli = provider.id === 'opencode-go' && opts.cliLoginKey ? opts.cliLoginKey() : null; return cli === null ? keys && keys.read() : cli; };
   const hasKey = () => Boolean(readKey());
+  // T-31-MAUS P3 (host-only `__host.modelTurn`): { messages, tools, model? } -> { ok, text, toolCalls, usage, model, ms } | { ok:false, error }.
+  // In-flight model turns by the caller's request id: the Rust loop aborts one on a kill or a cancel (modelTurnCancel).
+  const turnAborts = new Map();
+  async function modelTurn(req) {
+    const r = req && typeof req === 'object' ? req : {};
+    if (!Array.isArray(r.messages) || r.messages.length === 0 || r.messages.length > MODEL_TURN_MAX_MESSAGES || (r.tools !== undefined && !Array.isArray(r.tools))) return { ok: false, error: 'bad_request' };
+    // N2: a model the loop named but this module would not send is refused, never swapped for the default model: the
+    // loop priced the model it named. Absent (null/undefined) keeps the default model; the Rust loop never sends that.
+    if (r.model != null && !modelOk(r.model)) return { ok: false, error: 'bad_model' };
+    const key = readKey();
+    if (!key) return { ok: false, error: 'no_key' };
+    // BYOK: the user's own key pays; an agent turn is bounded only by the per-task cap the Rust loop enforces (tool_gate.rs: 0.50 USD, 40 steps).
+    const id = typeof r.requestId === 'string' && r.requestId.length > 0 && r.requestId.length <= 80 ? r.requestId : null;
+    const ctrl = new AbortController();
+    if (id) turnAborts.set(id, ctrl);
+    try {
+      return await postModelTurn(r.messages, r.tools || [], key, { fetchImpl: opts.fetchImpl, model: r.model != null ? r.model : model, provider, maxTokens: Number.isInteger(r.maxTokens) && r.maxTokens > 0 ? Math.min(r.maxTokens, 1000) : 1000, signal: ctrl.signal });
+    } finally {
+      if (id) turnAborts.delete(id);
+    }
+  }
+  // Aborts the provider fetch of one in-flight modelTurn; unknown or finished ids are not an error.
+  function cancelModelTurn(id) {
+    const ctrl = typeof id === 'string' ? turnAborts.get(id) : null;
+    if (ctrl) ctrl.abort();
+    return { ok: true, aborted: Boolean(ctrl) };
+  }
+  const noTools = new Set(); // models the provider refused the memory tool for (R6f)
   let modelsCache = null; // the provider's model list (listModels below), { at, models }
   // A role that may run this turn: switched on, with a model id and effort this module would send.
   function roleOf(name, roles = opts.getRoles ? opts.getRoles(defaultModel, modelsCache ? modelsCache.models : null) : null) {
@@ -708,13 +842,22 @@ function createChatBrain(opts = {}) {
     return v;
   }
   const plannedOf = (g) => (g.outline ? { planned: true, outline: g.outline } : {});
+  // T-31-ROOM motion P5b: one non-streamed call on the owner's Do model and key for the motion composer (src/main/motion-compose.js
+  // builds the messages); a usage line of kind 'compose'. Never logs the brief or the answer.
+  async function composeMotion(messages, { timeoutMs }) {
+    const key = readKey();
+    if (!key) return { ok: false, error: 'no_key' };
+    const route = currentRoute();
+    const r = await callRole('compose', { model: route.model, effort: route.effort }, messages, key, { maxTokens: COMPOSE_MAX_TOKENS, timeoutMs });
+    log(`chat-brain: compose ${r.ok ? 'ok' : r.error} model=${route.model} ms=${r.ms}`);
+    return r.ok ? { ok: true, text: r.text } : { ok: false, error: r.error };
+  }
 
   function status() {
     if (!hasKey()) return { enabled: false, mode: 'off', reason: `no ${provider.label} key saved` };
     return { enabled: true, mode: 'byo', reason: null, provider: provider.label, model: currentRoute().model };
   }
 
-  const NEUTRAL_GESTURE = { intent: 'none', brief: '', energy: 'mid', deixis: 'none' };
   // look: the Look up role when this call was the reply on the Look up model (kind 'lookup'), else the Do model.
   const usageOf = (r, look = null) => { const u = r.usage || {}; reportUsage({ model: look ? look.model : model, kind: look ? 'lookup' : 'chat', in: u.in || 0, out: u.out || 0, total: u.total || 0, ms: r.ms, ok: r.ok, ...(look ? { web: Boolean(provider.webSearch) } : {}) }); };
   const reasoningLabel = () => (routing.effort !== 'off' ? (routing.effortOk ? routing.effort : 'model-default') : (routing.reasoningOff ? 'off' : 'model-default'));
@@ -736,16 +879,12 @@ function createChatBrain(opts = {}) {
     log(`chat-brain: model=${model} refused reasoning-off (http_400); retrying with the model's default reasoning for this session`);
     return true;
   }
-  // `host`: what only the host may add to a turn ({ memoryBlock }), never read from the page's object `p` (Electron's main.js passes
+  // `host`: what only the host may add to a turn ({ memoryBlock, voiceNote }), never read from the page's object `p` (Electron's main.js passes
   // the page's talk:turn payload through as-is). The block is cut to MEMORY_BLOCK_MAX_CHARS whatever the caller sends.
   function gate(p, host = null) {
     const key = readKey();
     applyRoute();
     if (!key) return { stop: { ok: false, error: { code: 'talk_off', message: `no ${provider.label} key saved`, retryable: false } } };
-    if (!ownerAdmin && !cap.count()) {
-      log(`chat-brain: daily cap reached (${DAILY_CAP}/day)`);
-      return { stop: { ok: true, reply: CAP_MESSAGE_VI, analysis: null, explains: false, gesture: NEUTRAL_GESTURE, model: 'cap', latencyMs: 0, usage: null } };
-    }
     return {
       key,
       message: String((p && p.message) || '').slice(0, MESSAGE_MAX_CHARS),
@@ -754,17 +893,24 @@ function createChatBrain(opts = {}) {
       // owns the ESM import; chat-brain.js stays CJS and board-blind beyond this one optional string).
       boardDigest: typeof (p && p.boardDigest) === 'string' ? p.boardDigest : undefined,
       memoryBlock: host && typeof host.memoryBlock === 'string' && host.memoryBlock ? host.memoryBlock.slice(0, MEMORY_BLOCK_MAX_CHARS) : undefined,
+      // The anti-repeat note (voice-note.mjs), host only, cut to VOICE_NOTE_MAX_CHARS. Only the reply's own request carries it:
+      // `message` (history, memory grounding, Plan, Check) stays the user's words.
+      voiceNote: host && typeof host.voiceNote === 'string' && host.voiceNote ? host.voiceNote.slice(0, VOICE_NOTE_MAX_CHARS) : undefined,
+      // R6f: the reply model's memory tool, from the host only ({ tool, apply(args) -> { result } }); the page can never supply one.
+      memoryTool: host && host.memoryTool && host.memoryTool.tool && typeof host.memoryTool.apply === 'function' ? host.memoryTool : null,
+      // null = the page sent something that is not a list of allowed images (turnStream / turn refuse it before any call).
+      images: cleanImages(p && p.images),
     };
   }
 
   // One non-streamed call (+ one retry if the model refuses reasoning-off) -> the turn() result shape. Always the Do
   // model, never the web plugin; a Plan outline of this turn is still followed.
   async function nonStreamed(g, why) {
-    const { key, message, history, boardDigest, outline, memoryBlock } = g;
-    let r = await callChat(message, history, key, { fetchImpl: opts.fetchImpl, boardDigest, outline, soul: soulOf(), memoryBlock, model, routing, provider, publicBuild });
+    const { key, message, history, boardDigest, outline, memoryBlock, voiceNote, images } = g;
+    let r = await callChat(message, history, key, { fetchImpl: opts.fetchImpl, boardDigest, outline, soul: soulOf(), memoryBlock, voiceNote, images, model, routing, provider, publicBuild, motionRule });
     // Logged for success AND failure alike -- a real call left the provider either way (usage-ledger plan item 2).
     usageOf(r);
-    if (!r.ok && noteReasoningRefusal(r)) { r = await callChat(message, history, key, { fetchImpl: opts.fetchImpl, boardDigest, outline, soul: soulOf(), memoryBlock, model, routing, provider, publicBuild }); usageOf(r); }
+    if (!r.ok && noteReasoningRefusal(r)) { r = await callChat(message, history, key, { fetchImpl: opts.fetchImpl, boardDigest, outline, soul: soulOf(), memoryBlock, voiceNote, images, model, routing, provider, publicBuild, motionRule }); usageOf(r); }
     if (!r.ok) {
       const f = failureOf(r);
       log(`chat-brain turn failed: ${r.error} (${f.code}${f.retryable ? '' : ', not retryable'})${why ? ` (non-streamed fallback after: ${why})` : ''}`);
@@ -775,12 +921,25 @@ function createChatBrain(opts = {}) {
     noteKey('works', key);
     // Metadata only — never the message or the reply text — so a real turn is verifiable from the app log alone.
     log(`chat-brain: turn ok model=${model} stream=0${why ? ' fallback=1' : ''} latencyMs=${r.ms} headersMs=${r.headersMs} usageTotal=${r.usage ? r.usage.total : 'n/a'} ${routeLog(r)} intent=${parsed.intent} intentBy=${parsed.by}${outline ? ' planned=1' : ''}`);
-    return { ok: true, reply: parsed.reply, analysis: null, explains: false, gesture: gestureFor(parsed.intent, parsed.emotion), emotion: parsed.emotion, model, latencyMs: r.ms, usage: r.usage, ...plannedOf(g) };
+    return { ok: true, reply: parsed.reply, analysis: null, explains: false, gesture: gestureFor(parsed.intent, parsed.emotion), emotion: parsed.emotion, motion: parsed.motion, model, latencyMs: r.ms, usage: r.usage, ...plannedOf(g) };
+  }
+
+  // R6c C item 5: a turn whose images are wrong, or whose model cannot read images, ends here: no call, nothing leaves the machine.
+  // The head is a failed turn like any other (code no_vision / bad_image); the renderer shows its own words for each.
+  async function imageStop(g) {
+    if (g.images === null) return { ok: false, error: { code: 'bad_image', message: 'bad_image', retryable: false } };
+    if (!g.images.length) return null;
+    let entry = null;
+    if (provider.id === 'openrouter') { const l = await listModels(); entry = l.ok ? l.models.find((m) => m.id === model) : null; }
+    if (modelReadsImages(provider.id, model, entry)) return null;
+    log(`chat-brain: no_vision (${g.images.length} image(s) not sent) model=${model}`); // count only: never the bytes
+    return { ok: false, error: { code: 'no_vision', message: 'no_vision', retryable: false, providerId: provider.id } };
   }
 
   async function turn(p) {
     const g = gate(p);
-    return g.stop || nonStreamed(g, null);
+    if (g.stop) return g.stop;
+    return (await imageStop(g)) || nonStreamed(g, null);
   }
 
   // Streamed turn -> Promise<{ head, live }>. `head` is what talk:turn returns to the renderer (turn() shape plus
@@ -792,16 +951,23 @@ function createChatBrain(opts = {}) {
   async function turnStream(p, host = null) {
     const g = gate(p, host);
     if (g.stop) return { head: g.stop, live: null };
+    const stop = await imageStop(g);
+    if (stop) return { head: stop, live: null };
     const timing = { requestAt: Date.now(), firstTokenAt: null, firstClauseAt: null };
+    const turnId = p && typeof p.turnId === 'string' && p.turnId && p.turnId.length <= 128 ? p.turnId : null;
+    const turnCtl = new AbortController();
+    if (turnId) activeTurns.set(turnId, turnCtl); // from here a barge-in (abortTurn) cuts the plan wait and the stream
     const roles = opts.getRoles ? opts.getRoles(defaultModel, modelsCache ? modelsCache.models : null) : null;
     const planRole = roleOf('plan', roles);
     const lookRole = roleOf('lookup', roles);
-    g.outline = planRole && wantsPlan(g.message) ? await planFor(g, planRole) : null;
-    const look = lookRole && wantsLookup(g.message) ? lookRole : null;
+    // A message with images stays on the Do model: no Plan outline, no Look up, no Check (those roles would not see the picture).
+    const seeing = g.images.length > 0;
+    g.outline = !seeing && planRole && wantsPlan(g.message) ? await planFor(g, planRole) : null;
+    const look = !seeing && lookRole && wantsLookup(g.message) ? lookRole : null;
     // The Look up call has its own routing: never the Do model's provider pin or remembered refusals.
     const lookRouting = look ? { provider: null, reasoningOff: true, effort: look.effort, effortOk: true } : null;
     const turnModel = look ? look.model : model;
-    const messages = buildMessages(g.message, g.history, g.boardDigest, g.outline, soulOf(), g.memoryBlock, publicBuild);
+    const messages = buildMessages(g.message, g.history, g.boardDigest, g.outline, soulOf(), g.memoryBlock, publicBuild, g.images, g.voiceNote, motionRule);
     const live = createLiveReply();
     let parser;
     let chunker;
@@ -818,7 +984,7 @@ function createChatBrain(opts = {}) {
       intentBy = parser.lead() ? 'tag' : 'rules';
       emotion = parser.emotion() || null;
       live.push(parser.clean());
-      resolveHead({ ok: true, streaming: true, reply: parser.clean(), analysis: null, explains: false, gesture: gestureFor(intent, emotion), emotion, model: turnModel, latencyMs: timing.firstClauseAt - timing.requestAt, usage: null, timing, ...plannedOf(g) });
+      resolveHead({ ok: true, streaming: true, reply: parser.clean(), analysis: null, explains: false, gesture: gestureFor(intent, emotion), emotion, motion: parser.motion(), model: turnModel, latencyMs: timing.firstClauseAt - timing.requestAt, usage: null, timing, ...plannedOf(g) });
     };
     const feed = (added) => {
       if (!added) return;
@@ -826,20 +992,56 @@ function createChatBrain(opts = {}) {
       if (headSent) live.push(parser.clean());
       else if (parser.lead() !== undefined && chunker.count() > 0) sendHead();
     };
+    // R6f: the reply model may hold the host's memory tool (a Look up call never does: it has its own routing). One request either way; a
+    // model the provider refuses the tool for is asked again without it, and not offered it again while this model is in use.
+    let tools = g.memoryTool && !look && !noTools.has(turnModel) ? [g.memoryTool.tool] : null;
+    let thread = messages;
+    let toolChoice = 'auto';
     const attempt = () => {
       parser = createReplyParser();
       chunker = createStreamChunker();
-      return streamChat(messages, g.key, {
-        fetchImpl: opts.fetchImpl, model: turnModel, routing: lookRouting || routing, plugins: look ? WEB_PLUGIN : null, provider,
+      return streamChat(thread, g.key, {
+        fetchImpl: opts.fetchImpl, model: turnModel, routing: lookRouting || routing, plugins: look ? WEB_PLUGIN : null, provider, tools, toolChoice,
         onDelta: (d) => { if (timing.firstTokenAt === null) timing.firstTokenAt = Date.now(); feed(parser.push(d)); },
+        signal: turnCtl.signal,
       });
+    };
+    // Barge-in: keep only what was already pushed (nothing after the abort: no parser.end() flush), no Check, no retry,
+    // no non-streamed fallback; the head is a plain failure when no clause had gone out yet.
+    const endAborted = (r) => {
+      if (r.headersMs !== undefined) usageOf(r, look); // a request really went out; an abort before it is no call
+      const reply = headSent ? live.text() : '';
+      log(`chat-brain: turn aborted (barge-in) model=${turnModel} headSent=${headSent ? 1 : 0} keptChars=${reply.length}`);
+      if (!headSent) resolveHead({ ok: false, error: { code: 'aborted', message: 'aborted', retryable: false } });
+      live.end({ ok: false, reply, error: 'aborted', emotion, sources: [] });
+      live.check(null);
     };
     const lookLog = (r) => `provider=${r.provider || 'n/a'} pin=none reasoning=${look.effort} reasoningTokens=${r.reasoningTokens ?? 'n/a'}`;
 
     (async () => {
       let r = await attempt();
+      if (r.error === 'aborted') return endAborted(r);
       usageOf(r, look);
-      if (!look && !r.ok && !headSent && noteReasoningRefusal(r)) { r = await attempt(); usageOf(r); }
+      if (!look && !r.ok && !headSent && noteReasoningRefusal(r)) {
+        r = await attempt();
+        if (r.error === 'aborted') return endAborted(r);
+        usageOf(r);
+      }
+      if (tools && !r.ok && !r.reasoningRefused && !headSent && TOOLS_REFUSED_STATUS.has(r.status)) { noTools.add(turnModel); tools = null; log(`chat-brain: model=${turnModel} refused the memory tool (http_${r.status}); asking again without it while this model is in use`); r = await attempt(); if (r.error === 'aborted') return endAborted(r); usageOf(r); }
+      // R6f: the model changed a saved note. The host applies the call; the result goes back to the model and the reply streams once more, so it
+      // confirms in one sentence. Only a turn that called the tool pays this second request. A reply that already started speaking is left as it is.
+      if (r.ok && r.toolCalls && r.toolCalls.length && g.memoryTool) {
+        const calls = r.toolCalls.slice(0, 2);
+        const done = [];
+        for (const c of calls) { let result = ''; try { if (c.name === g.memoryTool.tool.function.name) result = String((await g.memoryTool.apply(c.args)).result || ''); } catch (e) { log(`chat-brain: memory tool failed: ${scrub((e && e.message) || String(e), g.key)}`); } done.push({ c, result: result || 'Nothing was changed.' }); }
+        if (!headSent && !parser.raw().trim()) {
+          thread = [...messages, { role: 'assistant', content: null, tool_calls: done.map(({ c }) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: JSON.stringify(c.args) }, ...(c.extra ? { extra_content: c.extra } : {}) })) }, ...done.map(({ c, result }) => ({ role: 'tool', tool_call_id: c.id, content: result }))];
+          toolChoice = 'none';
+          r = await attempt();
+          if (r.error === 'aborted') return endAborted(r);
+          usageOf(r);
+        }
+      }
       const routeLine = look ? lookLog(r) : routeLog(r); // before updatePin, so `pin=` says what THIS call asked for
       if (!look) updatePin(r); // the pin is the Do model's; a Look up call neither sets nor drops it
       const sources = look ? r.sources : [];
@@ -881,7 +1083,7 @@ function createChatBrain(opts = {}) {
         log(`chat-brain: turn ok model=${turnModel} stream=1 firstTokenMs=${ms(timing.firstTokenAt)} firstClauseMs=${ms(timing.firstClauseAt)} latencyMs=${r.ms} headersMs=${r.headersMs} usageTotal=${r.usage ? r.usage.total : 'n/a'} ${routeLine} intent=${intent} intentBy=${intentBy} emotion=${emotion || 'none'}${roleTags}`);
         live.end({ ok: true, reply, emotion, usage: r.usage, latencyMs: r.ms, sources });
         // Check starts only now: the reply is final and already being spoken, so it never delays the voice.
-        live.check(await checkFor(g, reply));
+        live.check(seeing ? null : await checkFor(g, reply));
       } else {
         // Already speaking: keep what was said, say plainly in the log that the rest never came.
         log(`chat-brain: stream broke after the first clause (${r.error}); keeping the ${reply.length} chars already received. model=${turnModel} firstTokenMs=${ms(timing.firstTokenAt)} firstClauseMs=${ms(timing.firstClauseAt)} ${routeLine} intent=${intent} intentBy=${intentBy} emotion=${emotion || 'none'}${roleTags}`);
@@ -894,7 +1096,7 @@ function createChatBrain(opts = {}) {
       live.end({ ok: false, reply: parser ? cleanReply(parser.raw()) : '', error: 'internal', sources: [] });
       live.check(null);
       if (!headSent) resolveHead({ ok: false, error: { code: 'upstream', message: 'internal', retryable: true } });
-    });
+    }).finally(() => { if (turnId && activeTurns.get(turnId) === turnCtl) activeTurns.delete(turnId); });
 
     const head = await headP;
     return { head, live: head.streaming ? live : null };
@@ -910,7 +1112,7 @@ function createChatBrain(opts = {}) {
     return r;
   }
 
-  return { status, turn, turnStream, hasKey, listModels, defaultModel, provider, legacyOpenRouter, routing: () => ({ ...routing }) };
+  return { status, turn, turnStream, abortTurn, composeMotion, hasKey, modelTurn, cancelModelTurn, listModels, defaultModel, provider, legacyOpenRouter, routing: () => ({ ...routing }) };
 }
 
-module.exports = { createChatBrain, createDailyCap, buildMessages, callChat, streamChat, parseCheck, fetchModelList, assertAllowedUrl, parseReplyIntent, createReplyParser, ruleIntent, isClaudeModel, classifyUpstreamError, SPEECH_INTENTS, EMOTIONS, EMOTION_PRESETS, ALLOWED_ORIGIN, CHAT_PATH, MODELS_PATH, MODEL, MODEL_ID_RE, EFFORTS, DAILY_CAP, CAP_MESSAGE_VI, SYSTEM_PROMPT, BOARD_RULE, PIN_MAX_FIRST_TOKEN_MS, FIRST_TOKEN_MS, IDLE_MS };
+module.exports = { MOVE_RULE, createChatBrain, abortTurn, buildMessages, callChat, streamChat, parseCheck, fetchModelList, assertAllowedUrl, parseReplyIntent, createReplyParser, ruleIntent, isClaudeModel, classifyUpstreamError, SPEECH_INTENTS, EMOTIONS, EMOTION_PRESETS, ALLOWED_ORIGIN, CHAT_PATH, MODELS_PATH, MODEL, MODEL_ID_RE, EFFORTS, SYSTEM_PROMPT, BOARD_RULE, PIN_MAX_FIRST_TOKEN_MS, FIRST_TOKEN_MS, IDLE_MS };

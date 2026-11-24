@@ -56,10 +56,10 @@ if (typeof dm.createDefaultSampleDetector === 'function') {
 // the production list blocks BOTH the shipped file (3K FOREST) and the 0.2.7 default; a user model is not
 {
   // alpha.4 item 4: the shipped file is now the corporation-commercialUsage one; the pixiv-credit file (PIX_SHA) joins the old list.
-  const NEW_SHA = 'd1183bcf27bac3a587de7e383bcd8f6f4e0068e0a7c56653fa3e731e1460c372', PIX_SHA = '310203381f11d5c045af5f3f37ae300d3c400916edf3484ba78c30c6a7eab0f1', MID_SHA = '7b28695a81cf53cd878ac25d19bd6c56e4310a50453968f4cdbd93234ec3d240', OLD_SHA = 'd01f7273cd8480d28252bfac8f907d070bc10a8731e1b4def224c18387de4e8a';
+  const R11_SHA = 'c8b80938584339a78d880c85079696224dcdb9fad9c4ccaf1eae268715c034ff', R11_BYTES = 9363180, R8_SHA = 'f9574148bb070b3c8783e50557fa523786aa814110d8f42f572ebdaea1886f0a', R8_BYTES = 9363312, NEW_SHA = 'd1183bcf27bac3a587de7e383bcd8f6f4e0068e0a7c56653fa3e731e1460c372', PIX_SHA = '310203381f11d5c045af5f3f37ae300d3c400916edf3484ba78c30c6a7eab0f1', MID_SHA = '7b28695a81cf53cd878ac25d19bd6c56e4310a50453968f4cdbd93234ec3d240', OLD_SHA = 'd01f7273cd8480d28252bfac8f907d070bc10a8731e1b4def224c18387de4e8a';
   const ks = dm.KNOWN_SAMPLES || [];
-  ok(ks.length === 4 && ks.some((k) => k.sha256 === NEW_SHA && k.bytes === 9141588) && ks.some((k) => k.sha256 === PIX_SHA && k.bytes === 9141592) && ks.some((k) => k.sha256 === MID_SHA && k.bytes === 9142044) && ks.some((k) => k.sha256 === OLD_SHA && k.bytes === 9142032), 'KNOWN_SAMPLES lists the new corporation-meta (9141588), the pixiv-credit (9141592), the 3K FOREST pre-pixiv-meta (9142044) and the old 0.2.7 (9142032) sample');
-  ok(dm.DEFAULT_MODEL_SHA256 === NEW_SHA && dm.DEFAULT_MODEL_BYTES === 9141588, 'the shipped/pinned identity is the NEW file (commercialUsage corporation in meta)');
+  ok(ks.length === 6 && ks.some((k) => k.sha256 === R11_SHA && k.bytes === R11_BYTES) && ks.some((k) => k.sha256 === R8_SHA && k.bytes === R8_BYTES) && ks.some((k) => k.sha256 === NEW_SHA && k.bytes === 9141588) && ks.some((k) => k.sha256 === PIX_SHA && k.bytes === 9141592) && ks.some((k) => k.sha256 === MID_SHA && k.bytes === 9142044) && ks.some((k) => k.sha256 === OLD_SHA && k.bytes === 9142032), 'KNOWN_SAMPLES lists the 9.11 file (jacket re-weight), the round-8 file (outfit shading pass), the corporation-meta (9141588), the pixiv-credit (9141592), the 3K FOREST pre-pixiv-meta (9142044) and the old 0.2.7 (9142032) sample');
+  ok(dm.DEFAULT_MODEL_SHA256 === R11_SHA && dm.DEFAULT_MODEL_BYTES === R11_BYTES, 'the shipped/pinned identity is the 9.11 file (the round-8 file with the jacket rebuild: re-weight + hidden layers deleted)');
   // two fake samples of different sizes through the same seam the production list uses
   const sa = crypto.randomBytes(3000), sb = crypto.randomBytes(3500);
   const fa = path.join(tmp, 'sa.vrm'), fb = path.join(tmp, 'sb.vrm'), fu = path.join(tmp, 'su.vrm'), fs2 = path.join(tmp, 'same-size-as-sa.vrm');
@@ -89,7 +89,7 @@ if (typeof dm.createDefaultSampleDetector === 'function' && realDefault && fs.ex
   const user = sampleList.models.find((m) => m.id === 'user');
   ok(user && user.labelKey === 'model.zumiDefault', 'models-core: the sample in the user slot is labelled "Zumi default"', JSON.stringify(user));
   const otherList = createModels({ modelsDir: mdir, loadSettings: () => ({ model: 'user', userModelPath: userModel }), isDefaultSample: (f) => f === sampleA }).listModels();
-  ok(!otherList.models.find((m) => m.id === 'user').labelKey, 'models-core: a user model gets no default label');
+  ok(otherList.models.find((m) => m.id === 'user').labelKey === 'model.fromThisPc', 'models-core: a user model gets no default label (it is named "from this PC" by key)');
   ok(!('wardrobeBlocked' in sampleList), 'models-core: listModels() carries no wardrobeBlocked any more (wardrobe removed)', JSON.stringify(Object.keys(sampleList)));
 }
 ok(!('wardrobeBlockedMessage' in dm), 'default-model.js exports no wardrobeBlockedMessage');

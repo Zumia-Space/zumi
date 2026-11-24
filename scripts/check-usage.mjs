@@ -4,9 +4,9 @@
 //   usage-ledger.js: appendUsage (success + failure, never throws), tolerant malformed-line read, aggregateUsage math;
 //   usage-cost.js: the price-table estimate math, including the deliberately-unverified Jev entry;
 //   chat-brain.js + reflex-jev.js wiring: onUsage fires for a REAL call (ok and failing), never for a no-call path
-//     (no key, cap-blocked, call-ledger-capped) -- and the resulting ledger file never contains the key, the user's
+//     (no key, call-ledger-capped) -- and the resulting ledger file never contains the key, the user's
 //     message, or the model's reply text;
-//   ownerAdmin: the chat daily cap is OFF when true, unchanged (ON) when false/absent;
+//   no chat daily cap on any build (owner 12-11): 201 turns answer with ownerAdmin true and false;
 //   i18n: the usage.* keys exist, non-empty, in en/vi/zh, and the cost footnote literally carries the word the
 //     plan requires per locale ("estimate" EN, "ước tính" VI, "估算" ZH);
 //   T-31 zumi-roles: `kind` is chat|plan|check|lookup|jev (anything else -> chat), aggregateUsage keeps date x model x
@@ -22,7 +22,7 @@ import { TABLES, LOCALES } from '../src/renderer/i18n.js';
 const require = createRequire(import.meta.url);
 const { appendUsage, readDay, aggregateUsage, localDate, KINDS } = require('../src/main/usage-ledger.js');
 const { estimateCostUsd, withEstimatedCost, PRICES, WEB_SEARCH_USD } = require('../src/main/usage-cost.js');
-const { createChatBrain, DAILY_CAP, CAP_MESSAGE_VI, MODEL: CHAT_MODEL, isClaudeModel } = require('../src/main/chat-brain.js');
+const { createChatBrain, MODEL: CHAT_MODEL, isClaudeModel } = require('../src/main/chat-brain.js');
 const { createReflexJev, JEV_MODEL } = require('../src/main/reflex-jev.js');
 
 let pass = 0, fail = 0;
@@ -138,6 +138,14 @@ function ledgerText(dir) {
   ok(PRICES[JEV_MODEL] && PRICES[JEV_MODEL].unverified === true, 'usage-prices.json: the Jev entry is explicitly marked unverified');
 }
 {
+  // R6c A: OpenCode Go sends the bare id; the table keys the same model with its vendor. One vendor entry with that model part = that price.
+  const vendor = estimateCostUsd('deepseek/deepseek-v4.1-flash', 1_000_000, 1_000_000);
+  const bare = estimateCostUsd('deepseek-v4.1-flash', 1_000_000, 1_000_000);
+  ok(vendor.priced && bare.priced && Math.abs(bare.usd - vendor.usd) < 1e-9, 'estimateCostUsd: the bare id OpenCode Go sends is priced as the vendor entry', JSON.stringify({ vendor, bare }));
+  const unknown = estimateCostUsd('some-model-nobody-priced', 1000, 1000);
+  ok(unknown.priced === false && unknown.usd === 0, 'estimateCostUsd: a bare id with no vendor entry stays unpriced', JSON.stringify(unknown));
+}
+{
   const r = estimateCostUsd('not/a-real-model', 1000, 1000);
   ok(r.priced === false && r.usd === 0, 'estimateCostUsd: a model missing from the table is priced:false, usd:0, not a thrown error', JSON.stringify(r));
 }
@@ -147,32 +155,22 @@ function ledgerText(dir) {
 }
 
 // ======================================================================================
-// chat-brain.js wiring: ownerAdmin cap bypass + onUsage ledger entries (success AND failure), no leak
+// chat-brain.js wiring: no daily cap on any build + onUsage ledger entries (success AND failure), no leak
 // ======================================================================================
 function mockFetch({ delayMs = 0, status = 200, body = { choices: [{ message: { content: SECRET_REPLY } }], usage: { prompt_tokens: 11, completion_tokens: 7, total_tokens: 18 } } } = {}) {
   return (url, opts) => new Promise((resolve) => setTimeout(() => resolve({ ok: status === 200, status, json: async () => body }), delayMs));
 }
 {
-  // ownerAdmin: false -> cap behaves exactly as check-chat-brain.mjs already proves (DAILY_CAP+1th call is capped).
-  const dir = tmpDir();
-  seedKey(dir);
-  const cb = createChatBrain({ safeStorage: stubSafeStorage(), dir, ownerAdmin: false, fetchImpl: mockFetch(), log: () => {} });
-  for (let i = 0; i < DAILY_CAP; i++) await cb.turn({ message: `t${i}`, history: [] });
-  const over = await cb.turn({ message: 'one more', history: [] });
-  ok(over.ok && over.reply === CAP_MESSAGE_VI, 'chatBrain ownerAdmin=false: the cap still blocks the 201st turn', JSON.stringify(over));
-}
-{
-  // ownerAdmin: true -> no limit (anh's own verbatim requirement): run well past DAILY_CAP, every turn still answers.
-  const dir = tmpDir();
-  seedKey(dir);
-  const cb = createChatBrain({ safeStorage: stubSafeStorage(), dir, ownerAdmin: true, fetchImpl: mockFetch(), log: () => {} });
-  let allNormal = true;
-  for (let i = 0; i < DAILY_CAP + 10; i++) {
-    const r = await cb.turn({ message: `t${i}`, history: [] });
-    if (!r.ok || r.model !== CHAT_MODEL) { allNormal = false; break; }
+  // No daily chat cap on any build (owner 12-11 "Bỏ hạn mức đi nhé"): 201 turns answer with ownerAdmin false and true.
+  for (const ownerAdmin of [false, true]) {
+    const dir = tmpDir();
+    seedKey(dir);
+    const cb = createChatBrain({ safeStorage: stubSafeStorage(), dir, ownerAdmin, fetchImpl: mockFetch(), log: () => {} });
+    let normal = 0;
+    for (let i = 0; i < 201; i++) { const r = await cb.turn({ message: `t${i}`, history: [] }); if (r.ok && r.model === CHAT_MODEL) normal++; }
+    ok(normal === 201, `chatBrain ownerAdmin=${ownerAdmin}: all 201 turns answer normally, never capped`, String(normal));
+    ok(!fs.existsSync(path.join(dir, 'chat-turn-cap.json')), `chatBrain ownerAdmin=${ownerAdmin}: no cap file is written`);
   }
-  ok(allNormal, `chatBrain ownerAdmin=true: all ${DAILY_CAP + 10} turns (past the normal cap) answer normally, never capped`);
-  ok(!fs.existsSync(path.join(dir, 'chat-turn-cap.json')), 'chatBrain ownerAdmin=true: the cap file is never even written (cap.count() is skipped entirely)');
 }
 {
   // onUsage ledger wiring: a successful turn logs one line with the real counts, never the message/reply/key.
@@ -199,21 +197,12 @@ function mockFetch({ delayMs = 0, status = 200, body = { choices: [{ message: { 
   ok(events.length === 1 && events[0].ok === false && events[0].model === CHAT_MODEL, 'onUsage: fires on a FAILED real call too, ok:false', JSON.stringify(events));
 }
 {
-  // No-call paths never log: no key, and (ownerAdmin:false) the cap-blocked turn.
+  // No-call path never logs: no key.
   const dirNoKey = tmpDir(); // no jev-key.import dropped
   const eventsNoKey = [];
   const cbNoKey = createChatBrain({ safeStorage: stubSafeStorage(), dir: dirNoKey, fetchImpl: mockFetch(), onUsage: (rec) => eventsNoKey.push(rec), log: () => {} });
   await cbNoKey.turn({ message: 'x', history: [] });
   ok(eventsNoKey.length === 0, 'onUsage: never fires when there is no key (no real call was attempted)');
-
-  const dirCap = tmpDir();
-  seedKey(dirCap);
-  const eventsCap = [];
-  const cbCap = createChatBrain({ safeStorage: stubSafeStorage(), dir: dirCap, ownerAdmin: false, fetchImpl: mockFetch(), onUsage: (rec) => eventsCap.push(rec), log: () => {} });
-  for (let i = 0; i < DAILY_CAP; i++) await cbCap.turn({ message: `t${i}`, history: [] });
-  const beforeOver = eventsCap.length;
-  await cbCap.turn({ message: 'one more', history: [] }); // the capped 201st turn: no real call
-  ok(eventsCap.length === beforeOver, 'onUsage: the cap-blocked turn never fires onUsage (no model call happened)', `before=${beforeOver} after=${eventsCap.length}`);
 }
 {
   // Leak sweep: the actual ledger FILE a real onUsage->appendUsage wiring writes must never contain the key,

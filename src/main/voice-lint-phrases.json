@@ -1,0 +1,100 @@
+{
+  "_note": "Phrase data for src/main/voice-lint.mjs (T-31-YOKI step 2.1). Our own EN/VI/ZH lists, written for this app; matched case-insensitively on whole words (no word boundary for Chinese). helpDesk = call-centre closers and offers; sermon = moralising or reminding the user; disclaimer = 'as an AI' and apology boilerplate. Lists are small on purpose: a phrase is added only after it shows up in a real reply (step 2.2 baseline). Review 21-11: removed the short sermon phrases that hit plain statements (zh 要记住/请记住, en 'you should always'); add moralising forms back only when a real reply shows them.",
+  "helpDesk": {
+    "en": [
+      "how can i assist you",
+      "how may i assist you",
+      "is there anything else i can help",
+      "is there anything else you need",
+      "feel free to ask",
+      "feel free to reach out",
+      "i hope this helps",
+      "let me know if you need anything else",
+      "i'm here to help you with",
+      "thank you for reaching out",
+      "great question",
+      "how can i help you",
+      "let me know if you have any other questions",
+      "let me know if you have any questions"
+    ],
+    "vi": [
+      "tôi có thể giúp gì cho bạn",
+      "em có thể giúp gì cho anh",
+      "bạn cần hỗ trợ gì thêm",
+      "anh cần hỗ trợ gì thêm",
+      "nếu bạn cần thêm thông tin",
+      "đừng ngần ngại liên hệ",
+      "hy vọng điều này giúp ích",
+      "cảm ơn bạn đã liên hệ",
+      "cảm ơn quý khách",
+      "giúp gì được cho",
+      "em giúp gì được",
+      "tôi giúp gì được"
+    ],
+    "zh": [
+      "有什么可以帮您",
+      "有什么可以帮你的吗",
+      "希望对您有帮助",
+      "希望这对你有帮助",
+      "如有任何问题",
+      "请随时联系",
+      "感谢您的咨询"
+    ]
+  },
+  "sermon": {
+    "en": [
+      "it's important to remember",
+      "it is important to remember",
+      "always remember that",
+      "life is a journey",
+      "take a deep breath and"
+    ],
+    "vi": [
+      "điều quan trọng là hãy nhớ",
+      "hãy luôn nhớ rằng",
+      "cuộc sống là một hành trình",
+      "hãy hít một hơi thật sâu và"
+    ],
+    "zh": [
+      "人生是一场旅行",
+      "深呼吸一下，然后"
+    ]
+  },
+  "disclaimer": {
+    "en": [
+      "as an ai",
+      "as a language model",
+      "i apologize for any confusion",
+      "i don't have personal feelings",
+      "i cannot provide medical advice"
+    ],
+    "vi": [
+      "với tư cách là một ai",
+      "là một mô hình ngôn ngữ",
+      "xin lỗi vì sự nhầm lẫn",
+      "tôi không có cảm xúc cá nhân"
+    ],
+    "zh": [
+      "作为一个ai",
+      "作为一个人工智能",
+      "作为语言模型",
+      "对于造成的困惑",
+      "我没有个人感情"
+    ]
+  },
+  "addressWords": {
+    "_note": "First word of a reply that is the address word. Used only for the 'opens with the address word' share, a metric with no flag yet.",
+    "vi": [
+      "dạ",
+      "anh",
+      "chị",
+      "bạn",
+      "vâng"
+    ],
+    "en": [],
+    "zh": [
+      "您",
+      "你"
+    ]
+  }
+}

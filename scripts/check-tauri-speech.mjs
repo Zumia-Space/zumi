@@ -277,8 +277,28 @@ const work = fs.mkdtempSync(path.join(TMP_ROOT, 'speech-'));
   await new Promise((r) => setTimeout(r, 50));
   ok(c.events.length === 0, 'no speech:say reaches the host before sayReady');
   ok((await c.request('talk.sayStatus')).result.live === 0, 'the pre-ready line was acked busy (live released)');
+  // T-31-MAUS A2: the Rust routines runner hands a due reminder to the host-only __host.reminderSay. Before sayReady nobody listens,
+  // so it must fail (the runner then takes the fire back and retries); after sayReady it is one speech:say line with the text.
+  const early = await c.request('__host.reminderSay', ['too early']);
+  ok(early.error && /say_not_ready/.test(String(early.error.message)) && c.events.length === 0, 'A2: __host.reminderSay before sayReady fails and emits nothing (the runner retries)', JSON.stringify(early));
   ok((await c.request('talk.sayReady')).result === true, 'talk.sayReady answers true');
-  ok((await c.request('talk.sayAck', ['say-missing', true, null])).result.action === 'unknown', 'talk.sayAck answers unknown for an unknown id');
+  const evBefore = c.events.length;
+  const rem = await c.request('__host.reminderSay', ['drink water']);
+  await new Promise((r) => setTimeout(r, 30));
+  const remLine = c.events.slice(evBefore).find((e) => e.channel === 'speech:say' && e.payload.kind === 'reminder');
+  ok(rem.result && rem.result.action === 'speak' && remLine && remLine.payload.voice === true && remLine.payload.text === 'Reminder. drink water',
+    'A2: __host.reminderSay after sayReady is one spoken speech:say line of kind reminder', JSON.stringify({ rem, remLine }));
+  ok((await c.request('talk.sayAck', [remLine && remLine.payload.sayId, true, null])).result.action === 'done', 'A2: the renderer ack closes the reminder line');
+  ok((await c.request('__host.reminderSay', [42])).result.action === 'speak', 'A2: a non-string text is spoken as the generic line, never an error');
+  // S1 (review): the host's call can time out after the sidecar already took the line, and the runner then hands the same fire over again.
+  // The same key must be spoken once; a different key (the next due time of a daily reminder) is a new line.
+  const evK = c.events.length;
+  const k1 = await c.request('__host.reminderSay', ['once only', 'r-1:100']);
+  const k2 = await c.request('__host.reminderSay', ['once only', 'r-1:100']);
+  const k3 = await c.request('__host.reminderSay', ['once only', 'r-1:200']);
+  await new Promise((r) => setTimeout(r, 30));
+  const kLines = c.events.slice(evK).filter((e) => e.channel === 'speech:say' && e.payload.kind === 'reminder');
+  ok(k1.result.action === 'speak' && k2.result.action === 'duplicate' && k3.result.action === 'speak' && kLines.length === 2, 'S1: a reminder handed over twice with the same key is spoken once; the next due time is a new line', JSON.stringify({ k1, k2, k3, n: kLines.length }));
   ok((await c.request('talk.mute', [null])).result.muted === true, 'talk.mute(null) reads back muted');
   ok((await c.request('talk.unmute')).result.muted === false, 'talk.unmute reads back unmuted');
   ok((await c.request('talk.sayEvent', ['nope'])).result === false, 'talk.sayEvent refuses an unlisted name');

@@ -20,12 +20,14 @@
 .nx-brain .head { flex: none; }
 .nx-brain .gline { flex: none; margin: 0 0 8px; }
 .nx-brain .sp, .nb-sp { flex: 1; }
-.nx-brain .meta { font-family: var(--mono); letter-spacing: .04em; text-transform: none; color: var(--muted-foreground); font-size: 10.5px; }
+.nx-brain .meta { font-family: var(--mono); letter-spacing: .04em; text-transform: none; color: var(--muted-foreground); font-size: 10.5px; white-space: nowrap; }
 .nb-body { scrollbar-width: thin; scrollbar-color: var(--line-dim) transparent; flex: 1; min-height: 0; overflow: auto; padding-right: 4px; font-size: 12.5px; line-height: 1.45; }
 
 /* tabs in the head: Memory · Tasks, the active one in the primary colour with the underline of the Settings tab bar */
-.nb-tabs { display: flex; gap: 2px; }
-.nb-tab { font: inherit; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted-foreground); background: none; border: 0; border-bottom: 2px solid transparent; padding: 1px 8px 3px; cursor: pointer; }
+.nb-tabs { display: flex; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; } /* one line: scrolls sideways before a label wraps */
+.nx-brain .head .tag { white-space: nowrap; }
+.nx-brain .head .meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nb-tab { white-space: nowrap; font: inherit; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted-foreground); background: none; border: 0; border-bottom: 2px solid transparent; padding: 1px 8px 3px; cursor: pointer; }
 .nb-tab:hover { color: var(--foreground); }
 .nb-tab.on { color: var(--primary); border-bottom-color: var(--primary); }
 .nb-tab:focus-visible, .nb-row:focus-visible, .nb-back:focus-visible, .nb-open:focus-visible, .nb-toggle:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
@@ -150,7 +152,10 @@
 .bd-box.node rect { stroke: var(--line); }
 
 /* memory list (3b) */
-.nb-mem-privacy { margin: 0 0 8px; }
+.nb-mem-privacy { margin: 0 0 2px; }
+.nb-mem-privacy.nb-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; } /* 3 lines until opened */
+.nb-mem-privacy-more { display: block; margin: 0 0 8px; padding: 0; font: inherit; font-size: 11.5px; color: var(--primary); background: none; border: 0; cursor: pointer; }
+.nb-mem-privacy-more:focus-visible { outline: 1px solid var(--primary); outline-offset: 2px; }
 .nb-switch { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; font-size: 12px; cursor: pointer; }
 .nb-switch input { accent-color: var(--primary); }
 .nb-kinds { display: flex; gap: 4px; }
@@ -167,6 +172,13 @@
 .nb-confirm { margin-top: 10px; padding: 8px; border: 1px solid var(--question); }
 .nb-confirm .nb-bar { margin: 8px 0 0; }
 .nb-mem-status { margin: 8px 0 0; min-height: 1em; overflow-wrap: anywhere; }
+/* the journal of changes: who changed a note, when, before -> after, with Undo; a note the AI changed last carries a chip */
+.nb-journal { margin-top: 12px; }
+.nb-journal[hidden] { display: none; }
+.nb-journal-head { cursor: pointer; font-size: 12px; margin-bottom: 4px; }
+.nb-jrow { padding: 7px 4px 8px; border-bottom: 1px dashed var(--line-faint); }
+.nb-jrow .nb-text { margin-top: 4px; overflow-wrap: anywhere; }
+.nb-ai-chip { color: var(--question); border-color: var(--question); }
 
 /* the card collapses to its head strip while it would cover the "No model yet" panel (boot.js collapseOverEmpty, as the Skills tree card) */
 .nx-brain.nx-collapsed > :not(.head) { display: none; }
@@ -175,8 +187,9 @@
 /* compact by window class, as the Skills tree card (theme-a.css): below 1440 px the zone is 250 to 346 px, up to 1000 px it is 180 px */
 @media (max-width: 1439px) {
   .nx-brain { padding: 9px 9px calc(var(--tick) + 8px); }
-  .nx-brain .head { gap: 6px; padding-bottom: 5px; margin-bottom: 6px; }
-  .nb-tab { font-size: 10px; letter-spacing: .08em; padding: 1px 5px 3px; }
+  .nx-brain .head { gap: 4px; padding-bottom: 5px; margin-bottom: 6px; }
+  .nb-tab { font-size: 10px; letter-spacing: .04em; padding: 1px 4px 3px; }
+  .nb-tabs { flex-shrink: 0; } /* at 250-346 px the tab labels win the row; the count gives way first */
   .nb-body { font-size: 12px; padding-right: 2px; }
   .nb-title { font-size: 12px; }
   .nb-row { padding: 6px 2px; }

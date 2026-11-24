@@ -6,19 +6,19 @@ use serde_json::{json, Value};
 
 use crate::pack_host::*;
 
-fn fixtures() -> PathBuf {
+pub(crate) fn fixtures() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests-fixtures").join("pack")
 }
 
 /// A scratch dir under the crate's own target dir (never the system temp on C:).
-fn scratch(name: &str) -> PathBuf {
+pub(crate) fn scratch(name: &str) -> PathBuf {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("target").join("pack-tests").join(name);
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     dir
 }
 
-fn copy_dir(from: &Path, to: &Path) {
+pub(crate) fn copy_dir(from: &Path, to: &Path) {
     std::fs::create_dir_all(to).unwrap();
     for e in std::fs::read_dir(from).unwrap() {
         let e = e.unwrap();
@@ -104,7 +104,7 @@ fn a_pack_with_a_native_file_or_a_newer_api_does_not_load() {
     copy_dir(&fixtures().join("plugin.canary"), &dir);
     let m = dir.join("zumi-pack.json");
     let mut manifest: Value = serde_json::from_slice(&std::fs::read(&m).unwrap()).unwrap();
-    manifest["plugin"]["api"] = json!(2);
+    manifest["plugin"]["api"] = json!(3);
     std::fs::write(&m, serde_json::to_vec(&manifest).unwrap()).unwrap();
     assert_eq!(load_pack_dir(&dir, Some("plugin.canary")).err().as_deref(), Some("pack_needs_newer_host"));
 }
@@ -158,7 +158,7 @@ fn a_pack_partition_names_one_pack() {
     }
 }
 
-fn call(pack: &LoadedPack, data: &Path, method: &str, args: Value, opened: &mut Vec<String>) -> (u16, Value) {
+pub(crate) fn call(pack: &LoadedPack, data: &Path, method: &str, args: Value, opened: &mut Vec<String>) -> (u16, Value) {
     let body = serde_json::to_vec(&json!({ "method": method, "args": args })).unwrap();
     bridge_call(pack, data, &body, &mut |url: &str| { opened.push(url.to_string()); Ok(()) })
 }
@@ -169,7 +169,7 @@ fn the_bridge_answers_in_scope_calls_and_refuses_the_rest() {
     let data = scratch("bridge");
     let mut opened = Vec::new();
     let (s, v) = call(&pack, &data, "host.info", json!({}), &mut opened);
-    assert_eq!((s, v["ok"].clone(), v["result"]["api"].clone(), v["result"]["pack"].clone()), (200, json!(true), json!(1), json!("plugin.canary")));
+    assert_eq!((s, v["ok"].clone(), v["result"]["api"].clone(), v["result"]["pack"].clone()), (200, json!(true), json!(1), json!("plugin.canary")), "host.info reports the api the pack declared (the canary is api 1)");
     assert_eq!(call(&pack, &data, "storage.write", json!({ "path": "notes/a.txt", "text": "hi" }), &mut opened).0, 200);
     assert_eq!(call(&pack, &data, "storage.append", json!({ "path": "notes/a.txt", "text": "+1" }), &mut opened).0, 200);
     let (_, v) = call(&pack, &data, "storage.read", json!({ "path": "notes/a.txt" }), &mut opened);
@@ -234,4 +234,29 @@ fn a_csp_violation_report_becomes_one_log_line_with_the_origin_only() {
     let body = br#"{"csp-report":{"blocked-uri":"https://example.com/a?token=x","effective-directive":"connect-src","document-uri":"http://zumipack.localhost/plugin.canary/ui/index.html"}}"#;
     assert_eq!(csp_report_line("plugin.canary", body), "refused csp connect-src pack=plugin.canary origin=https://example.com");
     assert_eq!(csp_report_line("plugin.canary", b"{oops"), "refused csp ? pack=plugin.canary origin=inline");
+}
+
+#[test]
+fn the_pack_an_installer_carries_beside_the_exe_is_found() {
+    let exe_dir = scratch("bundled");
+    assert_eq!(bundled_pack_dir(&exe_dir), None, "no packs-seed folder: nothing bundled");
+    let dir = exe_dir.join("packs-seed").join(BUNDLED_PACK_ID);
+    copy_dir(&fixtures().join("plugin.canary"), &dir);
+    assert_eq!(bundled_pack_dir(&exe_dir), Some(dir.clone()));
+    std::fs::remove_file(dir.join("zumi-pack.json")).unwrap();
+    assert_eq!(bundled_pack_dir(&exe_dir), None, "a folder without a manifest is not a pack");
+}
+
+#[test]
+fn the_tab_list_says_whether_the_dev_folder_is_the_bundled_pack() {
+    let dir = scratch("bundled-tab").join("plugin.canary");
+    copy_dir(&fixtures().join("plugin.canary"), &dir);
+    let state = PackState::default();
+    *state.dev_dir.lock().unwrap() = Some(dir.clone());
+    let tabs = list_tabs(&state);
+    assert_eq!(tabs.len(), 1);
+    assert_eq!(tabs[0]["dev"], json!(true));
+    assert_eq!(tabs[0]["bundled"], json!(false), "a --pack-dir folder is not the bundled pack");
+    state.bundled.store(true, std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(list_tabs(&state)[0]["bundled"], json!(true));
 }

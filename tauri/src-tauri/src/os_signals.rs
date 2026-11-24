@@ -29,6 +29,9 @@ const IDLE_PERIOD: Duration = Duration::from_secs(1);
 pub(crate) const WM_POWERBROADCAST: u32 = 0x0218;
 pub(crate) const WM_WTSSESSION_CHANGE: u32 = 0x02B1;
 const PBT_APMSUSPEND: usize = 0x0004;
+// The two resume reports (T-31-MAUS A2): by the system (0x12) and by the user's first input (0x07). Windows sends both after a sleep.
+const PBT_APMRESUMESUSPEND: usize = 0x0007;
+const PBT_APMRESUMEAUTOMATIC: usize = 0x0012;
 const WTS_SESSION_LOCK: usize = 0x0007;
 
 /// The last `window:visible` value, kept so a restarted sidecar learns the current state at its handshake.
@@ -44,6 +47,17 @@ pub(crate) fn os_event_for(msg: u32, wparam: usize) -> Option<&'static str> {
         (WM_POWERBROADCAST, PBT_APMSUSPEND) => Some("suspend"),
         _ => None,
     }
+}
+
+/// Is this message a report that the PC woke from sleep? The reminders runner ticks at once on it (routines_host.rs); the sidecar is
+/// not told (it only needs `suspend`), so `os_event_for` stays as it was.
+pub(crate) fn is_resume(msg: u32, wparam: usize) -> bool {
+    msg == WM_POWERBROADCAST && (wparam == PBT_APMRESUMEAUTOMATIC || wparam == PBT_APMRESUMESUSPEND)
+}
+
+/// Forward a resume to the reminders runner.
+pub fn push_resume(app: &AppHandle) {
+    crate::routines_host::on_resume(app);
 }
 
 /// Whole seconds between the last input tick and now. Both are GetTickCount-style 32-bit millisecond counters that wrap
@@ -79,6 +93,13 @@ pub fn on_sidecar_ready(app: &AppHandle) {
 /// writes it to its persistent log, so a dead Board tab leaves the raw WebView2 status on disk (codes only, no URL).
 pub fn push_guest_load_failed(app: &AppHandle, label: &str, code: i32, description: &str, web_error_status: i32) {
     notify(app, "__host.guestLoadFailed", vec![json!({ "label": label, "errorCode": code, "errorDescription": description, "webErrorStatus": web_error_status })]);
+}
+
+/// T-31 alpha.9.6: a guest's applied visibility changed (guest.rs guest_bounds, changes only). The sidecar writes it to its
+/// persistent log with the shim's reason (no-rect, not-loaded, fail-load:<code>, navigate, shown), so a Board guest hidden while
+/// its tab is shown leaves its cause on disk.
+pub fn push_guest_visibility(app: &AppHandle, label: &str, visible: bool, reason: &str) {
+    notify(app, "__host.guestVisibility", vec![json!({ "label": label, "visible": visible, "reason": reason })]);
 }
 
 /// Forward an OS event the window subclass saw.
@@ -129,6 +150,17 @@ mod tests {
         // The same wParam on another message is not an event (7 is a lock only inside WM_WTSSESSION_CHANGE).
         assert_eq!(os_event_for(WM_POWERBROADCAST, WTS_SESSION_LOCK), None);
         assert_eq!(os_event_for(0x0001, PBT_APMSUSPEND), None);
+    }
+
+    #[test]
+    fn only_the_two_resume_reports_are_a_resume() {
+        assert!(is_resume(WM_POWERBROADCAST, 0x12) && is_resume(WM_POWERBROADCAST, 0x07));
+        // PBT_APMSUSPEND (4), PBT_POWERSETTINGCHANGE (0x8013), a session lock (7 under another message) and a plain message are not.
+        for (msg, wparam) in [(WM_POWERBROADCAST, 0x04), (WM_POWERBROADCAST, 0x8013), (WM_WTSSESSION_CHANGE, 7), (0x0001, 0x12), (WM_WTSSESSION_CHANGE, 0x12)] {
+            assert!(!is_resume(msg, wparam), "{msg:#x}/{wparam:#x}");
+        }
+        // A resume is never forwarded to the sidecar as an os event.
+        assert_eq!(os_event_for(WM_POWERBROADCAST, 0x12), None);
     }
 
     #[test]

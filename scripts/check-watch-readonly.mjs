@@ -200,7 +200,7 @@ for (const [name, plant] of [['relay', "relay('task.update', {});"], ['exec', "e
   ok(bodies.length >= 3 && bodies.some((b) => !b.stream) && bodies.some((b) => b.plugins), 'chat turn: the turns really ran a role call and Look up', JSON.stringify(bodies.map((b) => ({ s: b.stream, p: Boolean(b.plugins) }))));
   ok(spawns === 0, 'chat turn: a reply naming a tool call and a shell line starts no process', String(spawns));
   ok(bodies.every((b) => !('tools' in b) && !('tool_choice' in b) && !('functions' in b)), 'chat turn: no request offers the model a tool');
-  ok(writes.length > 0 && writes.every((w) => w === 'chat-turn-cap.json'), 'chat turn: the only file written is the daily cap counter', writes.join(','));
+  ok(writes.length === 0, 'chat turn: writes no file (no daily cap counter since 12-11)', writes.join(','));
 }
 
 console.log(`\ncheck-watch-readonly: ${pass} passed, ${fail} failed`);

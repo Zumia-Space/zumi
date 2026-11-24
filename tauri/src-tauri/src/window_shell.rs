@@ -388,6 +388,12 @@ mod activation {
                 let sink = unsafe { &*(ref_data as *const Sink) };
                 sink.shell.on_activation(&sink.window, activation_from_wparam(wparam));
             }
+            // The PC woke from sleep: the reminders runner ticks at once (T-31-MAUS A2). Forwarded, never consumed.
+            _ if crate::os_signals::is_resume(msg, wparam) => {
+                // SAFETY: `ref_data` is the `Sink` leaked by `install`, alive until WM_NCDESTROY below.
+                let sink = unsafe { &*(ref_data as *const Sink) };
+                crate::os_signals::push_resume(sink.window.app_handle());
+            }
             // Native signals for the sidecar's sync readers (os_signals.rs). Forwarded, never consumed: the default
             // procedure still runs below.
             _ if crate::os_signals::os_event_for(msg, wparam).is_some() => {

@@ -40,7 +40,14 @@ export class SpeechOut {
     this.mouthState = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
     this.lastMouthAt = null; // wall-clock ms of the last mouth() call, for the frame-rate-independent dt
     this.volume = 1; // Settings > Voice > Volume (0-1), applied after the analyser so the mouth still reads the voice
+    this.stage = null; // the live 3D room's producer (talk/stage-producer.js), or null
   }
+
+  // Room live B: while a 3D room is open (stage.active) the host sends the guest the mouth for each chunk, and the voice starts
+  // stage.leadMs later than it otherwise would so the guest has the schedule before the sound (ADR D5 lead).
+  setStage(producer) { this.stage = producer || null; }
+  stageOn() { return Boolean(this.stage && this.stage.active); }
+  epochOf(perfMs) { return Date.now() + (perfMs - performance.now()); }
 
   setVolume(v) {
     this.volume = typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
@@ -82,6 +89,8 @@ export class SpeechOut {
       decoded.push(await ctx.decodeAudioData(ab));
     }
     const durationMs = decoded.reduce((a, d) => a + d.duration * 1000, 0);
+    // Room live B: the mouth track is built now, before play() fixes a start time, so the host's 150 ms lead is spent on the rpc only.
+    if (this.stageOn()) this.stage.analyse(decoded);
     return {
       durationMs,
       start: () => this.play(decoded, durationMs),
@@ -98,7 +107,7 @@ export class SpeechOut {
     gain.gain.value = this.volume;
     analyser.connect(gain);
     gain.connect(ctx.destination);
-    let t = ctx.currentTime + 0.03;
+    let t = ctx.currentTime + (this.stageOn() ? this.stage.leadMs / 1000 : 0.03);
     const t0 = t;
     const sources = decoded.map((d) => { const s = ctx.createBufferSource(); s.buffer = d; s.connect(analyser); s.start(t); t += d.duration; return s; });
     let resolveEnd;
@@ -109,6 +118,7 @@ export class SpeechOut {
     const cur = { sources, analyser, gain, startedAt, endsAt: startedAt + durationMs, nextCtxTime: t, resolveEnd, bins: new Uint8Array(analyser.frequencyBinCount), wave: new Uint8Array(analyser.fftSize) };
     sources[sources.length - 1].onended = () => { if (this.current === cur) this.finish('ended'); };
     this.current = cur;
+    if (this.stageOn()) this.stage.speak(decoded, this.epochOf(startedAt));
     return { startedAt, endsAt: cur.endsAt, ended };
   }
 
@@ -123,7 +133,9 @@ export class SpeechOut {
     const ab = buffer instanceof ArrayBuffer ? buffer : buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
     const decoded = await ctx.decodeAudioData(ab);
     if (this.current !== cur) return false; // stopped / superseded while we were decoding
-    const startAt = Math.max(cur.nextCtxTime, ctx.currentTime);
+    if (this.stageOn()) this.stage.analyse([decoded]); // before the start time below is taken from the audio clock
+    // With the 3D room on, a chunk that would start sooner than the lead from now waits for it (the guest needs the schedule first).
+    const startAt = Math.max(cur.nextCtxTime, ctx.currentTime + (this.stageOn() ? this.stage.leadMs / 1000 : 0));
     const src = ctx.createBufferSource();
     src.buffer = decoded;
     src.connect(cur.analyser);
@@ -134,6 +146,7 @@ export class SpeechOut {
     // Wall-clock moment this new chunk ends: now + (ctx-seconds from "now" until it ends).
     cur.endsAt = performance.now() + (cur.nextCtxTime - ctx.currentTime) * 1000;
     src.onended = () => { if (this.current === cur) this.finish('ended'); };
+    if (this.stageOn()) this.stage.speak([decoded], this.epochOf(performance.now() + (startAt - ctx.currentTime) * 1000));
     return true;
   }
 

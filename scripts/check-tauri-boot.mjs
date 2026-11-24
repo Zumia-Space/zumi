@@ -63,7 +63,7 @@ const freshDir = (name, initial = null) => {
   const trace = fs.existsSync(path.join(ROOT, 'docs', 'migration', 'BOOT-TRACE-static.md')) ? read('docs', 'migration', 'BOOT-TRACE-static.md') : '';
 
   // The names app.js awaits with no catch before the first frame (line numbers are in the trace doc).
-  ok(/await zumi\.info\(\)/.test(app) && /await zumi\.ui\.getLang\(\)/.test(app), 'renderer still awaits info + ui.getLang first (trace step 1-2)');
+  ok(/await zumi\.info\(\)/.test(app) && /await zumi\.ui\.getLang\(/.test(app), 'renderer still awaits info + ui.getLang first (trace step 1-2)');
   ok(/Promise\.all\(\[zumi\.listModels\(\), zumi\.listClips\(\), Catalog\.load\([^)]*\), zumi\.rooms\.list\(\)\]\)/.test(app), 'renderer still awaits listModels, listClips, rooms.list together (trace step 3)');
   ok(/await zumi\.talk\.status\(\)/.test(talkIdx) && /await createTalk\(/.test(app), 'createTalk still awaits talk.status before the avatar loads (trace step 6)');
   ok(/try \{ sceneList = await zumi\.scenes\.list\(\)/.test(app) && /try \{ chairList = await zumi\.chairs\.list\(\)/.test(app), 'scenes.list and chairs.list are awaited inside try/catch (trace steps 4-5)');

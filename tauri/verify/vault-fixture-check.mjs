@@ -14,6 +14,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { notRun } from '../../scripts/lib/check-outcome.cjs';
 
 import { createVaultSafeStorage } from '../sidecar/vault-adapter.mjs';
 
@@ -27,9 +28,7 @@ const ok = (c, n, d = '') => { if (c) { pass++; console.log(`PASS ${n}`); } else
 
 const manifestPath = path.join(FIXTURE, 'manifest.json');
 if (!fs.existsSync(manifestPath)) {
-  console.log('SKIP the Electron fixture is not generated yet (box job: V1 via vault-fixture-writer.cjs, then commit tauri/verify/fixtures/electron-userdata/).');
-  console.log('0 passed, 0 failed, 1 skipped');
-  process.exit(0);
+  notRun('precondition', 'the Electron fixture is not generated yet (box job: V1 via vault-fixture-writer.cjs, then commit tauri/verify/fixtures/electron-userdata/)');
 }
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 

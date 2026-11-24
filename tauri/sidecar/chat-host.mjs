@@ -18,6 +18,9 @@ import { createRequire } from 'node:module';
 import { seedRedactNamesIfMissing, loadRedactNames } from '../../src/main/board-redact.mjs';
 import { readRedactStrict } from './phone-extras.mjs';
 import { createBoardReader } from '../../src/main/board-reader.mjs';
+import { MEMORY_TOOL, applyMemoryCall, newMemoryTurn, ownWords } from './memory-chat.mjs';
+import { NOTES_HEAD } from './memory-notes.mjs';
+import { voiceNoteOf, VOICE_NOTE_RING } from '../../src/main/voice-note.mjs';
 
 const require = createRequire(import.meta.url);
 const { PROVIDERS } = require('../../src/main/providers.js');
@@ -27,6 +30,8 @@ const { createKeyStore } = require('../../src/main/reflex-jev.js');
 const { resolveRoles, setRoleChoice, resetRoleChoice, setRoleOn, WIRED_ROLES, withoutClaude } = require('../../src/main/role-models.js');
 const { appendUsage } = require('../../src/main/usage-ledger.js');
 const { createCloud } = require('../../src/main/cloud.js');
+const { soulPrefs } = require('../../src/main/soul-prefs.js');
+const { createMotionComposer } = require('../../src/main/motion-compose.js');
 
 // main.js's liveReplies TTL (60 s): the renderer/voice holds the rest of the stream by turnId.
 const LIVE_REPLY_TTL_MS = 60000;
@@ -109,7 +114,7 @@ export function createChatHost({
   const cliRead = () => readCliGoKey({ file: cliAuthFile, shape: PROVIDERS['opencode-go'].keyShape });
   const cliView = () => (cliChosen() ? { active: Boolean(cliRead()), source: 'opencode-cli' } : { active: false, source: 'key-file' });
   const buildChatBrain = () => createChatBrain({
-    safeStorage, dir: dataDir, ownerAdmin, appVersion,
+    safeStorage, dir: dataDir, appVersion, motionRule: true, // the [move: ...] tag (T-31-ROOM motion P4): the 3D room lives in this host
     cliLoginKey: () => (cliChosen() ? cliRead() || '' : null),
     onKeyResult: (check, usedLast4) => { brainKey().then((b) => b.noteChatResult(check, usedLast4)).catch((e) => log(`[chat-brain] key result not saved: ${(e && e.message) || e}`)); },
     // main.js: model = free mode ? undefined : settings.chatModel; provider/legacy read per build.
@@ -125,6 +130,7 @@ export function createChatHost({
     log: (m) => log(`[chat-brain] ${m}`),
   });
   let chatBrain = buildChatBrain();
+  const motionComposer = createMotionComposer({ callModel: (messages, opts) => chatBrain.composeMotion(messages, opts) }); // reads the brain live (rebuild())
 
   let brainKeyMod = null;
   const brainKey = async () => {
@@ -155,6 +161,11 @@ export function createChatHost({
     } catch { return null; }
   };
 
+  let turnSeq = 0; // the latest talk.turn; a memory call of an older one is dropped (R6f)
+  // M2 (T-31-YOKI): the last VOICE_NOTE_RING final replies of this session, RAM only, never written anywhere. Typed and voice turns share
+  // talk.turn, so one ring serves both. Feeds voice-note.mjs, whose note rides to chat-brain as host.voiceNote.
+  const recentReplies = [];
+  const ringReply = (reply) => { if (typeof reply === 'string' && reply) { recentReplies.push(reply); if (recentReplies.length > VOICE_NOTE_RING) recentReplies.shift(); } };
   const liveReplies = new Map(); // turnId -> createLiveReply (step 8b's talk.tts consumes it; 60 s TTL)
   const dispose = () => liveReplies.clear();
   // Step 8b: talk.tts takes the live reply exactly once (main.js:1328-1329: get, then delete).
@@ -200,9 +211,17 @@ export function createChatHost({
   const handlers = {
     // ---- talk (main.js :960-1038) ----
     'talk.status': () => (chatBrain.hasKey() ? chatBrain.status() : cloud.status()),
+    // T-31-MAUS P3: the Rust agent loop's one model call (host-only, not in the inventory). Model call only: no tool runs here.
+    '__host.modelTurn': (req) => (chatBrain ? chatBrain.modelTurn(req) : { ok: false, error: 'no_key' }),
+    // Aborts one in-flight modelTurn by its requestId (the Rust loop on a kill or cancel).
+    '__host.modelTurnCancel': (id) => (chatBrain ? chatBrain.cancelModelTurn(id) : { ok: true, aborted: false }),
 
     'talk.turn': async (p) => {
-      if (!chatBrain.hasKey()) return cloud.turn(p);
+      if (!chatBrain.hasKey()) {
+        // R6c C item 5: an attached image is for the person's own provider only; Zumi's talk server is never sent one.
+        if (p && p.images !== undefined && !(Array.isArray(p.images) && p.images.length === 0)) return { ok: false, error: { code: 'no_vision', message: 'no_vision', retryable: false } };
+        return cloud.turn(p);
+      }
       // S1 (CoS 22-10, owner answer C): Google's terms require Gemini API users to be 18+. A renderer-only check can be
       // bypassed, so a saved Gemini key without the stored confirmation fails closed HERE, before the board read and
       // before any provider fetch. This also covers users who saved a Gemini key before this step. Other providers are
@@ -217,11 +236,48 @@ export function createChatHost({
       // The notes block comes from this host only, as turnStream's second argument (chat-brain never reads it from the page's
       // object). A memory read that fails costs this turn its notes, never the reply; the failure is logged (no text).
       let memoryBlock;
+      let memoryTool = null; // R6f: the reply model's memory_update tool (memory-chat.mjs), offered only while a saved note is quoted to it
+      let forgot = false; // this turn asked to forget a note: its own sentence says the fact, so it is not kept
+      const mine = ++turnSeq;
       if (memory) {
-        try { memoryBlock = memory.recall(p && typeof p.message === 'string' ? p.message : '') || undefined; }
+        const said = p && typeof p.message === 'string' ? p.message : '';
+        try { memoryBlock = memory.recall(said) || undefined; }
         catch (e) { log(`[memory] recall failed: ${(e && e.message) || e}`); }
+        // A correction or a "forget" said in plain chat or voice (the same talk.turn) is the reply model's own call, as upstream's memory_update: no
+        // cue test, no call in front of the reply, so a turn that corrects nothing costs nothing. A barge-in (a newer talk.turn) drops the call of
+        // the turn the person moved on from, so a note never changes after that.
+        // R6g: the tool is offered only on the person's own words: a picture, a pasted page or file (long, several lines, markup) never reaches a write.
+        const pictured = p && p.images !== undefined && !(Array.isArray(p.images) && p.images.length === 0);
+        if (memoryBlock && memoryBlock.includes(NOTES_HEAD) && !pictured && ownWords(said)) {
+          const turn = newMemoryTurn(said); // shared by every call of this turn: one write at most
+          memoryTool = {
+            tool: MEMORY_TOOL,
+            apply: async (args) => {
+              if (mine !== turnSeq) { log('[memory] chat call dropped: the person moved on'); return { result: 'Nothing was changed. Carry on with the reply without mentioning it.' }; }
+              const r = applyMemoryCall(memory, args, turn, log);
+              if (r.forgot) forgot = true;
+              return r;
+            },
+          };
+        }
       }
-      let { head, live } = await chatBrain.turnStream({ ...(p && typeof p === 'object' ? p : {}), boardDigest }, { memoryBlock });
+      // Nothing worn -> '' -> chat-brain adds nothing and the prompt is byte-identical (scripts/check-voice-wire.mjs). A note-building failure
+      // costs this turn its hint, never the reply; the failure is logged (no text).
+      let voiceNote = '';
+      // The per-message language note (3.2) rides in the same note, only while the soul's reply language is `auto`; a fixed language wins.
+      try { voiceNote = voiceNoteOf(recentReplies, p && typeof p.message === 'string' ? p.message : '', { langAuto: soulPrefs({ soul: typeof getSoul === 'function' ? getSoul() : null }).replyLang === 'auto' }); }
+      catch (e) { log(`[voice-note] skipped: ${(e && e.message) || e}`); }
+      let { head, live } = await chatBrain.turnStream({ ...(p && typeof p === 'object' ? p : {}), boardDigest }, { memoryBlock, memoryTool, voiceNote });
+
+      // R6c C: a finished reply is kept with the sentence, on this device, while Memory is on (addTurn says no when it is off). Only the
+      // text is kept. A failure costs this turn its place in the list, never the reply; the failure is logged (no text).
+      const sentence = p && typeof p.message === 'string' ? p.message : '';
+      const keepId = p && typeof p.turnId === 'string' && p.turnId ? p.turnId : `chat-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const keepTurn = (reply) => {
+        ringReply(reply); // the ring is the session's own replies for the hint; it does not depend on Memory being on
+        if (!memory || typeof memory.addTurn !== 'function' || forgot) return;
+        try { memory.addTurn(keepId, sentence, reply); } catch (e) { log(`[memory] could not keep the turn: ${(e && e.message) || e}`); }
+      };
       const key = keyForScrub();
       const clean = keyRedactor(key);
       // 429 / 402 wording, ported verbatim from main.js:977-981.
@@ -237,6 +293,7 @@ export function createChatHost({
         live.final.then((fin) => {
           aiCore.rememberCited(fin.sources);
           if (fin.ok && typeof onReplyOk === 'function') { try { onReplyOk(); } catch (e) { log(`[talk] onReplyOk failed: ${(e && e.message) || e}`); } }
+          if (fin.ok) keepTurn(clean(fin.reply));
           emit('talk:replyDone', {
             turnId, ok: fin.ok, reply: clean(fin.reply),
             error: fin.error ? clean(fin.error) : null,
@@ -245,10 +302,14 @@ export function createChatHost({
         });
         live.checked.then((c) => { if (c) emit('talk:checkDone', { turnId, verdict: c.verdict, text: clean(c.text) }); });
       }
+      if (!live && head && head.ok === true && typeof head.reply === 'string') keepTurn(head.reply); // the non-streamed reply
       return head;
     },
 
     'talk.gesture': (p) => cloud.gesture(p),
+    // T-31-ROOM motion P5b: the agent's [move: compose: ...] and the chat's /move compose: ... both reach this through the renderer's motion
+    // route; the answer is validated there and gated in the room before anything moves
+    'talk.composeMotion': (brief) => motionComposer.compose(brief),
     'talk.brainInfo': () => {
       if (!chatBrain.hasKey()) return null;
       const st = chatBrain.status();
@@ -320,5 +381,8 @@ export function createChatHost({
   }
   /** HOST ONLY: the PC's client-name list for the pairing bundle, or null if it cannot be trusted (phone-extras.mjs). */
   const phoneRedact = () => readRedactStrict(redactFile);
-  return { handlers, rebuild, dispose, keyPresence, phoneAi, phoneRedact, get chatBrain() { return chatBrain; }, boardReader, cloud, takeLiveReply };
+  // Barge-in (T-31-ROOM-live-b P1 item 3): cut the streamed LLM request of an abandoned turn. The registry is module-level in
+  // chat-brain, so this also reaches a turn started before a rebuild(). false = no such live turn.
+  const abortTurn = (turnId) => chatBrain.abortTurn(turnId);
+  return { handlers, rebuild, dispose, keyPresence, phoneAi, phoneRedact, get chatBrain() { return chatBrain; }, boardReader, cloud, takeLiveReply, abortTurn };
 }

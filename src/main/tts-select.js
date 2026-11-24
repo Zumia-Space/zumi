@@ -126,15 +126,20 @@ function voiceProviderPrefs(settings, { ownerFlag = false } = {}) {
  * `prefs` carries both the talk prefs (talkVoiceLang) and the provider prefs (voiceProviderEn/Vi/voiceReplyLang).
  * -> { lang: 'en'|'vi', providerId, off: boolean }. `off` is true when the chosen provider cannot speak `lang`
  * (the `off` option, or a provider that does not list that language): talk:tts then returns voice-off-lang.
+ * `reply` (T-31-YOKI 3.3, optional, replies on `auto` only): { lang, voice } from voice-lang.mjs for THIS reply's text -- `lang` is langOf(text),
+ * `voice` its voice-lang-table.json entry: 'own' (en, vi), 'english-voice' (es, fr, pt: the English voice reads them, a known limit) or 'off'
+ * (a script no provider speaks: ja zh ko ru th ar hi). 'off' -> off:true, so the reply stays text only (voice-off-lang). A reply langOf cannot
+ * tell ('latin', null, or no `reply` at all) keeps the isVietnamese(text) rule. A fixed voiceReplyLang is the user's choice and is never overridden.
  */
-function resolveVoice({ prefs, ownerFlag = false, isSay = false, text = '' } = {}) {
+function resolveVoice({ prefs, ownerFlag = false, isSay = false, text = '', reply = null } = {}) {
   const p = prefs || {};
   let lang;
   if (isSay) {
     lang = p.talkVoiceLang === 'vi' ? 'vi' : 'en'; // Zumi's own line: the chosen language, no detection (F3)
   } else {
     const rl = REPLY_LANGS.includes(p.voiceReplyLang) ? p.voiceReplyLang : 'auto';
-    lang = rl === 'en' ? 'en' : rl === 'vi' ? 'vi' : (isVietnamese(text) ? 'vi' : 'en');
+    if (rl === 'auto' && reply && reply.voice === 'off') return { lang: String(reply.lang), providerId: 'off', off: true };
+    lang = rl === 'en' ? 'en' : rl === 'vi' ? 'vi' : (reply && reply.lang === 'vi' ? 'vi' : reply && (reply.lang === 'en' || reply.voice === 'english-voice') ? 'en' : (isVietnamese(text) ? 'vi' : 'en'));
   }
   let providerId = lang === 'vi' ? (p.voiceProviderVi || 'google') : (p.voiceProviderEn || 'kokoro');
   // The owner route exists only while the flag is present; without it, fall back to the language default.

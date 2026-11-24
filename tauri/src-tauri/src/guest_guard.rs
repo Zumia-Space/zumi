@@ -47,7 +47,7 @@ use tauri::{Emitter, Manager};
 use webview2_com::Microsoft::Web::WebView2::Win32 as w32;
 #[cfg(windows)]
 use webview2_com::{
-    take_pwstr, NavigationCompletedEventHandler, NavigationStartingEventHandler,
+    take_pwstr, NavigationCompletedEventHandler, NavigationStartingEventHandler, ProcessFailedEventHandler,
     WebResourceRequestedEventHandler,
 };
 #[cfg(windows)]
@@ -439,6 +439,8 @@ unsafe fn install_guard_inner(platform: PlatformWebview, app: AppHandle, id: u64
     // rule; a pack guest (MKT, pack_host.rs) gets its own prefix only, and each refusal is logged with its origin.
     let pack = crate::guest::pack_guard_for_label(&app, &label);
     let is_pack = pack.is_some();
+    // Room live B, F1 trigger R1: the pack's page failed to load or its process failed. The hub treats it as a dead guest.
+    let pack_id_for_failure = pack.as_ref().map(|(_, id, _)| id.clone());
     let blocks = move |uri: &str| {
         crate::guest_requests::record(uri);
         match &pack {
@@ -454,6 +456,21 @@ unsafe fn install_guard_inner(platform: PlatformWebview, app: AppHandle, id: u64
         }
     };
     let source_kinds = install_request_filter(&core, &environment, blocks, None, "guest_guard")?;
+
+    if let Some(pack_id) = pack_id_for_failure.clone() {
+        let failed_app = app.clone();
+        let mut token = 0i64;
+        core.add_ProcessFailed(
+            &ProcessFailedEventHandler::create(Box::new(move |_sender, _args| {
+                if let Some(packs) = failed_app.try_state::<crate::pack_host::PackState>() {
+                    packs.stage.report_guest_gone(&pack_id);
+                }
+                Ok(())
+            })),
+            &mut token,
+        )
+        .map_err(|e| format!("guest_guard_processfailed:{e}"))?;
+    }
 
     // (c) Remember the one in-flight top-level navigation. wry's own NavigationStarting handler was
     // registered first (on_navigation), so reading Cancel() here sees its verdict.
@@ -521,6 +538,7 @@ unsafe fn install_guard_inner(platform: PlatformWebview, app: AppHandle, id: u64
     let completed_in_flight = in_flight;
     let completed_app = app;
     let completed_label = label;
+    let completed_pack_id = pack_id_for_failure;
     let mut token = 0i64;
     core.add_NavigationCompleted(
         &NavigationCompletedEventHandler::create(Box::new(move |sender, args| {
@@ -559,6 +577,11 @@ unsafe fn install_guard_inner(platform: PlatformWebview, app: AppHandle, id: u64
                     wake(&completed_app, &completed_label, Ok(()));
                 }
                 NavOutcome::Failed { code, description } => {
+                    if let Some(pack_id) = &completed_pack_id {
+                        if let Some(packs) = completed_app.try_state::<crate::pack_host::PackState>() {
+                            packs.stage.report_guest_gone(pack_id);
+                        }
+                    }
                     // webErrorStatus is the raw COREWEBVIEW2_WEB_ERROR_STATUS value the code above mapped.
                     // It is probe instrumentation: the driver records it so a code can be attributed to
                     // an enum row instead of guessed (the P1c1 spare-PC run got -2 for a stopped server).

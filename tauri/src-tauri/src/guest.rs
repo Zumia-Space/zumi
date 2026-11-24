@@ -61,7 +61,13 @@ const MAX_BOUND: f64 = 16_384.0;
 /// SmartScreen (`--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection`), which would switch the protection off
 /// for the guests that carry proxied remote content. Naming the two UI features we do want keeps SmartScreen ON, exactly
 /// like the main webview's arg string. Each guest already has its own data directory, which wry requires for differing args.
-pub(crate) const GUEST_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI";
+/// `CalculateNativeWinOcclusion` is off as in the main webview (tauri.conf.json). This is not Electron parity: Electron turned it off only
+/// in its test/capture modes (src/main/main.js selftest/roomShots/boardStress/settings branches); its real builds had only
+/// `backgroundThrottling: false` on the main window. We set it for the guests (T-31 alpha.9.5) because, with it on, WebView2 may report
+/// the Board guest `document.hidden` while its window is covered or off-screen, and the Board page then drops to its slow hidden poll.
+/// `--disable-background-timer-throttling` is also as in the main webview (T-31 alpha.9.6): the 9.5 owner smoke still saw the Board guest
+/// hidden while shown, and its hidden-poll timers then woke only on minute-aligned throttled ticks (one 106 s gap).
+pub(crate) const GUEST_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,CalculateNativeWinOcclusion --disable-background-timer-throttling";
 
 /// The element rect the shim reports, in logical px (CSS px: the main webview fills the client area at
 /// zoom 1, so no scaling is applied).
@@ -109,6 +115,17 @@ pub(crate) fn pack_guard_for_label(app: &AppHandle, label: &str) -> Option<(Stri
         None => ("\u{0}".to_string(), "?".to_string()),
     };
     Some((prefix, id, data_dir))
+}
+
+/// The queries a pack page may be opened with, exactly these four: none (the Room tab, Room 1), the room's "no controls" flag `?ui=0` (the Zumi
+/// tab's 3D room, alpha.7 S3), and Room 2 of the room pack, `?room=2` (T-31-ROOM room2-holo, PACK-PLAN C4: the host owns the Room 1 / Room 2 choice
+/// and opens the page with it), alone or after `?ui=0`. The guest reads `room` only as absent or exactly `2`.
+const PACK_QUERIES: [&str; 4] = ["", "?ui=0", "?room=2", "?ui=0&room=2"];
+
+/// A pack guest's src must be exactly the pack's own ui page plus one of `PACK_QUERIES`. The query only changes what the pack's own page shows;
+/// the request guard stays origin-only and the pack protocol serves by path.
+pub(crate) fn pack_src_allowed(src: &str, page: &str) -> bool {
+    src.strip_prefix(page).is_some_and(|query| PACK_QUERIES.contains(&query))
 }
 
 /// True for the Board tab guest's label; anything else is not a link opener.
@@ -231,6 +248,9 @@ struct Guest {
     origin: String,
     webview: Option<Webview>,
     pending_nav: Option<mpsc::Sender<Result<(), String>>>,
+    /// The visibility guest_bounds last applied, so only a change is logged. None until the first verdict: a guest is created
+    /// hidden, but its first verdict is logged either way (alpha.9.7), so a guest that is never shown leaves "hidden reason <r>".
+    shown: Option<bool>,
 }
 
 /// The registry of open guests, keyed by the id handed back to the shim. Managed Tauri state.
@@ -263,6 +283,14 @@ impl GuestRegistry {
         }
     }
 
+    /// Record the visibility just applied to a guest; true when it is the first one or differs from the last one (a line to log).
+    fn note_visible(&self, id: u64, visible: bool) -> bool {
+        match self.guests.lock().unwrap().get_mut(&id) {
+            Some(g) if g.shown != Some(visible) => { g.shown = Some(visible); true }
+            _ => false,
+        }
+    }
+
     fn remove(&self, id: u64) -> Option<Guest> {
         self.guests.lock().unwrap().remove(&id)
     }
@@ -279,6 +307,13 @@ impl GuestRegistry {
     pub(crate) fn take_waiter(&self, label: &str) -> Option<mpsc::Sender<Result<(), String>>> {
         let mut guests = self.guests.lock().unwrap();
         guests.values_mut().find(|g| g.label == label).and_then(|g| g.pending_nav.take())
+    }
+
+    /// Remove the entry of one labelled guest and hand back its webview to close (F1 fallback of a stage pack).
+    pub(crate) fn take_by_label(&self, label: &str) -> Option<Webview> {
+        let mut guests = self.guests.lock().unwrap();
+        let id = guests.iter().find(|(_, g)| g.label == label).map(|(id, _)| *id)?;
+        guests.remove(&id).and_then(|g| g.webview)
     }
 
     /// The first open local board guest's webview (parity 12-2: a test-only capture or CDP call names "board").
@@ -575,8 +610,36 @@ pub async fn guest_open(
                     return Err(format!("pack_refused:{code}"));
                 }
             };
-            if src != format!("{}{}", crate::pack_host::pack_origin_prefix(id), loaded.ui) {
+            if !pack_src_allowed(&src, &format!("{}{}", crate::pack_host::pack_origin_prefix(id), loaded.ui)) {
                 return Err("guest_refused".to_string());
+            }
+            if loaded.stage {
+                // Room live B: `stage` is first-party only (load refused any other id). F1 decides whether the 3D room opens.
+                let data_dir = state.data_dir.lock().unwrap().clone();
+                let mode = crate::stage_bridge::Live3d::from_settings_file(data_dir.as_deref());
+                state.stage.set_mode(mode);
+                let key = crate::stage_bridge::bench_key();
+                state.stage.set_key(&key);
+                // "Try 3D anyway": one guarded attempt that ignores the remembered verdict and the earlier fallback (R1-R4 still apply).
+                let tried = state.stage.take_try_anyway();
+                let plan = if tried { crate::stage_bridge::OpenPlan::Open } else { crate::stage_bridge::plan_open(mode, state.stage.fallen_back(id), state.stage.remembered(&key)) };
+                let refused = match plan {
+                    crate::stage_bridge::OpenPlan::Video(reason) => Some(reason),
+                    _ if tried => state.stage.open_forced(id, crate::stage_bridge::epoch_ms()).err(),
+                    crate::stage_bridge::OpenPlan::Bench | crate::stage_bridge::OpenPlan::Open => state.stage.open(id, crate::stage_bridge::epoch_ms()).err(),
+                };
+                if let Some(reason) = refused {
+                    crate::pack_host::log_line(data_dir.as_deref(), &format!("refused open stage_fallback:{reason} pack={id}"));
+                    // The app shows the video room and the reason line (the same event a running guest's fallback sends); `off` is the user's own choice.
+                    if reason != "off" {
+                        use tauri::Emitter;
+                        let _ = app.emit_to(MAIN_LABEL, "stage:fallback", serde_json::json!({ "pack": id, "reason": reason }));
+                    }
+                    return Err(format!("stage_fallback:{reason}"));
+                }
+                if plan == crate::stage_bridge::OpenPlan::Bench {
+                    state.stage.arm_bench(id, &key);
+                }
             }
             Some(loaded)
         }
@@ -621,6 +684,7 @@ pub async fn guest_open(
         origin: origin.clone(),
         webview: None,
         pending_nav: None,
+        shown: None,
     };
 
     // Register, then create the native child; a failed add_child removes the entry so a half-open
@@ -695,8 +759,9 @@ pub async fn guest_navigate(
     }
 }
 
-/// `guest_bounds(id, bounds, visible)` — place and show/hide the native child. The shim calls this only
-/// when the rect or the visibility verdict changed.
+/// `guest_bounds(id, bounds, visible, reason)` — place and show/hide the native child. The shim calls this only
+/// when the rect or the visibility verdict changed; `reason` names the verdict's cause (T-31 alpha.9.6: each visibility
+/// change is logged to sidecar.log with it, so a guest hidden while its tab is shown names who hid it).
 #[tauri::command]
 pub async fn guest_bounds(
     caller: Webview,
@@ -704,6 +769,7 @@ pub async fn guest_bounds(
     id: u64,
     bounds: Bounds,
     visible: bool,
+    reason: Option<String>,
 ) -> Result<(), String> {
     ensure_main(&caller)?;
     let (x, y, width, height) = sanitize_bounds(&bounds)?;
@@ -718,6 +784,9 @@ pub async fn guest_bounds(
     webview.set_bounds(rect).map_err(|e| format!("guest_set_bounds:{e}"))?;
     let result = if visible { webview.show() } else { webview.hide() };
     result.map_err(|e| format!("guest_visibility:{e}"))?;
+    if registry.note_visible(id, visible) {
+        crate::os_signals::push_guest_visibility(caller.app_handle(), &guest.label, visible, reason.as_deref().unwrap_or("-"));
+    }
     Ok(())
 }
 
@@ -731,6 +800,13 @@ pub async fn guest_close(
     ensure_main(&caller)?;
     if let Some(guest) = registry.remove(id) {
         if let Some(state) = caller.app_handle().try_state::<crate::pack_host::PackState>() {
+            // A guest the shell closes on purpose ends its stage session: no fallback (only the start-up bench verdict persists:
+            // ask-11130717, ADR A11).
+            if let Some(pack) = state.pack_for(&guest.label) {
+                if pack.stage {
+                    state.stage.end(&pack.id);
+                }
+            }
             state.unbind(&guest.label);
         }
         if let Some(webview) = guest.webview {
@@ -845,5 +921,33 @@ mod tests {
         let failed = insert_then_build(|| entries.borrow_mut().push(8), || { entries.borrow_mut().retain(|&e| e != 8); }, || Err::<u32, String>("guest_add_child:boom".to_string()));
         assert_eq!(failed.unwrap_err(), "guest_add_child:boom");
         assert_eq!(*entries.borrow(), vec![7], "a failed build removes the entry (no half-open guest)");
+    }
+
+    // alpha.7 S3: the Zumi tab opens the stage pack's own page with exactly `?ui=0` (the room's "no controls" flag, so its dev toolbar
+    // stays in the Room tab viewer only). Nothing else is allowed: another query, a fragment, a path suffix or another page.
+    #[test]
+    fn a_pack_guest_src_is_its_own_page_or_that_page_with_exactly_ui_0() {
+        let page = "http://zumipack.localhost/plugin.room-preview/ui/index.html";
+        assert!(pack_src_allowed(page, page));
+        assert!(pack_src_allowed(&format!("{page}?ui=0"), page));
+        for bad in ["?ui=1", "?ui=0&x=1", "?x=1&ui=0", "?ui=00", "#ui=0", "?ui=0#x", "x", "/../other.html", "?"] {
+            assert!(!pack_src_allowed(&format!("{page}{bad}"), page), "{bad} must be refused");
+        }
+        assert!(!pack_src_allowed("http://zumipack.localhost/plugin.room-preview/ui/other.html?ui=0", page));
+        assert!(!pack_src_allowed("?ui=0", page));
+    }
+
+    // Room 2 (T-31-ROOM room2-holo, PACK-PLAN C4): the host owns the Room 1 / Room 2 choice, and opens the pack page with the room asked for.
+    // Exactly four srcs are allowed: the page, `?ui=0`, `?room=2` and `?ui=0&room=2` (Room 1 is "no room"). Nothing else rides in the query.
+    #[test]
+    fn a_pack_guest_src_may_ask_for_room_2_and_nothing_else() {
+        let page = "http://zumipack.localhost/plugin.room-preview/ui/index.html";
+        for good in ["", "?ui=0", "?room=2", "?ui=0&room=2"] {
+            assert!(pack_src_allowed(&format!("{page}{good}"), page), "{good:?} must be allowed");
+        }
+        for bad in ["?room=1", "?room=3", "?room=22", "?room=", "?room", "?room=2&x=1", "?x=1&room=2", "?room=2&ui=0", "?ui=0&room=2&x=1", "?ui=0&room=3",
+            "?ui=1&room=2", "?ui=0&room=2#x", "#room=2", "?room=2#x", "?ROOM=2", "?room=%32", "?ui=0&&room=2", "?&room=2"] {
+            assert!(!pack_src_allowed(&format!("{page}{bad}"), page), "{bad} must be refused");
+        }
     }
 }

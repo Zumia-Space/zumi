@@ -29,9 +29,12 @@ const isRegularFile = (p) => { try { return fs.lstatSync(p).isFile(); } catch { 
 export function createLibrary({ settings, saveSettings, boot, emit, log = () => {}, gestureTimeoutMs = GESTURE_TIMEOUT_MS }) {
   // ---- models ----
   // models:select (main.js:734). The test model is never persisted; an unknown id changes nothing.
+  // Round 8: one of Zumi's default models goes into the 'user' slot (its file re-hashed against the pin first; a refusal changes nothing).
   function selectModel(id) {
     const list = boot.listModels();
-    if (id !== 'test' && list.models.some((m) => m.id === id)) saveSettings({ model: id });
+    const picked = list.models.find((m) => m.id === id);
+    if (picked && picked.source === 'default') { if (boot.pickDefaultModel) boot.pickDefaultModel(id); return boot.listModels(); }
+    if (id !== 'test' && picked) saveSettings({ model: id });
     return boot.listModels();
   }
 

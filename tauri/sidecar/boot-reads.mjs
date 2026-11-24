@@ -30,6 +30,7 @@ import {
 } from './adapters.mjs';
 import { voicePrefsOf } from '../../src/main/talk-voice-core.mjs';
 import { defaultSampleDetector } from './default-model-boot.mjs';
+import { withDefaultPair, pickDefault } from './default-pair.mjs';
 import { NIGHT_CITY_PACK, installedPackDir } from './room-packs.mjs';
 
 // Imported rooms are keyed by roomContentId(): the first 12 hex chars of a sha256 (room-check.mjs).
@@ -72,7 +73,8 @@ export function createBootReads({ dataDir, settings, saveSettings, log = () => {
 
   // --- models / clips (main.js listModels via models-core.js, :493 listClips) ---
   const models = createModels({ modelsDir: where.models, loadSettings: settings, getTestModelPath: () => testModelPath, isDefaultSample });
-  const listModels = () => appUrls(models.listModels());
+  // round 8: Zumi's two default models stand in front of the list when their pinned files are in the models dir (default-pair.mjs)
+  const listModels = () => withDefaultPair(appUrls(models.listModels()), { modelsDir: where.models });
 
   function listClips() {
     const seen = new Map();
@@ -226,6 +228,7 @@ export function createBootReads({ dataDir, settings, saveSettings, log = () => {
   return {
     resolveAsset,
     listModels,
+    pickDefaultModel: (id) => pickDefault(id, { modelsDir: where.models, saveSettings }), // round 8, library.mjs selectModel
     listClips,
     listRooms,
     roomsStore,

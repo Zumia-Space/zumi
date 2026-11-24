@@ -85,8 +85,9 @@ export const UI_ALLOW = {
 }
 
 // ---------- 2. the prompt a public chat turn sends ----------
-// The owner flavour's persona (soul-prefs.js soulSystemPrompt(null), pinned against alpha.10 by check-soul): sha256 at ec63fe87.
-const OWNER_PERSONA_SHA256 = '080e1aa68e95014c877685d5fb981001fca204192bf9948160ba79593cb431c5';
+// The owner flavour's persona (soul-prefs.js soulSystemPrompt(null), pinned against alpha.10 by check-soul): sha256 at ec63fe87, re-pinned at T-31-YOKI 3.2
+// (CoS-gated change: the auto reply-language sentence now follows each message; nothing else in the persona moved).
+const OWNER_PERSONA_SHA256 = 'fb9b2ee4604882d56b879ee3b4cf5bb09234234ec1efa808ce4a8053f36c002c';
 // The owner-only sentence of the companion rule: work on the owner's board belongs to his code sessions.
 const BOARD_SESSION = /code sessions?|work on the board/i;
 {
@@ -145,7 +146,7 @@ const BOARD_SESSION = /code sessions?|work on the board/i;
     ok(/speaking directly with the user\b/.test(pub[0] || '') && pub[0] === official[0], 'prompt (public + official): the persona speaks with "the user", the same text in both', (pub[0] || '').slice(0, 120));
     ok(owner.some((s) => /live task board/.test(s)) && owner.some((s) => /^BOARD DIGEST/.test(s)), 'prompt (owner flavour): the live-board rule and digest are kept', owner.map((s) => s.slice(0, 80)).join(' | '));
     const sha = (s) => require('node:crypto').createHash('sha256').update(String(s)).digest('hex');
-    ok(sha(owner[0]) === OWNER_PERSONA_SHA256 && /your owner/.test(owner[0]) && BOARD_SESSION.test(owner[0]), 'prompt (owner flavour): the persona is byte for byte the ec63fe87 text', sha(owner[0]));
+    ok(sha(owner[0]) === OWNER_PERSONA_SHA256 && /your owner/.test(owner[0]) && BOARD_SESSION.test(owner[0]), 'prompt (owner flavour): the persona is byte for byte the T-31-YOKI 3.2 text (ec63fe87 + the auto reply-language sentence)', sha(owner[0]));
     // The first-run values: her name for the user, the Vietnamese address word and the reply language, saved through the soul store.
     const saved = await systemFor(FLAVOURS.public, { ownerName: 'Lan', userWord: 'chị', replyLang: 'vi' });
     ok(saved[0].includes("The user's name is Lan.") && saved[0].includes('call the user "chị"') && saved[0].includes('Always reply in Vietnamese.') && !INTERNAL.test(saved[0]),

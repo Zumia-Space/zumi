@@ -8,7 +8,8 @@
 //     its bytes must still match the listed sha256 when served;
 //   * the bridge, `POST /<id>/__zumi/bridge` with `{ method, args }`: host.info, storage.* (inside
 //     `<data>/plugin-data/<id>/`), links.open (a key the manifest declares, opened by the OS browser). Nothing else;
-//   * the avatar, `GET /<id>/__zumi/avatar.vrm`, only with `permissions.avatar: "read"` (the pack never carries one).
+//   * the avatar, `GET /<id>/__zumi/avatar.vrm`, only with `permissions.avatar: "read"` (the pack never carries one);
+//   * the room's brightness in EV, `GET /<id>/__zumi/light.json` (`{ "ev": -1..+1 }`, the Settings slider's value for THIS pack's room; `?room=2`: Room 2's own), only for a `stage` pack.
 // Anything else a pack guest requests is refused by its request filter (`pack_request_blocks`): no network, no loopback,
 // no app host, no other pack. Every refusal writes one line to `<data>/logs/pack-host.log` (code + pack id; a blocked
 // request's origin only, never its path or query).
@@ -28,8 +29,43 @@ use sha2::{Digest, Sha256};
 /// The custom protocol and the origin it has inside WebView2 on Windows.
 pub const SCHEME: &str = "zumipack";
 pub const ORIGIN: &str = "http://zumipack.localhost";
-/// The highest (and lowest) `plugin.api` this host speaks.
-pub const PLUGIN_API: i64 = 1;
+/// The `plugin.api` range this host speaks. api 2 (Room live B, ADR 2026-11-13-room-live-b D4) adds the `stage` permission;
+/// an api-1 pack still loads and never receives anything from the stage channel.
+pub const PLUGIN_API_MIN: i64 = 1;
+pub const PLUGIN_API: i64 = 2;
+/// The only pack ids that may declare `permissions.stage: "performance"` (ADR D4): the owner-store room and its public
+/// candidate id (`build-pack.mjs`). The id list is the control; a store signature alone is not enough, because the store
+/// also signs third-party packs.
+pub const FIRST_PARTY_STAGE_IDS: [&str; 2] = ["plugin.room-preview", "plugin.zumi-room-1"];
+
+/// The room brightness the Settings > Room slider saves in settings.json, PER ROOM: `roomEv` is a map { <pack id>: ev } with ev in EV stops (the 3D room's
+/// exposure takes 2^ev after the time-of-day preset and the character's light 2^-ev; 0 = the look as it was). The same range as
+/// tauri/sidecar/room-ev.mjs and room/src/room-light.js; scripts/check-room-light.mjs pins that they agree.
+const ROOM_EV_MIN: f64 = -1.0;
+const ROOM_EV_MAX: f64 = 1.0;
+const ROOM_EV_DEFAULT: f64 = 0.0;
+
+/// Rust's own read of settings.json (never a value from a page): the saved EV of this room (the pack id) clamped to the range; no file, a damaged file,
+/// no entry for the room or a value that is not a number reads as the default.
+pub fn room_ev(data_dir: Option<&Path>, room_id: &str) -> f64 {
+    data_dir
+        .and_then(|d| std::fs::read(d.join("settings.json")).ok())
+        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+        .and_then(|s| s.get("roomEv").and_then(|m| m.get(room_id)).and_then(Value::as_f64))
+        .filter(|n| n.is_finite())
+        .map_or(ROOM_EV_DEFAULT, |n| n.clamp(ROOM_EV_MIN, ROOM_EV_MAX))
+}
+
+/// The settings.json `roomEv` key of the room a light.json request is for. Room 2 is the same stage pack opened with exactly `?room=2` (guest.rs
+/// pack_src_allowed), so it gets a key of its own, `<pack id>.room2`; Room 1 keeps the plain pack id, so values saved before Room 2 still apply. No
+/// other stage pack exists (FIRST_PARTY_STAGE_IDS), so the suffix cannot meet a real pack id. The same key as src/renderer/room-ev.js roomEvKey.
+pub fn room_ev_key(pack_id: &str, query: Option<&str>) -> String {
+    if query == Some("room=2") { format!("{pack_id}.room2") } else { pack_id.to_string() }
+}
+
+pub fn stage_allowed_for(id: &str) -> bool {
+    FIRST_PARTY_STAGE_IDS.contains(&id)
+}
 /// The CSP every pack HTML page is served with. `connect-src 'self'`: a page fetches its own files (a 3D room loads its
 /// textures and models that way); the network wall is the request filter, CSP is the second layer.
 pub const PACK_CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; \
@@ -66,8 +102,12 @@ pub struct LoadedPack {
     pub root: PathBuf,
     pub ui: String,
     pub tab_label_en: String,
+    /// The `plugin.api` the manifest declared (host.info reports it back).
+    pub api: i64,
     pub storage: bool,
     pub avatar: bool,
+    /// `permissions.stage: "performance"`: the pack may read the stage stream (stage_bridge.rs). First-party ids only.
+    pub stage: bool,
     pub links: BTreeMap<String, String>,
     /// path -> (sha256, bytes), from the manifest.
     pub files: BTreeMap<String, (String, u64)>,
@@ -162,7 +202,7 @@ pub fn store_verdict(index: &Value, id: &str, version: &str, manifest_sha: &str)
         .and_then(Value::as_array)
         .and_then(|vs| vs.iter().find(|v| v.get("version").and_then(Value::as_str) == Some(version)))
         .ok_or("pack_not_listed")?;
-    if listed.get("api").and_then(Value::as_i64) != Some(PLUGIN_API) {
+    if !listed.get("api").and_then(Value::as_i64).is_some_and(|api| (PLUGIN_API_MIN..=PLUGIN_API).contains(&api)) {
         return Err("pack_needs_newer_host");
     }
     if listed.get("manifestSha256").and_then(Value::as_str) != Some(manifest_sha) {
@@ -213,12 +253,12 @@ pub fn load_pack_dir(root: &Path, expect_id: Option<&str>) -> Result<LoadedPack,
     }
     let version = s(&m, "version").ok_or("manifest_version")?;
     let p = m.get("plugin").ok_or("plugin_section")?;
-    match p.get("api").and_then(Value::as_i64) {
+    let api = match p.get("api").and_then(Value::as_i64) {
         Some(api) if api > PLUGIN_API => return Err("pack_needs_newer_host".into()),
-        Some(api) if api < PLUGIN_API => return Err("pack_api_retired".into()),
-        Some(_) => {}
+        Some(api) if api < PLUGIN_API_MIN => return Err("pack_api_retired".into()),
+        Some(api) => api,
         None => return Err("manifest_api".into()),
-    }
+    };
     let ui = s(p, "ui").filter(|u| u.ends_with(".html")).ok_or("plugin_ui")?;
     let label = p.get("tab").and_then(|t| t.get("label")).ok_or("plugin_tab")?;
     let tab_label_en = s(label, "en").filter(|l| !l.trim().is_empty() && l.chars().count() <= 24).ok_or("plugin_tab")?;
@@ -226,11 +266,13 @@ pub fn load_pack_dir(root: &Path, expect_id: Option<&str>) -> Result<LoadedPack,
     let perms = perms.as_object().ok_or("plugin_permissions")?.clone();
     let mut storage = false;
     let mut avatar = false;
+    let mut stage = false;
     let mut links = BTreeMap::new();
     for (k, v) in &perms {
         match (k.as_str(), v) {
             ("storage", Value::Bool(b)) => storage = *b,
             ("avatar", Value::String(r)) if r == "read" => avatar = true,
+            ("stage", Value::String(r)) if r == "performance" => stage = true,
             ("net", Value::Array(a)) if a.is_empty() => {}
             ("links", Value::Object(map)) => {
                 for (key, url) in map {
@@ -243,6 +285,18 @@ pub fn load_pack_dir(root: &Path, expect_id: Option<&str>) -> Result<LoadedPack,
                 }
             }
             _ => return Err("plugin_permission_unknown".into()),
+        }
+    }
+    if stage {
+        // `stage` + a non-empty `net` never gets here: the parser above refuses a non-empty `net` as an unknown permission.
+        if api < 2 {
+            return Err("stage_needs_api2".into());
+        }
+        if !stage_allowed_for(&id) {
+            return Err("stage_not_allowed".into());
+        }
+        if !links.is_empty() {
+            return Err("stage_links_conflict".into());
         }
     }
     let mut files = BTreeMap::new();
@@ -279,7 +333,7 @@ pub fn load_pack_dir(root: &Path, expect_id: Option<&str>) -> Result<LoadedPack,
     if !files.contains_key(&ui) {
         return Err("plugin_ui".into());
     }
-    Ok(LoadedPack { id, version, root: root.to_path_buf(), ui, tab_label_en, storage, avatar, links, files, dev: false })
+    Ok(LoadedPack { id, version, root: root.to_path_buf(), ui, tab_label_en, api, storage, avatar, stage, links, files, dev: false })
 }
 
 /// The cached store index's verdict for a store-installed pack (signature by a compiled key, then `store_verdict`).
@@ -334,8 +388,13 @@ pub fn bridge_call(pack: &LoadedPack, data_dir: &Path, body: &[u8], open_link: &
         return refuse(403, "permission_denied", "this pack has no storage permission");
     }
     match method {
-        "host.info" => ok(json!({ "api": PLUGIN_API, "pack": pack.id, "version": pack.version })),
+        "host.info" => ok(json!({ "api": pack.api, "pack": pack.id, "version": pack.version })),
         "links.open" => {
+            // Defence in depth for ADR D4: under `stage` a link is a selection and timing channel to an external server, so the
+            // call is closed whatever the manifest says (a stage manifest declares no link at all; load refuses one).
+            if pack.stage {
+                return refuse(403, "link_disabled_with_stage", "links are closed for a pack that reads the stage stream");
+            }
             let key = arg_str(&args, "key").unwrap_or("");
             match pack.links.get(key) {
                 Some(url) => match open_link(url) {
@@ -467,7 +526,11 @@ pub struct PackState {
     pub data_dir: Mutex<Option<PathBuf>>,
     pub dev_dir: Mutex<Option<PathBuf>>,
     pub links_dry: std::sync::atomic::AtomicBool,
+    /// The dev folder is the pack the owner installer carries (not a `--pack-dir`): the tab header says "bundled".
+    pub bundled: std::sync::atomic::AtomicBool,
     by_label: Mutex<BTreeMap<String, Arc<LoadedPack>>>,
+    /// The stage stream of the first-party room pack (stage_bridge.rs).
+    pub stage: crate::stage_bridge::StageHub,
 }
 
 impl PackState {
@@ -476,6 +539,15 @@ impl PackState {
     }
     pub fn unbind(&self, label: &str) {
         self.by_label.lock().unwrap().remove(label);
+    }
+    /// Unbind every guest label of one pack (F1 fallback): its requests are refused from then on. Returns the labels.
+    pub fn unbind_pack(&self, id: &str) -> Vec<String> {
+        let mut map = self.by_label.lock().unwrap();
+        let labels: Vec<String> = map.iter().filter(|(_, p)| p.id == id).map(|(l, _)| l.clone()).collect();
+        for l in &labels {
+            map.remove(l);
+        }
+        labels
     }
     pub fn pack_for(&self, label: &str) -> Option<Arc<LoadedPack>> {
         self.by_label.lock().unwrap().get(label).cloned()
@@ -577,10 +649,12 @@ pub fn list_tabs(state: &PackState) -> Vec<Value> {
         let p = &m["plugin"];
         let ui = p.get("ui").and_then(Value::as_str).unwrap_or("");
         tabs.push(json!({
-            "id": id, "version": version, "dev": dev,
+            "id": id, "version": version, "dev": dev, "bundled": dev && state.bundled.load(std::sync::atomic::Ordering::SeqCst),
             "label": p.get("tab").and_then(|t| t.get("label")).cloned().unwrap_or(json!({ "en": id })),
             "src": format!("{}{}", pack_origin_prefix(&id), ui),
             "partition": format!("pack:{id}"),
+            // The tab strip shows a caption line under a stage pack (ADR room-live-b D2: captions live in the host UI).
+            "stage": p.get("permissions").and_then(|x| x.get("stage")).and_then(Value::as_str) == Some("performance"),
         }));
     }
     tabs
@@ -633,6 +707,11 @@ pub fn handle_request(
             }
             let Some(data_dir) = data.clone() else { return json_response(refuse(500, "no_data_dir", "no data folder")) };
             let method = serde_json::from_slice::<Value>(request.body()).ok().and_then(|v| v.get("method").and_then(Value::as_str).map(str::to_string)).unwrap_or_default();
+            // The stage channel (ADR Room live B): decided from the pack THIS label is bound to, never from the URL or the body.
+            if method.starts_with("stage.") || (pack.stage && method.is_empty()) {
+                let (status, body) = state.stage.call(&pack, &method, request.body(), state.stage.now());
+                return json_response((status, body));
+            }
             let (status, body) = bridge_call(&pack, &data_dir, request.body(), open_link);
             if status >= 400 {
                 let code = body.get("code").and_then(Value::as_str).unwrap_or("?");
@@ -645,6 +724,9 @@ pub fn handle_request(
         "__zumi/csp-report" => {
             log_line(data.as_deref(), &csp_report_line(&pack.id, request.body()));
             respond(204, "text/plain; charset=utf-8", Vec::new(), None)
+        }
+        "__zumi/light.json" if pack.stage && request.method() == tauri::http::Method::GET => {
+            json_response((200, json!({ "ev": room_ev(data.as_deref(), &room_ev_key(&pack.id, request.uri().query())) })))
         }
         "__zumi/avatar.vrm" => match avatar_for(&pack, avatar().as_deref()).and_then(|p| std::fs::read(p).ok()) {
             Some(bytes) => respond(200, "model/gltf-binary", bytes, None),
@@ -725,4 +807,35 @@ pub async fn pack_list(caller: tauri::Webview, state: tauri::State<'_, PackState
 /// Is `p` a plain directory path we accept for `--pack-dir` (absolute, no `..`)?
 pub fn plain_dir(p: &Path) -> bool {
     p.is_absolute() && p.components().all(|c| !matches!(c, Component::ParentDir)) && p.is_dir()
+}
+
+/// What `--pack-dir <folder>` does. The host decides from its own BUILD FLAVOUR (`owner_build`, read from the flavour file
+/// beside the exe), never from the argument: a public build refuses the argument, and the owner build accepts only an absolute
+/// plain folder. The pack inside is still re-hashed, and still needs the first-party id to receive `stage` (ADR D4, N16).
+#[derive(Debug, PartialEq)]
+pub enum PackDirDecision {
+    Absent,
+    Use(PathBuf),
+    Refused(&'static str),
+}
+
+pub fn pack_dir_decision(owner_build: bool, arg: Option<&Path>) -> PackDirDecision {
+    let Some(dir) = arg else { return PackDirDecision::Absent };
+    if !owner_build {
+        return PackDirDecision::Refused("pack_dir_public_build");
+    }
+    if !plain_dir(dir) {
+        return PackDirDecision::Refused("pack_dir_not_plain");
+    }
+    PackDirDecision::Use(dir.to_path_buf())
+}
+
+/// The Room pack an owner installer carries, unpacked at `<exe folder>/packs-seed/plugin.room-preview` (stage-bundle.mjs).
+pub const BUNDLED_PACK_ID: &str = "plugin.room-preview";
+
+/// The bundled pack folder beside the host exe, when the installer carried one. The caller loads it as the owner dev folder
+/// (owner flavour only), so a clean install and an upgrade both show it with no store and no hidden step.
+pub fn bundled_pack_dir(exe_dir: &Path) -> Option<PathBuf> {
+    let dir = exe_dir.join("packs-seed").join(BUNDLED_PACK_ID);
+    dir.join("zumi-pack.json").is_file().then_some(dir)
 }

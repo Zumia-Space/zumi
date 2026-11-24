@@ -21,7 +21,8 @@ const DATA = JSON.parse(fs.readFileSync(new URL('./speech-lines.json', import.me
 
 /** The kinds the scheduler may enqueue (plan section 2). `checkin` is the check-in summary (Fable review item 7; its hours
  *  come from the rhythm core since alpha.12). `watch` is a read-only watcher finding (T-31 alpha.12, watch-rules.mjs). */
-export const KINDS = ['ask', 'step', 'progress', 'morning', 'welcome', 'checkin', 'event', 'idle', 'watch'];
+export const KINDS = ['ask', 'step', 'progress', 'morning', 'welcome', 'checkin', 'event', 'idle', 'watch', 'reminder'];
+// `reminder` (T-31-MAUS A2): a reminder the user set in the form. Its text is the user's own, up to 80 characters after the sanitiser.
 
 export const LINE_KEYS = Object.freeze(Object.keys(DATA.en));
 export const MOODS = Object.freeze(Object.fromEntries(LINE_KEYS.map((k) => [k, DATA.en[k].mood])));
@@ -77,6 +78,8 @@ function chooseKey(table, kind, payload, title, step) {
     }
     case 'idle':
       return title && step ? 'idle.still' : 'idle.quiet';
+    case 'reminder':
+      return sanitizeSpeech(payload.text, 80) ? 'reminder.say' : 'reminder.generic';
     default:
       return kind;
   }
@@ -111,7 +114,7 @@ export function renderLine(kind, payload = {}, lang = 'en', address = PUBLIC_ADD
 
   const vars = {
     ...addressVars(address),
-    title, step, version, time, name: sanitizeSpeech(p.name, 40),
+    title, step, version, time, name: sanitizeSpeech(p.name, 40), text: sanitizeSpeech(p.text, 80),
     n: String(num(p.n)), u: String(num(p.u)), a: String(num(p.a)), w: String(num(p.w)), c: String(num(p.c)),
   };
 
@@ -119,13 +122,14 @@ export function renderLine(kind, payload = {}, lang = 'en', address = PUBLIC_ADD
   // text in the subtitle, but speak a variant without that text where one exists (ask -> generic, step done -> the
   // no-step line, idle.still -> idle.quiet). If no safe variant exists, speak='' so the scheduler emits a subtitle
   // instead of sending VI text to the EN voice. VI voice language keeps the full line on purpose.
-  const viVar = isVietnamese(title) || isVietnamese(step) || isVietnamese(vars.name);
+  const viVar = isVietnamese(title) || isVietnamese(step) || isVietnamese(vars.name) || isVietnamese(vars.text);
   let speakKey = key;
   if (lang !== 'vi' && viVar) {
     if (key.startsWith('ask.')) speakKey = 'ask.generic';
     else if (key === 'step.done') speakKey = 'step.done.plain';
     else if (key === 'idle.still') speakKey = 'idle.quiet';
     else if (key.startsWith('watch.')) speakKey = 'watch.generic';
+    else if (key === 'reminder.say') speakKey = 'reminder.generic';
   }
   const speakEntry = table[speakKey] || entry;
 

@@ -8,6 +8,7 @@
 // per call); a role switched off keeps its model, dimmed. Every label is a model NAME from the provider's list, never
 // an id. Mirrors usage.js's shape (one init, owns its DOM + i18n).
 import { t, onLocaleChange } from './i18n.js';
+import { avatarFor, avatarUrl } from './avatars.js';
 
 const ROLES = ['plan', 'do', 'check', 'lookup'];
 const SWITCH_ROLES = ['plan', 'check', 'lookup']; // Do has no switch: it is the reply itself
@@ -108,9 +109,11 @@ export function initRoleModels(zumi, $) {
       cell.className = isOn(role) ? 'role-cell' : 'role-cell paused';
       cell.dataset.role = role;
       const head = document.createElement('div'); head.className = 'rh';
+      // R6c D: the role's own avatar, a file of our own (never a path from outside: avatarUrl takes a known preset only).
+      const av = document.createElement('img'); av.className = 'role-avatar'; av.alt = ''; av.width = 28; av.height = 28; av.src = avatarUrl(avatarFor(role, null)) || '';
       const b = document.createElement('b'); b.textContent = t(`roles.${role}`);
       const d = document.createElement('span'); d.className = 'desc'; d.textContent = descOf(role);
-      head.appendChild(b);
+      head.append(av, b);
       if (SWITCH_ROLES.includes(role)) head.appendChild(roleSwitch(role));
       head.appendChild(d); // own line under the name, so the switch never squeezes it
       cell.append(head, chip(role, view.roles[role]));

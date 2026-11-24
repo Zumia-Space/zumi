@@ -84,7 +84,7 @@
     { "name": "custom-tts-key.bin (legacy, migrated away at start)", "match": "^custom-tts-key\\.bin$", "owner": "src/main/tts-http.js", "kind": "secret" },
     { "name": "owner-voice.json", "match": "^owner-voice\\.json$", "owner": "src/main/tts-select.js", "kind": "owner-flag" },
     { "name": "brain-key-check*.json", "match": "brain-key-check", "owner": "src/main/brain-key.js", "kind": "record" },
-    { "name": "chat-turn-cap.json", "match": "^chat-turn-cap\\.json$", "owner": "src/main/chat-brain.js", "kind": "record" },
+    { "name": "chat-turn-cap.json (legacy: no longer read or written since the 12-11 cap removal)", "match": "^chat-turn-cap\\.json$", "owner": "src/main/chat-brain.js", "kind": "record" },
     { "name": "rooms/**/{room.glb,room.json,check.json}", "match": "^(room\\.glb|room\\.json|check\\.json)$", "owner": "src/main/main.js (room-default*.mjs)", "kind": "room" },
     { "name": "laneboard/events.ndjson", "match": "^events\\.ndjson$", "owner": "src/main/laneboard-host.mjs", "kind": "board" },
     { "name": "laneboard/migration-report.json", "match": "^migration-report\\.json$", "owner": "src/main/laneboard-host.mjs", "kind": "board" },
@@ -92,6 +92,7 @@
     { "name": "board-open-refusals.log", "match": "^board-open-refusals\\.log$", "owner": "src/main/refusal-log.mjs", "kind": "log" },
     { "name": "updater.log", "match": "^updater\\.log$", "owner": "src/main/updater.mjs", "kind": "log" },
     { "name": "tts/kokoro/**", "match": "^tts/kokoro$", "owner": "src/main/kokoro-tts.js", "kind": "cache" },
+    { "name": "packs/<id>/** (Marketplace packs; packs/<id>.remove-pending while a remove waits on a locked file)", "match": "^packs$", "owner": "src/main/kokoro-tts.js (market host)", "kind": "dir" },
     { "name": "tts-tmp/zumi-tts-<hex>.{txt,wav}", "match": "\\.(txt|wav)$", "owner": "src/main/local-tts.js", "kind": "transient" },
     { "name": ".write-test-<pid> (transient probe)", "match": "^\\.write-test-", "owner": "src/main/main.js", "kind": "transient" }
   ],

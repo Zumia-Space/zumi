@@ -23,6 +23,10 @@ use crate::rpc_allow_list::ALLOWED_EVENT_CHANNELS;
 /// tauri/sidecar/protocol.mjs. Below the 1 MB frame limit so one oversized event drops only itself.
 pub const MAX_EVENT_PAYLOAD_BYTES: usize = 512 * 1024;
 
+/// Channels only the host emits, through `emit_main` (never through a sidecar `event` notification). The sidecar is Node code
+/// that handles model output and third-party packages, so it must not be able to put chips, a status or a confirm card in the chat.
+pub const HOST_ONLY_EVENT_CHANNELS: &[&str] = &["agent:event", "stt:event"];
+
 /// Longest channel name echoed into a log line (a refused name is sidecar-controlled text).
 const LOG_NAME_CHARS: usize = 64;
 
@@ -33,6 +37,8 @@ pub enum Refusal {
     Malformed,
     /// The channel is not in the inventory.
     UnknownChannel(String),
+    /// The channel is in the inventory but only the host may emit it (`agent:event`): a sidecar notification naming it is dropped.
+    HostOnly(String),
     /// The serialized payload is over the limit (size in bytes).
     Oversize { channel: &'static str, bytes: usize },
 }
@@ -56,6 +62,9 @@ pub fn validate(params: Value) -> Result<ValidEvent, Refusal> {
     let Some(channel) = ALLOWED_EVENT_CHANNELS.iter().copied().find(|c| *c == name) else {
         return Err(Refusal::UnknownChannel(name.chars().take(LOG_NAME_CHARS).collect()));
     };
+    if HOST_ONLY_EVENT_CHANNELS.contains(&channel) {
+        return Err(Refusal::HostOnly(channel.to_string()));
+    }
     let payload = map.remove("payload").unwrap_or(Value::Null);
     let bytes = serde_json::to_vec(&payload).map(|b| b.len()).unwrap_or(usize::MAX);
     if bytes > MAX_EVENT_PAYLOAD_BYTES {
@@ -96,6 +105,7 @@ pub fn forward(sink: &impl EventSink, params: Value) -> Result<&'static str, Ref
             match &refusal {
                 Refusal::Malformed => eprintln!("events: dropped a malformed event notification"),
                 Refusal::UnknownChannel(name) => eprintln!("events: dropped unknown channel {name:?}"),
+                Refusal::HostOnly(name) => eprintln!("events: dropped {name:?}: the sidecar may not emit it"),
                 Refusal::Oversize { channel, bytes } => {
                     eprintln!("events: dropped {channel}: payload {bytes} bytes > {MAX_EVENT_PAYLOAD_BYTES}")
                 }
@@ -182,16 +192,18 @@ mod tests {
     #[test]
     fn every_inventory_channel_reaches_main_only_and_in_order() {
         let views = FakeWebviews::new();
-        for (i, channel) in ALLOWED_EVENT_CHANNELS.iter().enumerate() {
+        let forwarded: Vec<&str> = ALLOWED_EVENT_CHANNELS.iter().copied().filter(|c| !HOST_ONLY_EVENT_CHANNELS.contains(c)).collect();
+        for (i, channel) in forwarded.iter().enumerate() {
             assert_eq!(forward(&views, notification(channel, json!({ "n": i }))), Ok(*channel));
         }
-        // 14 since 0.3.0-alpha.14 (market:progress added; wardrobe:progress left in alpha.11).
-        assert_eq!(ALLOWED_EVENT_CHANNELS.len(), 14, "the folded inventory has 14 event channels");
+        // 14 since 0.3.0-alpha.14 (market:progress added; wardrobe:progress left in alpha.11); 15 with agent:event (R2); 16 with stt:event (R4b);
+        // 17 with stage:fallback (room-live-b, ADR D8).
+        assert_eq!(ALLOWED_EVENT_CHANNELS.len(), 17, "the folded inventory has 17 event channels");
         assert!(!ALLOWED_EVENT_CHANNELS.iter().any(|c| c.starts_with("wardrobe:")));
         let main = views.received_by("main");
-        assert_eq!(main.len(), 14);
+        assert_eq!(main.len(), 15, "17 channels, two of them host-only");
         for (i, (channel, payload)) in main.iter().enumerate() {
-            assert_eq!(channel, ALLOWED_EVENT_CHANNELS[i], "delivery order = send order");
+            assert_eq!(channel, forwarded[i], "delivery order = send order");
             assert_eq!(payload, &json!({ "n": i }), "payload unchanged");
         }
         assert!(views.received_by("guest-1").is_empty(), "a guest never receives a forwarded event");
@@ -216,6 +228,20 @@ mod tests {
         let views = FakeWebviews::new();
         assert_eq!(forward(&views, msg["params"].clone()), Ok("speech:say"));
         assert_eq!(views.received_by("main"), vec![("speech:say".to_string(), json!({ "sayId": "s1", "text": "hi" }))]);
+    }
+
+    /// GATE-OPUS-R2 should-fix 1: `agent:event` (chips, status, a confirm card with any text) is emitted by the host alone
+    /// (agent_host.rs, through `emit_main`). A sidecar notification naming it is dropped, whatever its payload.
+    #[test]
+    fn a_sidecar_cannot_forge_agent_event_but_the_host_still_emits_it() {
+        let views = FakeWebviews::new();
+        let forged = json!({ "ev": "confirm", "id": "c-1", "text": "Allow Zumi to delete your files?" });
+        assert_eq!(forward(&views, notification("agent:event", forged.clone())), Err(Refusal::HostOnly("agent:event".to_string())));
+        assert!(views.received_by("main").is_empty(), "nothing reached the chat");
+        emit_main(&views, "agent:event", json!({ "ev": "run_end" }));
+        assert_eq!(views.received_by("main"), vec![("agent:event".to_string(), json!({ "ev": "run_end" }))], "the host's own emit is unchanged");
+        // Twin: a channel the sidecar may use still goes through.
+        assert_eq!(forward(&views, notification("speech:say", json!({ "sayId": "s1" }))), Ok("speech:say"));
     }
 
     #[test]

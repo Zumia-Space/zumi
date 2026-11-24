@@ -466,7 +466,7 @@ try {
     const director = fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'talk', 'director.js'), 'utf8');
     ok(/ipcMain\.handle\('ai:set-provider'[\s\S]{0,1400}switchRoleSlots\(/.test(main) && !/ai:set-provider'[\s\S]{0,500}roleModels: \{\}/.test(main), 'main: switching provider MOVES per-provider role slots (no longer wipes the role choices)');
     ok(/ai: \{\s*provider: \(\) =>[\s\S]{0,200}setProvider:[\s\S]{0,160}testKey:[\s\S]{0,160}openKeyPage:/.test(preload), 'preload: zumi.ai exposes provider / setProvider / testKey / openKeyPage');
-    ok(director.includes('failureLineKey') && /tr\(failureLineKey\(r && r\.error\)/.test(director),
+    ok(director.includes('failureText') && /failureText\(r && r\.error, tr/.test(director),
       'director: a failed turn asks error-line.js which line to show (no inline code guesses)');
     const errLine = fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'talk', 'error-line.js'), 'utf8');
     ok(['auth', 'credit', 'quota'].every((c) => errLine.includes(`'${c}'`)) && errLine.includes("'app.replyFailed'"),

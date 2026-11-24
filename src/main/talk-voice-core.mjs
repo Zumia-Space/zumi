@@ -11,10 +11,12 @@
 //
 // Routing (PLAN section 10.4): Zumi's OWN lines (a live sayId) route by `talkVoiceLang` with no text detection -- an
 // EN line carrying a Vietnamese title stays EN (and the title is dropped per F4 in speech-lines). Chat REPLIES route
-// by `voiceReplyLang`; only `auto` runs the isVietnamese(text) detector (the same heuristic as local-tts.js:184).
+// by `voiceReplyLang`; only `auto` detects the language of the reply: langOf (voice-lang.mjs) first, the isVietnamese(text) heuristic
+// (local-tts.js:184) only for text langOf cannot tell.
 import crypto from 'node:crypto';
 import { voiceProviderPrefs, voiceConfig, patchVoiceConfig, resolveVoice, replyOutcome, viProviders, PROVIDER_LANGS, EN_PROVIDERS, REPLY_LANGS } from './tts-select.js';
 import { stripMarkup } from './speech-chunker.js';
+import { langOf, LANG_TABLE } from './voice-lang.mjs';
 
 // Settings > Voice > Speed + Volume (T-31 settings-a2): settings.json voiceSpeed (0.75-1.5, Kokoro's own `speed`, so
 // the pitch stays natural) and voiceVolume (0-1, the renderer's playback gain). Clamped here, the one writer.
@@ -171,7 +173,10 @@ export function createTalkVoiceCore({
     if (sayId && saySilent(sayId)) return { ok: true, mime: 'audio/wav', audios: [], voice: 'none', reason: 'test-silent' };
     const prefs = { ...talkPrefs(settings()), ...voiceProviderPrefs(settings(), { ownerFlag: owner() }) };
     const reason = liveSay ? 'say' : (prefs.voiceReplyLang === 'auto' ? 'reply-auto' : 'reply-fixed');
-    const { lang, providerId, off } = resolveVoice({ prefs, ownerFlag: owner(), isSay: liveSay, text });
+    // T-31-YOKI 3.3: a reply on `auto` follows langOf(its text); a script no voice speaks stays text only (voice-off-lang, no provider call).
+    const told = liveSay ? null : langOf(text);
+    const reply = told && LANG_TABLE[told] ? { lang: told, voice: LANG_TABLE[told].voice } : null;
+    const { lang, providerId, off } = resolveVoice({ prefs, ownerFlag: owner(), isSay: liveSay, text, reply });
     if (off) { logTts(turnId, lang, providerId, reason, 'voice-off-lang'); return { ok: true, mime: 'audio/wav', audios: [], voice: 'none', reason: 'voice-off-lang' }; }
     // KOKORO keeps its streaming; on failure tts-router.js falls back to the free, local Windows voice (never paid).
     if (providerId === 'kokoro') { const e = enTts(); return e ? e.speak({ turnId, text, live }, tHandlerEntry) : NO_VOICE; }

@@ -16,6 +16,7 @@ const AWAY_SEC = 60;        // system idle that means "away" (same value as toda
 const TYPING_SEC = 2;       // input within 2 s = typing/working right now
 const TYPING_RESUME_SEC = 3; // wait for a >= 3 s pause before speaking
 const HOLD_MAX = 8;         // hold queue cap (plan section 2)
+const REMINDER_RETRIES = 30; // T-31-MAUS A2: a reminder acked busy (a reply is speaking) is re-issued on the next ticks, this many times, then shown as a subtitle
 const AWAY_WELCOME_MS = 15 * MIN;
 const IDLE_LINE_MS = 20 * MIN;   // P6: no line for this long
 const IDLE_BOARD_MS = 30 * MIN;  // P6: no board change for this long
@@ -180,6 +181,7 @@ export function createSpeechScheduler({ prefs = () => ({}), signals = () => ({})
   let dayKey = localDay(now());
   let dayCount = 0;
   let held = [];          // { key, kind, payload, at, deadline|null, typing }
+  let reminderRetry = []; // T-31-MAUS A2: reminder payloads the renderer answered busy for; re-issued by tick()
   const live = new Map(); // sayId -> { kind, payload, prevEmitAt, prevDayCount }
   let awaySince = null;
   let awayDigest = { updates: 0, asks: 0 };
@@ -422,7 +424,32 @@ export function createSpeechScheduler({ prefs = () => ({}), signals = () => ({})
     return issue(kind, payload, true, 'ok');
   }
 
+  /**
+   * A reminder the user set (T-31-MAUS A2). The user asked for this one, so it skips the gap, the daily cap, away/typing and
+   * window-hidden holds that shape proactive chatter. It still obeys the level and the mute: at Off or while muted it is shown
+   * as a subtitle, not spoken. Quiet hours are enforced upstream (zumi-routines keeps a due reminder silent until they end,
+   * then fires it once), so this path never re-checks them: a second check here could lose a reminder at the boundary.
+   */
+  function gateReminder(payload) {
+    rollover();
+    const p = pNow();
+    if (p.talkLevel === 'off') return issue('reminder', payload, false, 'level_off');
+    if (isMuted()) return issue('reminder', payload, false, 'muted');
+    return issue('reminder', payload, true, 'reminder');
+  }
+
+  /** Re-issue the reminders the renderer could not take (busy). After REMINDER_RETRIES busy answers it is shown, not spoken, so it is never lost. */
+  function flushReminders() {
+    const again = reminderRetry;
+    reminderRetry = [];
+    for (const payload of again) {
+      if ((payload.tries || 0) >= REMINDER_RETRIES) issue('reminder', payload, false, 'busy_subtitle');
+      else gateReminder(payload);
+    }
+  }
+
   function enqueue(kind, payload = {}) {
+    if (kind === 'reminder') return gateReminder(payload);
     rollover();
     const t = now();
     const sig = sigOf();
@@ -435,6 +462,7 @@ export function createSpeechScheduler({ prefs = () => ({}), signals = () => ({})
     rollover();
     const t = now();
     const sig = sigOf();
+    if (reminderRetry.length) flushReminders();
     const ret = noteAway(sig, t);
     if (ret.away) { expireHeld(t); return status(); }
     if (ret.returned) { handleAwayReturn(ret, sig, t); return status(); }
@@ -452,6 +480,11 @@ export function createSpeechScheduler({ prefs = () => ({}), signals = () => ({})
     if (!rec) return { action: 'unknown', reason: 'unknown_say' };
     live.delete(id);
     if (reason === 'busy') {
+      if (rec.kind === 'reminder') {
+        dayCount = rec.prevDayCount; lastEmitAt = rec.prevEmitAt; // not spoken: give the slot back
+        reminderRetry.push({ ...rec.payload, tries: (rec.payload.tries || 0) + 1 });
+        return { action: 'hold', reason: 'busy' };
+      }
       if (rec.kind === 'ask') {
         dayCount = rec.prevDayCount; lastEmitAt = rec.prevEmitAt; // not spoken: give the slot back
         hold('ask', rec.payload);

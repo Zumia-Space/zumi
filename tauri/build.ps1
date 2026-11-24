@@ -68,7 +68,8 @@ param(
   [ValidateSet('public', 'official', 'owner', 'selftest')][string]$Flavour = 'owner',
   [switch]$UseDefaultLocalAppData,
   [switch]$AllowUnchangedExe,
-  [switch]$MeasureStub
+  [switch]$MeasureStub,
+  [switch]$StageOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -85,6 +86,14 @@ $repo = Split-Path $tauriDir -Parent
 Write-Host "== T-31 Tauri preview build (P1a) ==" -ForegroundColor Cyan
 Write-Host "repo:  $repo"
 Write-Host "tauri: $tauriDir"
+
+# The owner / selftest installer carries the Room pack, built from room/ (prepare-seed.mjs, below). A public SOURCE EXPORT has no room/
+# (it is Zumia-licensed and owner tooling), and -Flavour defaults to owner: say so at once and point at the flavour a source build uses,
+# instead of failing deep inside with "room pack build failed". Public/official builds never touch the room pack. A caller that already
+# points ZUMI_ROOM_PACK_SEED at a pack folder, or does not stage the bundle (-NoBundle, -SkipBundleResources), needs no room/.
+if ($Flavour -in 'owner', 'selftest' -and -not $NoBundle -and -not $SkipBundleResources -and -not $env:ZUMI_ROOM_PACK_SEED -and -not (Test-Path -LiteralPath (Join-Path $repo 'room\package.json'))) {
+  throw "-Flavour $Flavour needs the private tree: room/ is not in this tree (a public source export does not carry it, and the owner/selftest installer carries the Room pack). Build from a public source export with -Flavour public."
+}
 
 # --- keep cargo's cache + cargo-tauri install off C: -------------------------------------------
 $env:CARGO_HOME = Join-Path $repo '.cargo-home'
@@ -143,6 +152,19 @@ if ($NoBundle) {
   Write-Host "-- cargo build --release --bin zumi-vault" -ForegroundColor Cyan
   & cargo build --release --manifest-path (Join-Path $tauriDir 'src-tauri\Cargo.toml') --bin zumi-vault
   if ($LASTEXITCODE -ne 0) { throw "zumi-vault build failed ($LASTEXITCODE)" }
+  # The owner / selftest installer carries the Room pack (alpha.3 shipped none: no Room tab on a clean install). Build it from room/
+  # here unless the caller already points ZUMI_ROOM_PACK_SEED at a pack folder, so no build depends on a hand-set variable.
+  # stage-bundle's flavour gate (verifyStagedFlavour) then fails the build if the pack is still not in the stage.
+  if ($Flavour -in 'owner', 'selftest') {
+    if (-not $env:ZUMI_ROOM_PACK_SEED) {
+      $seedOut = Join-Path $tauriDir 'src-tauri\target\room-pack-seed'
+      Write-Host "-- room pack (packs/room-preview/prepare-seed.mjs)" -ForegroundColor Cyan
+      node (Join-Path $repo 'packs\room-preview\prepare-seed.mjs') --out $seedOut
+      if ($LASTEXITCODE -ne 0) { throw "room pack build failed ($LASTEXITCODE): an owner installer without the Room pack is refused" }
+      $env:ZUMI_ROOM_PACK_SEED = Join-Path $seedOut 'plugin.room-preview'
+    }
+    Write-Host "-- Room pack seed: $env:ZUMI_ROOM_PACK_SEED"
+  }
   Write-Host "-- stage-bundle (sidecar + src/main + voice-modules + zumi-vault.exe)" -ForegroundColor Cyan
   $stageArgs = @()
   if ($MeasureStub) { $stageArgs += '--measure-stub' }
@@ -163,6 +185,9 @@ if (-not $NoBundle -and -not $MeasureStub) {
   node (Join-Path $repo 'scripts/check-tauri-third-party.mjs') --flavour $Flavour
   if ($LASTEXITCODE -ne 0) { throw "check-tauri-third-party failed ($LASTEXITCODE) for the $Flavour flavour: an unlisted, uncredited or (public) unverified asset ships" }
 }
+
+# -StageOnly: stop here (stage + the checks above ran, no cargo tauri build, no installer). For gates and CI.
+if ($StageOnly) { Write-Host "== stage only: bundle staged and checked, no installer built ==" -ForegroundColor Green; exit 0 }
 
 # --- 4. build ----------------------------------------------------------------------------------
 $buildStart = Get-Date

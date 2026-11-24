@@ -17,7 +17,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { TABLES } from '../src/renderer/i18n.js';
-import { failureLineKey } from '../src/renderer/talk/error-line.js';
+import { failureLineKey, failureText } from '../src/renderer/talk/error-line.js';
 
 const require = createRequire(import.meta.url);
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -188,8 +188,18 @@ try {
     ok(['en', 'vi', 'zh'].every((l) => TABLES[l]['app.quota'].includes('{provider}')), 'i18n: the free-quota line names the provider in en/vi/zh');
     ok(['en', 'vi', 'zh'].every((l) => !('app.quotaPaid' in TABLES[l]) && !('app.opencodeCredit' in TABLES[l])),
       'i18n: the now-dead paid-quota / OpenCode-credit keys are removed, not orphaned');
+    // R6b S1: a turn the monthly budget stopped says why, in the agent chat's words, with the host's numbers.
+    const why = 'monthly budget 5.00 USD (2026-11): 5.20 USD already spent this month';
+    for (const lang of ['en', 'vi', 'zh']) {
+      const t = (key, params) => String(TABLES[lang][key]).replace(/\{(\w+)\}/g, (m, k) => (params && k in params ? params[k] : m));
+      const month = failureText({ code: 'budget_month', message: why, retryable: false }, t);
+      ok(month.includes(TABLES[lang]['agent.err.budgetMonth']) && month.includes('5.20 USD') && month.includes('2026-11'), `R6b ${lang}: a turn stopped by the monthly cap says the cap prefix and the host's numbers`, month);
+      const unreadable = failureText({ code: 'budget_unreadable', message: 'budget.json: not an object', retryable: false }, t);
+      ok(unreadable.includes(TABLES[lang]['agent.err.budgetUnreadable']) && unreadable.includes('budget.json'), `R6b ${lang}: an unreadable budget is said with its file`, unreadable);
+      ok(failureText({ code: 'auth' }, t) === t('app.keyRefused') && failureText(null, t) === t('app.replyFailed'), `R6b ${lang}: every other failure keeps its plain line`);
+    }
     const director = fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'talk', 'director.js'), 'utf8');
-    ok(/tr\(failureLineKey\(r && r\.error\)/.test(director), 'wiring: the failed-turn bubble uses error-line.js (one mapping, no inline guesses)');
+    ok(/failureText\(r && r\.error, tr/.test(director), 'wiring: the failed-turn bubble uses error-line.js (one mapping, no inline guesses)');
     ok(/r && r\.error && r\.error\.provider \? \{ provider: r\.error\.provider \}/.test(director),
       'wiring: the free-quota line is interpolated with the provider label main.js stamps on a 429');
   }

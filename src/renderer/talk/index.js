@@ -8,6 +8,8 @@ import { checkSpeechGesture } from './validate.js';
 import { VRMUtils } from '@pixiv/three-vrm';
 import { t, isPublicText } from '../i18n.js';
 import { createReflexTiming } from './reflex-timing.js';
+import { createStageProducer } from './stage-producer.js';
+import { createMotionRoute } from './motion-route.js';
 
 // Hash of the rig/schema/player/engine sources, injected at build time (scripts/build-renderer.mjs).
 /* global __RIG_SRC_HASH__ */
@@ -21,6 +23,13 @@ export async function createTalk({ zumi, engine, catalog, loader, camera, prepar
   if (canned) ui.setCanned(); // demo with recorded answers: say so on screen, never show canned analysis
   const library = await SpeechLibrary.load((f) => fetch(`speech/${f}`).then((r) => r.json()));
   const speech = new SpeechOut();
+  // Room live B: the host producer for the 3D room (numbers and enums only). Absent where the host has no stage (Electron, tests).
+  const stage = zumi.stage && zumi.stage.produce ? createStageProducer({ call: (op, payload) => zumi.stage.produce(op, payload) }) : null;
+  speech.setStage(stage);
+  // T-31-ROOM motion P4/P5b: the agent's [move: ...] tag and the chat's /move command, one route into the room; `compose:` briefs go to the
+  // host's composer (rpc talk.composeMotion, Tauri only)
+  const compose = zumi.talk.composeMotion ? (brief) => zumi.talk.composeMotion(brief) : null;
+  const motion = stage ? createMotionRoute({ produce: (payload) => stage.motion(payload), compose }) : null;
   speech.warmup(); // T-31 voice P1 live-E2E fix 1: fire-and-forget, gets the AudioContext running ahead of turn 1
   let rigVersion = null;
   let cache = null;
@@ -38,7 +47,7 @@ export async function createTalk({ zumi, engine, catalog, loader, camera, prepar
     if (probe) { VRMUtils.deepDispose(probe.vrm.scene); probe = null; } // the previous model's hidden copy
     probeError = null;
     director = new TalkDirector({
-      engine, catalog, cloud: zumi.talk, speech, library, cache,
+      engine, catalog, cloud: zumi.talk, speech, library, cache, stage, motion,
       saveCache: (text) => zumi.gcache.save(text),
       probe: () => probe,
       rigVersion: () => rigVersion,
@@ -51,6 +60,8 @@ export async function createTalk({ zumi, engine, catalog, loader, camera, prepar
 
   ui.setEnabled(status.enabled);
   return {
+    stage, // Room live B: the host producer (null where the host has no stage); read by the dev/test hook in app.js
+    motion, // T-31-ROOM motion P4: the motion route (null where the host has no stage)
     status,
     muted: false, // self-tests mute the Enter key path while the reflex cases run, then drive talk on purpose
     get enabled() { return status.enabled && Boolean(director); },
@@ -63,7 +74,8 @@ export async function createTalk({ zumi, engine, catalog, loader, camera, prepar
     onModel(m) { ready = prepare(m); return ready; },
     ready: () => ready,
     mouth: () => speech.mouth(),
-    send(text) { return director ? director.send(text) : null; },
+    // R6f: the pictures attached to this message ride along (until R6f they were dropped here, and every turn went out as text only).
+    send(text, images) { return director ? director.send(text, images) : null; },
     // Settings > AI brain saved or cleared the key: chat turns on/off without a restart (main reads the key per call).
     async refreshStatus() {
       try { Object.assign(status, await zumi.talk.status()); } catch { /* keep the last known status */ }
@@ -240,7 +252,7 @@ export function talkUi($, { openSource = null, ageConfirm = null } = {}) {
       btn.hidden = false;
       btn.onclick = () => { if (btn.disabled) return; btn.disabled = true; Promise.resolve(onRetry()).finally(() => { btn.disabled = false; }); };
     },
-    reply(text, fallback) { const el = setRow('talk-reply', text || fallback); if (el) el.classList.toggle('failed', !text); },
+    reply(text, fallback) { const el = setRow('talk-reply', text || fallback); if (el) el.classList.toggle('failed', !text); document.dispatchEvent(new CustomEvent('zumi:caption', { detail: text || '' })); }, // the 3D room's caption (pack-tabs.js)
     // T-31 free LLM S1: Tauri-only confirm for a Gemini turn the sidecar refused (age_confirm_required).
     ageConfirm: showAgeConfirm,
     roles: paintRoles,

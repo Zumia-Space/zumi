@@ -72,6 +72,14 @@
         "authored in this repo (chairs.json, rooms.json, models.json, clips README, room-v2 json files declare LicenseRef-ZumiaSpace-Internal and \"No third-party assets\", pin manifests, default-model notice text, NOTICE, THIRD_PARTY_LICENSES.md, gesture/speech data, package.json)"
       ]
     },
+    "zumia-own-avatars": {
+      "name": "Default avatar set v4 (12 presets, SVG)",
+      "author": "Zumia Space",
+      "licence": "first-party",
+      "evidence": [
+        "drawn by the avatar builder's own procedural SVG code, no third-party art and no script inside (src/renderer/avatars.js header); v4 approved by the owner 19-11 (R6c D); copied into build/renderer/avatars/v4 by scripts/build-renderer.mjs (R6d)"
+      ]
+    },
     "zumia-own-room-code": {
       "name": "Room v2 occluders and legacy props",
       "author": "Zumia Space",
@@ -79,6 +87,14 @@
       "evidence": [
         "resources-pinned/room-v2/room.json attribution: 'Occluders: self-made in code. No third-party assets.'",
         "occluders.glb asset.generator = THREE.GLTFExporter r186; legacy/props-visible.glb asset.generator = 'zumi room v2-B build_props.mjs' (named primitives only)"
+      ]
+    },
+    "zumia-own-avatars": {
+      "name": "Built-in v4 avatar presets (src/renderer/avatars/v4/*.svg)",
+      "author": "Zumia Space",
+      "licence": "first-party (AGPL-3.0 with the source)",
+      "evidence": [
+        "drawn by Zumia's own avatar builder v4 (procedural code, no third-party art); each SVG carries the builder's v4 marker and no external reference, script or image (scripts/check-avatars.mjs); owner approved the v4 set 19-11 (ask-avatar-v4); Opus gate R7: byte-identical to the builder's presets"
       ]
     },
     "zumia-brand": {
@@ -299,6 +315,18 @@
     "build/renderer/next/pricing.css": "zumia-own-code",
     "build/renderer/next/tokens-a.css": "zumia-own-code",
     "build/renderer/next/brain/brain.css": "zumia-own-code",
+    "build/renderer/avatars/v4/ban-hang.svg": "zumia-own-avatars",
+    "build/renderer/avatars/v4/cham-soc-khach.svg": "zumia-own-avatars",
+    "build/renderer/avatars/v4/dich-thuat.svg": "zumia-own-avatars",
+    "build/renderer/avatars/v4/du-lieu.svg": "zumia-own-avatars",
+    "build/renderer/avatars/v4/ke-toan.svg": "zumia-own-avatars",
+    "build/renderer/avatars/v4/lap-trinh.svg": "zumia-own-avatars",
+    "build/renderer/avatars/v4/nghien-cuu.svg": "zumia-own-avatars",
+    "build/renderer/avatars/v4/nhan-su.svg": "zumia-own-avatars",
+    "build/renderer/avatars/v4/thiet-ke.svg": "zumia-own-avatars",
+    "build/renderer/avatars/v4/thu-ky.svg": "zumia-own-avatars",
+    "build/renderer/avatars/v4/tro-ly-chung.svg": "zumia-own-avatars",
+    "build/renderer/avatars/v4/viet-bai.svg": "zumia-own-avatars",
     "build/renderer/brand/zumia-mark.svg": "zumia-brand",
     "buildres/icon.png": "zumia-brand",
     "models/zumi-default-0910.vrm": "vroid-default-avatar",
@@ -361,20 +389,26 @@
     {
       "glob": "src/main/*.js",
       "id": "zumia-own-code",
-      "count": 32,
-      "listSha256": "0270eed69bec416c894765b8417b919534a46eab32ad4069ae535d6568ffe53f"
+      "count": 33,
+      "listSha256": "ce16338bd6d0ebf990b90d2aa8c9dc3a7684eb2ec01b6fc207bef6e1b7d56735"
     },
     {
       "glob": "src/main/*.mjs",
       "id": "zumia-own-code",
-      "count": 30,
-      "listSha256": "61fd402609a8a1ebdc4d32336b031ccfd3f611a4713f3b26e693874e964940dc"
+      "count": 34,
+      "listSha256": "75fe2ae4900520c9f0acaf64f5d553f08e0b2edc1eaaecd4c8fbb8a4d5aa72a4"
+    },
+    {
+      "glob": "src/main/content-plan/*.mjs",
+      "id": "zumia-own-code",
+      "count": 7,
+      "listSha256": "38bca4a98b52f95b03e90b1b99126e41c08a9437e7076f79f8d49989e21a3517"
     },
     {
       "glob": "src/main/*.json",
       "id": "zumia-own-data",
-      "count": 9,
-      "listSha256": "be67e99dcf35d6b081e28b6f55e6f2cae7f7ddffa530276fdb9c71fc9c84d63f"
+      "count": 11,
+      "listSha256": "af5fe454120a5de1e6b4a449959723eed912d1c0391e45829fd051d12618cc2c"
     },
     {
       "glob": "build/renderer/gestures/*.json",
@@ -389,10 +423,16 @@
       "listSha256": "42fd634dceb8d4493d7e2d8165b3344c35850c17e93a02587468b9820cf76b54"
     },
     {
+      "glob": "build/renderer/avatars/v4/*.svg",
+      "id": "zumia-own-avatars",
+      "count": 12,
+      "listSha256": "239d75e61246a8fca36cbc35801f5faa79180655e9832605f5663dc41147bb58"
+    },
+    {
       "glob": "vendor/laneboard/**",
       "id": "apache-2.0-laneboard",
-      "count": 114,
-      "listSha256": "2f9001bdc546d19598edc181b00f4ce360119f5334fe7d702c9f81995d7f8956"
+      "count": 151,
+      "listSha256": "9e5e963a1361e4eac331eb4d1a2013c91c1121e17eebb75c2128293e4eaab56d"
     }
   ],
   "openLegal": [

@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { defaultModelDirs, adoptDefaultIfNoModelKey, registerRestoreDefault, createDefaultSampleDetector } = require('../../src/main/default-model.js');
+const { defaultModelDirs, adoptDefaultIfNoModelKey, registerRestoreDefault, createDefaultSampleDetector, DEFAULT_MODELS } = require('../../src/main/default-model.js');
 
 /**
  * @returns {Promise<'adopted'|'kept'|{error:'missing'|'unreadable'|'sha_mismatch'}>} never rejects; the outcome is logged once.
@@ -19,6 +19,7 @@ export async function adoptDefaultOnBoot({ settings, saveSettings, listModels, e
     out = await adoptDefaultIfNoModelKey({
       fs, crypto, loadSettings: settings, saveSettings, listModels,
       dirs: defaultModelDirs({ env, modelsDir }), hasTestModel: !!testModelPath, expectedSha256,
+      first: expectedSha256 ? null : DEFAULT_MODELS[0], // round 8: the new outfit first; without its file, the 0910 look as before
     });
   } catch (e) {
     out = { error: 'unreadable' };

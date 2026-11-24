@@ -130,20 +130,33 @@ const MEMORY_FIXTURE = String.raw`(() => {
   const log = (name, arg) => window.__memCalls.push({ name, arg: arg === undefined ? undefined : JSON.parse(JSON.stringify(arg)) });
   window.__cfg = window.__cfg || {};
   window.__cfg.memory = {
-    status: async () => { log('status'); return { enabled: window.__memEnabled !== false, count: items.length }; },
+    status: async () => { log('status'); return { enabled: window.__memEnabled !== false, count: items.length, dir: 'D:/Zumi/data/memory' }; },
     setEnabled: async (on) => { log('setEnabled', on); window.__memEnabled = on; },
     list: async (a) => { log('list', a); let r = items; if (a.kind) r = r.filter((x) => x.kind === a.kind); if (a.search) r = r.filter((x) => fold(x.text).includes(fold(a.search))); if (a.beforeId) r = r.filter((x) => x.id < a.beforeId); return { items: r.slice(0, a.limit), more: r.length > a.limit }; },
     delete: async (id) => { log('delete', id); items = items.filter((x) => x.id !== id); return { ok: true }; },
-    deleteAll: async () => { log('deleteAll'); items = []; return { ok: true }; },
     exportFile: async () => { log('exportFile'); return { ok: true, path: 'D:/exports/zumi-memory-2026-10-28.json' }; },
   };
+})();`;
+
+// R6g MF2: the same fixture with a journal (the AI changed note 120 in chat, forgot one, the person edited one) and an undo that really undoes.
+const JOURNAL_FIXTURE = String.raw`(() => {
+  const m = window.__cfg.memory;
+  const at = Date.UTC(2026, 10, 20, 9, 30);
+  let rows = [
+    { id: 'j3', at: at + 20 * 60000, noteId: 118, kind: 'edited', actor: 'person', via: 'panel', text: 'Thích áo khoác trắng #118', to: 'Thích áo khoác đen', createdAt: at, canRevert: true },
+    { id: 'j2', at: at + 10 * 60000, noteId: 999, kind: 'deleted', actor: 'agent', via: 'chat', text: 'Likes durian', createdAt: at, canRevert: true },
+    { id: 'j1', at, noteId: 120, kind: 'edited', actor: 'agent', via: 'chat', text: 'Anh Kei muốn câu trả lời ngắn #120', to: 'Anh Kei muốn câu trả lời dài', createdAt: at, canRevert: true },
+  ];
+  window.__undone = [];
+  m.journal = async () => ({ ok: true, items: rows });
+  m.undo = async (id) => { window.__undone.push(id); rows = rows.filter((r) => r.id !== id); return { ok: true }; };
 })();`;
 
 function stubScript() {
   const info = { version: '0.0.0-check', packaged: true, disabledViews: [], ownerAdmin: false, boardPartition: 'persist:check', demo: false, selftest: false };
   return `(() => {
     const deep = () => new Proxy(function () {}, { get: (t, k) => (k === 'then' ? undefined : k === Symbol.toPrimitive ? () => '' : deep()), apply: () => Promise.resolve(deep()) });
-    const withFallback = (o) => new Proxy(o, { get: (t, k) => (k in t ? t[k] : (k === 'then' || k === 'memory' ? undefined : deep())) });
+    const withFallback = (o) => new Proxy(o, { get: (t, k) => (k in t ? t[k] : (k === 'then' || k === 'memory' || k === 'stt' ? undefined : deep())) });
     window.__cfg = window.__cfg || { board: { ok: false, reason: 'unconfigured' } };
     window.__calls = [];
     const board = withFallback({ state: async () => { window.__calls.push('board.state'); return window.__cfg.board; }, status: async () => ({ configured: false, mode: 'local' }) });
@@ -341,18 +354,28 @@ async function chromiumPart(buildDir) {
       await page.click('.nb-mem-foot .nb-toggle:not(.danger)'); await page.waitForTimeout(150);
       const st = await page.$eval('.nb-mem-status', (e) => e.textContent), lab = await page.$eval('.nb-mem-foot .nb-toggle:not(.danger)', (e) => e.textContent);
       ok(/zumi-memory-\d{4}-\d{2}-\d{2}\.json$/.test(st) && /not encrypted/.test(lab), 'export AC 12 (fixture): the button says "not encrypted"; the saved path shown is zumi-memory-<date>.json (the save dialog itself is the host side)', `${lab} | ${st}`);
-      await page.click('.nb-switch input'); await page.waitForTimeout(150);
-      ok((await calls()).some((x) => x.name === 'setEnabled' && x.arg === false), 'memory: the on/off switch calls setEnabled(false)');
+      ok((await page.$$('#next-brain .nb-switch')).length === 0, 'memory: no on/off switch on the tab (it lives in Settings > App > Advanced)');
       const txt = await page.$eval('#next-brain', (e) => e.innerText);
-      ok(!/\+\s*Note|Add note|New note/i.test(txt) && /Kept only on this computer/.test(txt), 'memory: no "+ Note" composer (slice 3c), and the one-line privacy sentence is there');
-      await page.click('.nb-mem-foot .nb-toggle.danger'); await page.waitForTimeout(100);
-      const conf = await page.$eval('.nb-confirm', (e) => ({ hidden: e.hidden, text: e.innerText }));
-      ok(!conf.hidden && /Forget all 119 memories/.test(conf.text) && !(await calls()).some((x) => x.name === 'deleteAll'), 'memory: "Forget all…" asks first (the count is in the question) and has not deleted yet', conf.text);
-      await page.click('.nb-confirm .nb-toggle:not(.danger)');
-      ok((await page.$eval('.nb-confirm', (e) => e.hidden)) && !(await calls()).some((x) => x.name === 'deleteAll'), 'memory: Cancel closes the question and deletes nothing');
-      await page.click('.nb-mem-foot .nb-toggle.danger'); await page.click('.nb-confirm .nb-toggle.danger'); await page.waitForTimeout(250);
-      ok((await calls()).some((x) => x.name === 'deleteAll') && (await rows()).length === 0 && await meta() === '0 memories', 'memory: confirmed "Forget all" calls deleteAll(), the list empties and the count reads 0');
+      ok(!/\+\s*Note|Add note|New note/i.test(txt) && /kept only on this computer, in D:\/Zumi\/data\/memory/i.test(txt) && /never uploads/i.test(txt), 'memory: no "+ Note" composer (slice 3c), and the privacy sentence names the real folder and says Zumi never uploads');
+      ok((await page.$$('.nb-mem-foot .nb-toggle.danger')).length === 0 && !/forget all/i.test(txt) && (await page.$$('.nb-confirm')).length === 0, 'memory: no "Forget all" control anywhere on the tab (owner ruling 19-11)');
       ok(bad.length === 0, 'memory list page: no console error or failed request', bad.slice(0, 3).join(' | '));
+      await page.close();
+    }
+    // --- R6g MF2: the journal of changes in the Memory tab, in a real browser ---
+    {
+      const { page, bad } = await pageFor(browser, server, { board: full }, { memoryFixture: MEMORY_FIXTURE + JOURNAL_FIXTURE });
+      await openBrain(page, 'memory');
+      await page.waitForSelector('.nb-jrow', { timeout: 5000 });
+      const jr = () => page.$$eval('#next-brain .nb-jrow', (r) => r.map((x) => ({ id: x.dataset.journal, text: x.innerText })));
+      const rows0 = await jr();
+      ok(rows0.length === 3 && await page.$eval('#next-brain .nb-journal', (e) => e.open) && /AI in chat/.test(rows0[2].text) && /muốn câu trả lời ngắn.*→.*dài/s.test(rows0[2].text) && /You/.test(rows0[0].text), 'journal: three entries, opened by itself because the AI changed something; who and before -> after are shown', JSON.stringify(rows0));
+      const mark = await page.$$eval('#next-brain .nb-mem .nb-ai', (r) => r.map((x) => x.closest('.nb-mem').dataset.memory + ':' + x.textContent));
+      ok(mark.length === 1 && mark[0] === '120:Changed by AI in chat', 'journal: the note the AI changed is marked on the note, and no other note is', JSON.stringify(mark));
+      if (shotsDir) { fs.mkdirSync(shotsDir, { recursive: true }); await page.evaluate(() => document.querySelector('#next-brain .nb-journal').scrollIntoView()); await page.screenshot({ path: path.join(shotsDir, 'memory-journal-en-1296.png') }); await page.evaluate(() => document.querySelector('#next-brain .nb-body').scrollTo(0, 0)); await page.screenshot({ path: path.join(shotsDir, 'memory-list-ai-mark-en-1296.png') }); }
+      await page.click('#next-brain .nb-jrow[data-journal="j1"] button');
+      await page.waitForFunction(() => document.querySelectorAll('#next-brain .nb-jrow').length === 2, null, { timeout: 5000 });
+      ok(JSON.stringify(await page.evaluate(() => window.__undone)) === '["j1"]' && (await page.$$('#next-brain .nb-mem .nb-ai')).length === 0, 'journal: Undo calls undo(that entry) once and the mark leaves the note');
+      ok(bad.length === 0, 'journal page: no console error or failed request', bad.slice(0, 3).join(' | '));
       await page.close();
     }
 

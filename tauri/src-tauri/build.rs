@@ -16,6 +16,10 @@ fn main() {
     let attributes = tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
             "rpc",
+            // HB-2: the host's native Explorer-pack dialog (main webview only).
+            "agent_accept_pack",
+            // R7 K0a: the pack controls (main webview only; not an rpc method).
+            "pack_op",
             "guest_open",
             "guest_navigate",
             "guest_bounds",

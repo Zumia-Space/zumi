@@ -11,6 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ownerPath } from './lib/owner-paths.mjs';
+import { notRun } from './lib/check-outcome.cjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 
@@ -79,7 +80,7 @@ function newestInstaller() {
 
 function main() {
   const installer = path.resolve(argValue('--installer') || newestInstaller() || '');
-  if (!argValue('--installer') && !newestInstaller()) { console.log('FAIL no installer found: pass --installer <setup.exe> or build first (tauri\\build.ps1 -Flavour owner, or -Flavour public for a public kit)'); process.exit(1); }
+  if (!argValue('--installer') && !newestInstaller()) notRun('bundle', 'no installer found: pass --installer <setup.exe> or build first (tauri\\build.ps1 -Flavour owner, or -Flavour public for a public kit)');
   if (!fs.existsSync(installer)) { console.log(`FAIL installer exists ${installer}`); process.exit(1); }
   const sevenZ = find7z();
   if (!sevenZ) { console.log('BLOCKED no 7-Zip (7z.exe) on this box: set SEVENZIP=<path to 7z.exe> or put 7z on PATH. Not a pass.'); process.exit(2); }

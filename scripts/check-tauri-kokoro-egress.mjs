@@ -25,8 +25,10 @@ import fs from 'node:fs';
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
 const MAP = JSON.parse(process.env.KOKORO_STUB_MAP || '{}');
+const parts = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? parts(d + '/' + e.name) : e.name.endsWith('.part') ? [e.name] : []);
 export function get(url, _opts, cb) {
-  fs.appendFileSync(${JSON.stringify(logFile)}, url + String.fromCharCode(10));
+  // each hop logs whether a .part file is already on disk when it is requested (the T-31-ALPHA11 EPERM race: a hop must not open it)
+  fs.appendFileSync(${JSON.stringify(logFile)}, url + (parts(${JSON.stringify(tmp)}).length ? ' [part-open]' : '') + String.fromCharCode(10));
   const r = MAP[url] || { status: 404 };
   const res = Readable.from([Buffer.from('not-the-pinned-bytes')]);
   res.statusCode = r.status; res.headers = r.location ? { location: r.location } : { 'content-length': '20' };
@@ -46,16 +48,18 @@ async function run(map) {
   const timeout = new Promise((r) => setTimeout(() => r({ hung: true }), 15000));
   const res = await Promise.race([k.ensureReady().then(() => ({ resolved: true }), (e) => ({ error: e })), timeout]);
   k.dispose && k.dispose();
-  return { res, hops: fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean) };
+  const hopsRaw = fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean);
+  return { res, hopsRaw, hops: hopsRaw.map((h) => h.replace(/ \[part-open\]$/, '')) };
 }
 
 const FIRST = 'https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/onnx/model_fp16.onnx';
 
 { // 1. allowed chain: huggingface.co -> us.aws.cdn.hf.co; followed, ends at the sha256 pin (stub bytes), not at egress
   const cdn = 'https://us.aws.cdn.hf.co/xet-bridge-us/abc/model_fp16.onnx';
-  const { res, hops } = await run({ [FIRST]: { status: 302, location: cdn }, [cdn]: { status: 200 } });
+  const { res, hops, hopsRaw } = await run({ [FIRST]: { status: 302, location: cdn }, [cdn]: { status: 200 } });
   ok(hops.length === 2 && hops[1] === cdn, 'an allowed redirect chain (huggingface.co -> us.aws.cdn.hf.co) is followed', hops.join(' | '));
   ok(res.error && /sha256_mismatch/.test(res.error.message) && !/egress_refused/.test(res.error.message), 'the followed chain reaches the sha256 pin check (not an egress refusal)', res.error && res.error.message);
+  ok(hopsRaw.every((h) => !h.endsWith('[part-open]')), 'no hop is requested while a .part is on disk: it is opened only on the 200, so a redirect never unlinks it under the next open (the EPERM race)', hopsRaw.join(' | '));
 }
 { // 2. off-list host
   const evil = 'https://evil.example.com/model_fp16.onnx';

@@ -63,7 +63,7 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 
 const STUB = `(() => {
   const deep = () => new Proxy(function () {}, { get: (t, k) => (k === 'then' ? undefined : k === Symbol.toPrimitive ? () => '' : deep()), apply: () => Promise.resolve(deep()) });
-  const withFallback = (o) => new Proxy(o, { get: (t, k) => (k in t ? t[k] : (k === 'then' || k === 'memory' ? undefined : deep())) });
+  const withFallback = (o) => new Proxy(o, { get: (t, k) => (k in t ? t[k] : (k === 'then' || k === 'memory' || k === 'stt' ? undefined : deep())) });
   const info = { version: 'check', packaged: true, disabledViews: [], ownerAdmin: true, boardPartition: 'b', boardLivePartition: 'bl', demo: false, selftest: false, minWindow: { width: 900, height: 600 } };
   window.zumi = withFallback({ info: async () => info, listModels: async () => ({ models: [], selected: null, bundledCount: 0 }), listClips: async () => [],
     rooms: withFallback({ list: async () => ({ rooms: [], selected: null }) }), scenes: withFallback({ list: async () => ({ rooms: [], selected: null }) }),

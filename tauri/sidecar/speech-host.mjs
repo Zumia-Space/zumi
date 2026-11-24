@@ -37,6 +37,7 @@ export function createSpeechHost({
   now = Date.now, intervalMs = 1000, log = () => {}, agent = null,
 }) {
   let sayReady = false;
+  const saidKeys = new Set(); // reminder.say keys already spoken (see below)
   let tick = null;
   let cache = { at: 0, v: {} };
   let waitingCount = 0; // Electron's boardWaitingCount; step 9's hudHost.onWaiting will own it
@@ -117,6 +118,20 @@ export function createSpeechHost({
       return true;
     },
     'talk.sayStatus': () => scheduler.status(),
+
+    // T-31-MAUS A2: the Rust routines runner hands one due reminder here (host-only; never in the renderer allow-list). Before
+    // sayReady there is no listener, so it throws and the runner takes the fire back and retries; once ready the line goes out
+    // through the same scheduler as every other spoken line. The text is the user's own, capped before it is stored (200) and again
+    // by the line renderer (80).
+    // `key` is `<reminder id>:<due ms>`. The host's call can time out after this process already took the line; the runner then hands
+    // the same fire over again. A key seen before is answered `duplicate` and not spoken (the last 64 keys are remembered).
+    'reminder.say': (text, key) => {
+      if (!sayReady) throw new Error('say_not_ready');
+      const k = typeof key === 'string' ? key.slice(0, 120) : '';
+      if (k && saidKeys.has(k)) return { action: 'duplicate', reason: 'same_key' };
+      if (k) { saidKeys.add(k); if (saidKeys.size > 64) saidKeys.delete(saidKeys.values().next().value); }
+      return scheduler.enqueue('reminder', { text: typeof text === 'string' ? text : '' });
+    },
 
     // main.js:1268-1279. The stage mute is a PREF (talkMute), so it survives a restart; untilMs null = until unmuted.
     'talk.mute': (untilMs) => {

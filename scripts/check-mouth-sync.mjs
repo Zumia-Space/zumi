@@ -13,11 +13,12 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { ownerPath } from './lib/owner-paths.mjs';
+import { notRun } from './lib/check-outcome.cjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 const PW_SOURCE = ownerPath('playwrightCore', 'node_modules/playwright-core');
-if (!fs.existsSync(PW_SOURCE)) { console.error(`SKIP: no vendored playwright-core at ${PW_SOURCE}`); process.exit(0); }
+if (!fs.existsSync(PW_SOURCE)) notRun('precondition', `check-mouth-sync: no vendored playwright-core at ${PW_SOURCE}`);
 const { chromium } = createRequire(path.join(PW_SOURCE, 'package.json'))(PW_SOURCE);
 
 let pass = 0, fail = 0;

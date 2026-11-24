@@ -119,15 +119,21 @@ pub fn expire(state: &QrState, host: &dyn Host, gen: u64) {
     }
 }
 
-/// Native OK/Cancel box owned by the main window (default button: Cancel).
+const CONFIRM_TITLE: &str = "Zumi - Ghép điện thoại";
+const CONFIRM_TEXT: &str = "Hiện mã ghép điện thoại?\n\nMã chứa đăng nhập bảng task của anh và một mã thiết bị mới. Chỉ quét bằng app Zumi trên điện thoại. Mã tự ẩn sau 60 giây; ảnh chụp màn hình sẽ ra màu đen.\n\nShow the phone pairing code? It holds your board login.";
+
+/// The question on a private desktop of its own, like the pack consent (R7d, gate R7c should-fix 7): a plain message box on the person's
+/// desktop can be answered by a process of the same user that sends it a click, which an `input.inject` pack's process can. Decline is the
+/// default button, no answer in two minutes is No, and so is any error (the screen cannot be switched, the desktop cannot be made).
 #[cfg(windows)]
-pub fn native_confirm(owner: isize) -> bool {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{MessageBoxW, IDOK, MB_DEFBUTTON2, MB_ICONWARNING, MB_OKCANCEL};
-    let wide = |s: &str| s.encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>();
-    let text = wide("Hiện mã ghép điện thoại?\n\nMã chứa đăng nhập bảng task của anh và một mã thiết bị mới. Chỉ quét bằng app Zumi trên điện thoại. Mã tự ẩn sau 60 giây; ảnh chụp màn hình sẽ ra màu đen.\n\nShow the phone pairing code? It holds your board login.");
-    let title = wide("Zumi - Ghép điện thoại");
-    // SAFETY: both buffers are NUL-terminated and live across the call; the owner is the main window or null.
-    unsafe { MessageBoxW(owner as _, text.as_ptr(), title.as_ptr(), MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2) == IDOK }
+fn confirm_with(opts: &zumi_packs::consent::SecureOpts) -> bool {
+    zumi_packs::consent::secure_ask(CONFIRM_TITLE, CONFIRM_TEXT, opts).unwrap_or(false)
+}
+
+/// Native Yes/No question for the pairing code (the owner window is no longer used: the box is on its own desktop).
+#[cfg(windows)]
+pub fn native_confirm(_owner: isize) -> bool {
+    confirm_with(&zumi_packs::consent::SecureOpts { switch: true, timeout: Duration::from_secs(120) })
 }
 #[cfg(not(windows))]
 pub fn native_confirm(_owner: isize) -> bool {
@@ -138,6 +144,24 @@ pub fn native_confirm(_owner: isize) -> bool {
 mod tests {
     use super::*;
     use std::cell::RefCell;
+
+    /// R7d: the pairing question is not a window of the person's desktop (FindWindow finds nothing, which is all a pack process can do), and
+    /// nobody answering is No. Not switched to the screen: this test must not take over the machine it runs on.
+    #[cfg(windows)]
+    #[test]
+    fn the_pairing_question_is_not_a_window_of_the_persons_desktop() {
+        use windows_sys::Win32::UI::WindowsAndMessaging::FindWindowW;
+        let asker = std::thread::spawn(|| confirm_with(&zumi_packs::consent::SecureOpts { switch: false, timeout: Duration::from_secs(4) }));
+        let (t, class): (Vec<u16>, Vec<u16>) = (CONFIRM_TITLE.encode_utf16().chain([0]).collect(), "#32770".encode_utf16().chain([0]).collect());
+        let end = std::time::Instant::now() + Duration::from_millis(3000);
+        while std::time::Instant::now() < end {
+            // SAFETY: NUL-terminated buffers that outlive the call.
+            let found = unsafe { FindWindowW(class.as_ptr(), t.as_ptr()) };
+            assert!(found.is_null(), "the pairing question is visible on the person's desktop");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert!(!asker.join().unwrap(), "no answer is No");
+    }
 
     struct Fake {
         log: RefCell<Vec<String>>,

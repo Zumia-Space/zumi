@@ -10,7 +10,8 @@ export const INDEX_FORMAT = 'zumi-market/1';
 
 /** kind -> [lowest, highest] api major this host supports. A pack outside the range is refused at install and at load. */
 export const HOST_API = Object.freeze({
-  voice: [1, 1], room: [1, 1], model: [1, 1], skill: [1, 1], soul: [1, 1], plugin: [1, 1], agent: [1, 1], scene: [1, 1],
+  voice: [1, 1], room: [1, 1], model: [1, 1], skill: [1, 1], soul: [1, 1], plugin: [1, 2], // plugin api 2 = `stage` (ADR room-live-b D4); mirrors pack_host.rs PLUGIN_API_MIN/PLUGIN_API
+  agent: [1, 1], scene: [1, 1],
 });
 
 /** Packs made before `api` existed (the Kokoro voice pack) count as api 1. Web-app and scene packs must state it. */

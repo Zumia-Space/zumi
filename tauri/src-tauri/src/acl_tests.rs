@@ -122,7 +122,7 @@ fn the_live_board_guest_resolves_no_command_so_it_cannot_call_any_rpc_method() {
     assert!(auth.resolve_access("rpc", "main", "main", &Origin::Local).is_some(), "main resolves rpc (positive control)");
     // No command at all for any board guest (the first guest and a later one), at any origin the bridge can serve from.
     let commands = [
-        "rpc", "guest_open", "guest_navigate", "guest_bounds", "guest_close", "zumi_host_apply", "guest_cdp",
+        "rpc", "agent_accept_pack", "pack_op", "guest_open", "guest_navigate", "guest_bounds", "guest_close", "zumi_host_apply", "guest_cdp",
         "plugin:event|listen", "plugin:event|emit", "plugin:event|emit_to", "plugin:event|unlisten",
         "plugin:webview|webview_close", "plugin:window|close", "plugin:app|version",
     ];
@@ -194,6 +194,25 @@ fn a_pack_guest_resolves_no_command_and_only_main_lists_packs() {
             for cmd in commands {
                 assert!(auth.resolve_access(cmd, "main", guest, &origin).is_none(), "{guest} ({origin}) must not resolve {cmd}");
             }
+        }
+    }
+}
+
+// T-31-ROOM motion P5b: the motion composer is the rpc method `talk.composeMotion` (the agent's [move: compose: ...] and the chat's
+// /move compose: ... reach it through the renderer's one motion route). Main-renderer only, like every model call: no guest (the room
+// pack's guest included, it talks to the host over its bridge only) resolves rpc.
+#[test]
+fn compose_motion_is_a_main_renderer_rpc_method_and_no_guest_reaches_it() {
+    use crate::rpc_allow_list::{ALLOWED_METHODS, GUEST_ONLY_METHODS};
+    assert!(ALLOWED_METHODS.contains(&"talk.composeMotion"), "the main renderer's allow-list serves talk.composeMotion");
+    assert!(!GUEST_ONLY_METHODS.contains(&"talk.composeMotion"), "it is not a guest bridge name");
+    assert!(!ALLOWED_METHODS.contains(&"talk.composeMotionRaw"), "negative control: a near name is not served");
+    let mut ctx = crate::app_context();
+    let auth = ctx.runtime_authority_mut();
+    assert!(auth.resolve_access("rpc", "main", "main", &Origin::Local).is_some(), "main resolves rpc (positive control)");
+    for guest in ["guest-board-0", "guest-plugin.room-preview-0", "guest-wardrobe-0"] {
+        for origin in [Origin::Local, remote()] {
+            assert!(auth.resolve_access("rpc", "main", guest, &origin).is_none(), "{guest} must not reach rpc, so it cannot call talk.composeMotion");
         }
     }
 }

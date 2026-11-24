@@ -261,7 +261,7 @@ ok(scripts['check:default-model'] === 'node scripts/check-default-model.mjs', 'p
 const defaultVrm = require('./lib/default-vrm.cjs');
 const pin = JSON.parse(read('resources-pinned', 'default-model', 'PIN-MANIFEST.json'));
 ok(pin.file === DEFAULT_MODEL_FILE && pin.sha256 === mainDefault.DEFAULT_MODEL_SHA256, 'PIN-MANIFEST: file + sha256 equal the runtime constants in src/main/default-model.js');
-ok(pin.sha256 === 'd1183bcf27bac3a587de7e383bcd8f6f4e0068e0a7c56653fa3e731e1460c372' && pin.bytes === 9141588 && mainDefault.DEFAULT_MODEL_BYTES === pin.bytes, 'PIN-MANIFEST + runtime: the pin is the 3K FOREST file with meta commercialUsage corporation (alpha.4, d1183bcf..., 9141588 B)');
+ok(pin.sha256 === 'c8b80938584339a78d880c85079696224dcdb9fad9c4ccaf1eae268715c034ff' && pin.bytes === 9363180 && mainDefault.DEFAULT_MODEL_BYTES === pin.bytes, 'PIN-MANIFEST + runtime: the pin is the round-9 file with the 9.11 jacket rebuild (T-31-ROOM 9.11: re-weight + hidden layers deleted, 49944b62..., 9363180 B)');
 ok(Number.isInteger(pin.bytes) && pin.bytes > 0 && pin.sourceEnvVar === 'ZUMI_DEFAULT_VRM_PATH', 'PIN-MANIFEST: byte size pinned, source env var is ZUMI_DEFAULT_VRM_PATH');
 {
   const lic = read('resources-pinned', 'default-model', pin.licenceNoticeFile);

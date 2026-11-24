@@ -4823,8 +4823,50 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
 
 [[package]]
+name = "zumi-agent-loop"
+version = "0.0.1"
+dependencies = [
+ "regex",
+ "serde_json",
+ "windows",
+ "zumi-audit",
+ "zumi-egress",
+ "zumi-packs",
+ "zumi-routines",
+]
+
+[[package]]
+name = "zumi-audit"
+version = "0.0.1"
+dependencies = [
+ "serde_json",
+ "sha2",
+ "windows",
+]
+
+[[package]]
+name = "zumi-egress"
+version = "0.0.1"
+dependencies = [
+ "reqwest",
+ "rustls",
+ "tokio",
+ "url",
+]
+
+[[package]]
+name = "zumi-packs"
+version = "0.0.1"
+dependencies = [
+ "serde_json",
+ "windows",
+ "zumi-audit",
+ "zumi-egress",
+]
+
+[[package]]
 name = "zumi-preview"
-version = "0.3.7"
+version = "0.3.8"
 dependencies = [
  "base64 0.23.1",
  "minisign-verify",
@@ -4840,4 +4882,29 @@ dependencies = [
  "windows",
  "windows-core",
  "windows-sys 0.61.2",
+ "zumi-agent-loop",
+ "zumi-packs",
+ "zumi-routines",
+ "zumi-stt",
+]
+
+[[package]]
+name = "zumi-routines"
+version = "0.0.1"
+dependencies = [
+ "serde_json",
+ "windows",
+ "zumi-audit",
+]
+
+[[package]]
+name = "zumi-stt"
+version = "0.0.1"
+dependencies = [
+ "serde_json",
+ "sha2",
+ "url",
+ "windows",
+ "zumi-audit",
+ "zumi-egress",
 ]

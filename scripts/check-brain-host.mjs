@@ -629,11 +629,47 @@ const ONLY_STATIC = args.includes('--only-static');
 // is proven identical by the 21 owner checks of the P0b review (same exit and counts before and after). The freeze itself is
 // unchanged: from this anchor on, the same files may not move. An anchor that holds this file (e.g. 132ef4b8) cannot work:
 // BH-11e would flag this file's own later edits.
-// BH_OSS_REF names that line (env override only so the fallback can be shown); if the ref or the merge-base is missing, fall back to the same commit.
-const P0B_TIP = '038dbbb71a051686a5662fa19693411f2057f22f';
+// Re-pinned in T-31-MAUS (20-11, CoS-approved) to 17c0c994f, the T-31-MAUS-live head before this commit (first to 20b827824, again after the live-gate fixes). The old anchor 038dbbb7 was
+// 868+ commits back and the failure was identical on the live line: the 104 frozen-path files had moved on purpose (vendor/laneboard
+// 102 files +8090/-476: Diagram tab, comments, schema, supervisor; board-open.mjs +2/-2; board-bridge.mjs blob changed) and 75 check
+// scripts/libs were modified (+80 added). The freeze is unchanged from 17c0c994f on: the frozen files stay byte-equal to it and the
+// 9 old PINNED_MODIFIED blobs are gone (no check script differs from the anchor now). The live-gate fixes (B1 board-bridge read routes, R1/R2 runner, M1, C1) are inside the anchor. This file is exempt from its own BH-11e,
+// because an anchor that holds the final text of this file is impossible (the anchor sha is inside the text).
+// Each later vendor/laneboard sync moves the frozen region again and needs the same CoS-approved re-pin.
+// Re-pinned in T-31-ALPHA11 (21-11) to c614fecc3, the alpha.11 head before this commit. CoS approved 21-11 (Opus gate, Sol down: Cockpit ECONNREFUSED).
+// Condition of the approval: the frozen-region change comes from the merge alone (Maus 17c0c994f plus 9.11). Proof (tools/frozen-provenance.mjs in
+// the alpha.11 dossier): 22 frozen paths differ from the Maus parent aa67496c8; 4 equal the 9.11 parent 58525124d, 1 equals git's clean auto-merge,
+// 17 are hand-resolved conflicts whose 21 lines found in neither parent are union glue only (import / enum unions, VERSION/RELEASE = Laneboard
+// 04ecfbf, the ops.mjs cos-report split: on a task the live J-05 rule, on the NEWS thread the B2 rule). board-bridge.mjs: 0 such lines.
+// Check scripts modified after the merge and folded into this anchor (BH-11e), test-only follow-ups of the merge: check-content-ui,
+// check-room-assets-lock, check-tauri-board-news (4cc0fa132), check-local-board-heal (1e2734375), check-board-supervisor PIN (7d5b78428),
+// check-tauri-kokoro-egress race row (5f0fc16e5).
+// Re-pinned again in T-31-ALPHA11 (21-11) to 7ccb403a2, the alpha.11 integrate head. CoS approved 21-11 (Opus gate, Sol down: Cockpit ECONNREFUSED).
+// Reason: BH-11b is the Laneboard vendor move 04ecfbf -> eec04d3 (2 files, UI only, +15/-10) and BH-11e is the check-board-supervisor PIN; no behaviour change.
+// Re-pinned in T-31-ALPHA12 (21-11) to a008b32d0deb78a8e7b488c34a7d9c26ebfac531, the alpha.12 head before this commit. CoS approved 21-11 (Opus gate, Sol down: Cockpit
+// ECONNREFUSED; 9 check scripts reviewed, no asserts removed). Reason: BH-11e only; no frozen path moved (BH-11b green). The 9 reviewed: check-soul,
+// check-soul-address, check-public-text, check-chat-search, check-default-sample, check-say-ui, check-tauri-default-model, check-room-light,
+// lib/zumi-only.cjs (YOKI fold, model label, packfix: rows added, persona hash re-pinned). Two more from the Fable round 5 fixes, also rows only:
+// check-settings-tabs (3 voice-card rows added) and check-public-first-run (E6 now pins the owner's VI view words; O3 pins board.mode.live).
+// Moved again in T-31-ALPHA12 (21-11) to 7baa2575ac372e8ea4ae6dd02ff27ade22d559e3 under the same CoS approval ("re-pin to the final head before the build"): the chip fix after
+// the first round-5 build changed check-zumi-toolbar-chip.mjs (a round-5 check, rows added) after a008b32d0.
+// Moved again in T-31-ALPHA12 (21-11) to 06d5ab41beb388e3efd193add9031764ec66155a, CoS round-5 addition under the same approval: the Laneboard vendor move eec04d3 -> 07b311c
+// (J-05-task-scroll: one scroll column for the task, UI only; public/app.js, splitters.css, styles.css + 3 vendored check scripts) and the
+// check-board-supervisor PIN that follows it (BH-11b + BH-11e).
+// Moved again in T-31-ALPHA13 (22-11) to e26978b277f2701cdda63aaa7f83dd02a99493a6 (CoS order for alpha.13: "the PIN, the BH-11 anchor and the supervisor PIN"): the Laneboard
+// vendor move 07b311c -> 29bf7da (live 2427a5e merged into 07b311c: working-status + status-label, UI and board server) with its supervisor PIN, and
+// check-stage-client.mjs from the Phòng 2 motion merge (stage contract v2: rows added, the ready/poll v.max 1 -> 2; no assert removed) (BH-11b + BH-11e).
+// Moved again in T-31-ALPHA13 (22-11) to 56a74ab8806b646a66b828a34ca264580da6366c under the same order: checks:all found three checks that did not follow the merged room motion;
+// that commit edits check-motion-route.mjs (the motionRule argument position), check-ui-lang.mjs (one ALLOW_LINE with its reason) and
+// check-voice-wire.mjs (the host's MOVE_RULE message taken out before the golden compare, plus a row that requires it); no assert removed (BH-11e).
+// Moved again in T-31-ALPHA14 (22-11) to 06cc116aca029aceac9805580185c80c8bb753e2 (the merge of T-31-ROOM alpha14 374dfd01b, same rule as alpha.13): that merge
+// adds the surprised-face rows to check-motion-route.mjs (a face survives validateSeated and the wire, counts in the length, mouth shapes /
+// blinks / an oscillating face dropped, one face per move, the composer prompt offers it); no assert removed (BH-11e).
+// BH_OSS_REF names a line to merge-base against (env override only so the fallback can be shown); if the ref or the merge-base is missing, fall back to the same commit.
+const ANCHOR_TIP = '06cc116aca029aceac9805580185c80c8bb753e2';
 const OSS_ANCHOR = (() => {
-  const r = spawnSync('git', ['merge-base', 'HEAD', process.env.BH_OSS_REF || P0B_TIP], { cwd: ROOT, encoding: 'utf8' });
-  return r.status === 0 && /^[0-9a-f]{8,40}$/.test(r.stdout.trim()) ? r.stdout.trim() : P0B_TIP;
+  const r = spawnSync('git', ['merge-base', 'HEAD', process.env.BH_OSS_REF || ANCHOR_TIP], { cwd: ROOT, encoding: 'utf8' });
+  return r.status === 0 && /^[0-9a-f]{8,40}$/.test(r.stdout.trim()) ? r.stdout.trim() : ANCHOR_TIP;
 })();
 const BASE_REF = argOf('--base') || OSS_ANCHOR;   // the frozen files must be byte-equal to it
 const START_REF = argOf('--start') || OSS_ANCHOR; // no existing check script may differ from it
@@ -715,7 +751,8 @@ async function runStatic(root, { git: withGit }) {
     // T-31 alpha.3 B1 (review F1): board-bridge.mjs gained the image-upload route + onLog (plan-required, one hunk set, READ_ROUTES / PAGE_OPS /
     // RELAY_OPS / MAX_BODY untouched). It is held at ONE pinned blob instead of byte-equal to the anchor; every other frozen path stays byte-equal,
     // and the anchor does not move. Any further edit to the pinned file changes its blob and turns BH-11b red again (control BH-11g below).
-    const PINNED_FROZEN = { 'src/main/board-bridge.mjs': 'a3cd366525ed1de7bad1043ad7c84d12d19e7ce9' };
+    // alpha.11 (21-11, CoS-approved re-pin above): the merged bridge (9.11 heal-1/heal-2 + Maus diagram read route, no line outside the two parents).
+    const PINNED_FROZEN = { 'src/main/board-bridge.mjs': 'c3655fd9756a7283620b1ba8d34ce508b4bc9610' };
     const frozenRest = frozen.filter((p) => !(p in PINNED_FROZEN));
     const committed = git(root, 'diff', '--stat', `${BASE_REF}..HEAD`, '--', ...frozenRest).stdout.trim();
     const working = git(root, 'diff', '--stat', BASE_REF, '--', ...frozenRest).stdout.trim();
@@ -734,25 +771,11 @@ async function runStatic(root, { git: withGit }) {
     const control = git(root, 'diff', '--no-index', '--stat', path.join(root, 'src/main/board-open.mjs'), copy).stdout.trim();
     fs.rmSync(scratch, { recursive: true, force: true });
     ok(control !== '', 'BH-11d control: the same diff command prints the file when one byte differs', control);
-    // A modified check/lib file passes only while its working-tree blob equals the sha pinned here (the files that differ
-    // from the P0b anchor: three as of T-31 P0c (the two oss-next + P0 merges and the P0c guard list), a fourth for alpha.3 R1, two for alpha.3 R3); any further edit turns this red again.
-    const PINNED_MODIFIED = {
-      'scripts/check-public-payload.mjs': '823e4ccd08f678fe798f4fbdd7cfa5ef0c2f673b',
-      'scripts/check-tauri-installer-payload.mjs': 'fecb9deda7dd4b0b7fbe2f4c8d37e3f53ca8f030',
-      'scripts/lib/public-p0.cjs': '87e6d766ba4bf11e106b9d6228795b47412b4055',
-      // T-31 alpha.3 B1: pure additions (section 10b/10c upload cases; the Board-guest drag-drop assertions), review F1.
-      'scripts/check-board-bridge.mjs': '4fabdeef6baa1db3030b6c8a2347530387a98746',
-      'scripts/check-tauri-guest.mjs': 'edf8b633a322e3f09d8ca3d97ac7aa5adf48d981',
-      // T-31 alpha.3 R1: three whole themes add #theme= assertions to the board-URL check (33 lines added, none removed or weakened).
-      'scripts/check-tauri-board-url.mjs': 'd14aab65ebd1b7c32cdcd5dfa23971cc4479d33f',
-      // T-31 alpha.3 R3 (CoS e562fd07ed76, exception to rule A: only assertions that check the fake holo content the owner asked to remove):
-      // check-fh-clips +1 -1 (the PAGE_MS / pinPage-body assertion of the 6 s page clock), check-palette +0 -3 (the allowances of the deleted demo PAGES accents).
-      'scripts/check-fh-clips.mjs': '6e4f224edf4feda63081f18e7bf67f15f15e6d57',
-      'scripts/check-palette.mjs': 'd141d6f2ee28dcf89684fb2e9463641fa7f90ca1',
-      // R4 adds links.open to the OS-open allowlist by design; CoS exception 043cfc368119.
-      'scripts/check-tauri-ai-settings.mjs': 'c812bed7dfe4956574d27864c0572af37f64c218',
-    };
-    const changed = git(root, 'diff', '--diff-filter=M', '--name-only', START_REF, '--', 'scripts').stdout.split('\n').filter((f) => /scripts\/(check-|lib\/)/.test(f))
+    // A modified check/lib file passes only while its working-tree blob equals the sha pinned here. Empty since the 20-11 re-pin: every
+    // check script and lib equals the anchor (the old 9 pins and the later edits are inside the anchor). This file itself is exempt (see the anchor comment).
+    const PINNED_MODIFIED = {};
+    const SELF = 'scripts/check-brain-host.mjs';
+    const changed = git(root, 'diff', '--diff-filter=M', '--name-only', START_REF, '--', 'scripts').stdout.split('\n').filter((f) => /scripts\/(check-|lib\/)/.test(f) && f !== SELF)
       .filter((f) => git(root, 'hash-object', '--', f).stdout.trim() !== PINNED_MODIFIED[f]);
     ok(git(root, 'cat-file', '-e', `${START_REF}^{commit}`).status === 0 && changed.length === 0, `BH-11e no existing check script or lib is modified since ${START_REF} except the ${Object.keys(PINNED_MODIFIED).length} pinned by blob sha (new files only)`, changed);
   }

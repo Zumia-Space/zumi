@@ -9,7 +9,7 @@
 import { checkSpeechGesture, checkAnalysis } from './validate.js';
 import { BUILTIN_FALLBACK, cacheKey, estimateSpeechMs, deixisSide } from './intents.js';
 import { shouldSpeakReply } from './reply-speech.js';
-import { failureLineKey } from './error-line.js';
+import { failureText } from './error-line.js';
 import { t as tr, en } from '../i18n.js';
 
 // Think ack (T-31 voice round 6; CoS decision 09-10 after the spare run): if NO AUDIO has started THINK_AFTER_MS after
@@ -32,6 +32,8 @@ export const TURN_FAILED_VI = en('app.replyFailed');
 // guessing a preset. Held at a fixed weight so the model cannot over-drive the face.
 const HELD_EMOTIONS = new Set(['happy', 'sad', 'surprised', 'angry', 'relaxed']);
 const HELD_EMOTION_WEIGHT = 0.8;
+// Room live B: the stage contract's emotion enum (ADR D5), the VRM preset names the chat brain emits.
+const STAGE_EMOTION = { relaxed: 0, happy: 1, sad: 2, surprised: 3, angry: 4 };
 
 // Round 6 per-turn stage log, ms from send: request start -> first token -> first clause (main) -> first clause here ->
 // Kokoro chunk 0 here -> audio start. Main's stages are epoch ms (r.timing); the rest is this turn's own timeline.
@@ -82,6 +84,9 @@ export class TalkDirector {
     t.cancelled = why;
     const t0 = this.now();
     this.speech.stop(); // silences playback immediately -- this is what the <=200ms stop acceptance measures
+    // Room live B: the guest's mouth stops too (utterance.cancel for every chunk not over yet). Best-effort: a refused call is counted in
+    // stage.stats, and never delays or fails the barge-in.
+    if (this.stage) Promise.resolve(this.stage.cancel()).catch(() => {}); // the call starts now (synchronously); every failure is already counted in stage.stats
     // tell main to stop synthesizing further chunks (best-effort, no ack needed; a refusal from a dead sidecar changes nothing)
     if (this.cloud.ttsAbandon) Promise.resolve().then(() => this.cloud.ttsAbandon(t.id)).catch(() => {});
     for (const id of t.instances) this.engine.player.stop(id);
@@ -140,7 +145,18 @@ export class TalkDirector {
     return null;
   }
 
-  async send(text) {
+  // `images`: R6c C item 5, the pictures attached to THIS message ([{ mime, data }], from chat-attach.js take()). They go to the host for this one
+  // request; the history below keeps the text only, so a later turn never carries them.
+  async send(text, images = []) {
+    // T-31-ROOM motion P4: the owner's `/move ...` goes to the room through the motion route, never to the model. The agent's leading
+    // [move: ...] tag takes the same route below, so both entries give the same result (the route's verdict, emitted as 'motion').
+    const move = /^\/move\s+([\s\S]+)$/i.exec(String(text || '').trim());
+    if (move) {
+      this.ui.userLine(text);
+      const verdict = this.motion ? await this.motion.send(move[1], { origin: 'chat' }) : { ok: false, stage: 'stage', errors: ['stage: no 3D room in this host'] };
+      this.emit('motion', { source: 'command', ...verdict });
+      return verdict;
+    }
     if (this.turn && !this.turn.done) this.cancel('barge-in');
     // A Check verdict still pending for the previous turn never reaches this one.
     if (this.turn && this.turn.offCheck) { this.turn.offCheck(); this.turn.offCheck = null; }
@@ -153,6 +169,8 @@ export class TalkDirector {
     const speakTypedP = this.speakTypedWhenMicOff();
     this.ui.userLine(text);
     this.ui.thinking(true);
+    // Room live B: is a 3D room open? Then it also shows Zumi thinking (a number; the question text stays here).
+    if (this.stage) this.stage.refresh().then(() => this.stage.state('thinking'));
     this.emit('sent', { turnId: t.id });
 
     // think ack if no audio by THINK_AFTER_MS (gesture; chime only if the owner turned it on). The setting is read
@@ -187,12 +205,14 @@ export class TalkDirector {
 
     let r;
     try {
-      r = await this.cloud.turn({ turnId: t.id, message: text, history: this.history.slice(-6) });
+      r = await this.cloud.turn({ turnId: t.id, message: text, history: this.history.slice(-6), ...(Array.isArray(images) && images.length ? { images } : {}) });
     } catch (e) {
       // A rejected call (the shim's sidecar_not_ready, a dead sidecar) ends like any failed turn below: listeners released, the
       // thinking indicator and think ack stopped (finish), the normal failure line, and send() resolves. It used to rethrow,
       // leaving the indicator on, the think gesture and chime to start, and an unhandled rejection in app.js's onSend.
-      r = { ok: false, error: { code: 'turn_rejected', message: String((e && e.message) || e) } };
+      // R6e: the host refuses a request over the rpc frame cap (sidecar_request_too_large): its own code, so the line says "too big", not "failed".
+      const why = String((e && e.message) || e);
+      r = { ok: false, error: { code: /sidecar_request_too_large/.test(why) ? 'too_large' : 'turn_rejected', message: why } };
     }
     if (t.cancelled) { offAll(); return this.finish(t, 'cancelled'); }
     t.timeline.replyAt = rel(this.now());
@@ -206,7 +226,7 @@ export class TalkDirector {
       // confirm is the only place to give it; offer it here too, in Tauri only (Electron never produces this code).
       const ageConfirm = Boolean(r && r.error && r.error.code === 'age_confirm_required');
       const failed = ageConfirm ? tr('app.ageConfirmRequired')
-        : tr(failureLineKey(r && r.error), r && r.error && r.error.provider ? { provider: r.error.provider } : undefined);
+        : failureText(r && r.error, tr, r && r.error && r.error.provider ? { provider: r.error.provider } : undefined);
       if (ageConfirm && this.ui.ageConfirm) this.ui.ageConfirm();
       offAll();
       this.ui.reply(null, failed);
@@ -214,6 +234,7 @@ export class TalkDirector {
       return this.finish(t, 'turn-failed');
     }
     this.ui.reply(r.reply);
+    if (typeof r.motion === 'string' && this.motion) this.motion.send(r.motion, { origin: 'agent' }).then((verdict) => this.emit('motion', { source: 'agent', ...verdict }));
     if (r.explains === false) {
       // The BYO chat brain (chat-brain.js) never asks the model for an explanation, so there is nothing that failed:
       // the panel keeps what is real (the reflex timing line) and never claims "could not explain". cloud.js's turn
@@ -347,7 +368,9 @@ export class TalkDirector {
       t.audioStarted = true;
       clearTimeout(t.thinkTimer);
       if (t.thinkId) this.engine.player.stop(t.thinkId);
+      if (this.stage) this.stage.setEmotion(STAGE_EMOTION[g.emotion] ?? 0, Math.round(HELD_EMOTION_WEIGHT * 100)); // before start(): the chunks carry it
       audio = prepared.start();
+      if (this.stage) this.stage.state('speaking');
       // The held emotion starts with the voice, before the body gesture (see playHeldEmotion).
       this.playHeldEmotion(t, g.emotion);
     }
@@ -451,6 +474,7 @@ export class TalkDirector {
   finish(t, outcome) {
     t.done = true;
     clearTimeout(t.thinkTimer);
+    if (this.stage && this.turn === t) this.stage.state('idle');
     if (t.thinkId && !t.audioStarted) this.engine.player.stop(t.thinkId); // failed / silent turn: end the think ack
     if (t.emotionId) this.engine.player.stop(t.emotionId); // B2 item 1: the held emotion ends with the reply
     t.outcome = outcome;

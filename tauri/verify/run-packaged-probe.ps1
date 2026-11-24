@@ -34,7 +34,9 @@ try { $bundleDir = (Resolve-Path -LiteralPath $Bundle).Path }
 catch {
   Write-Host "REFUSED: bundle directory not found: $Bundle"
   Write-Host "Build it first: powershell -ExecutionPolicy Bypass -File tauri\build.ps1 -Flavour owner"
-  exit 1
+  # scripts/lib/check-outcome.cjs contract: this marker line plus exit 3 = NOT RUN (never a pass, never a FAIL)
+  Write-Host "ZUMI-CHECK-NOT-RUN: bundle - no bundle directory at $Bundle"
+  exit 3
 }
 $bundledNode = Join-Path $bundleDir 'node\node.exe'
 # The bundle carries no Node (option (c): provisioned at runtime). -Node / ZUMI_PROBE_NODE / first PATH node (before the scrub) is the TEST runtime.

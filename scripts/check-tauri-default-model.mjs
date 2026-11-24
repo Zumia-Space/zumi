@@ -38,7 +38,8 @@ ok(tracked === '', 'no .vrm is tracked in git', tracked);
 
 // ---- 2. verifyStagedDefaultModel: the bundle gate (pure; fake pin + fake bytes) ----
 const bytes = Buffer.from('fake-vrm-bytes-for-the-bundle-gate');
-const fakePin = { ...pin, bytes: bytes.length, sha256: sha(bytes) };
+const { pair: _pair, ...pinOne } = pin; // round 8: the second default has its own gate rows in check:default-pair
+const fakePin = { ...pinOne, bytes: bytes.length, sha256: sha(bytes) };
 const credits = 'Zumi default avatar. (c) 3K FOREST CO.,LTD. Contains VRoid AvatarSample_K content (c) pixiv Inc. Not open source.';
 function stage(name, { model = bytes, licence = credits } = {}) {
   const root = path.join(tmp, name);
@@ -134,11 +135,13 @@ ok(/adoptDefaultOnBoot\(/.test(mainSrc) && /await\s+defaultModelReady/.test(main
   const list = (userModelPath) => createModels({ modelsDir: mdir, loadSettings: () => ({ model: 'user', userModelPath }), isDefaultSample: (f) => f === sampleF }).listModels().models[0];
   const d = list(sampleF), u = list(otherF);
   ok(d.labelKey === 'model.zumiDefault', 'models-core: the user slot holding the bundled sample carries labelKey model.zumiDefault', JSON.stringify(d));
-  ok(u.labelKey === undefined && u.label === 'Model from this PC', 'models-core: a real user model keeps "Model from this PC", no labelKey', JSON.stringify(u));
-  const WANT = { en: 'Zumi default', vi: 'Zumi mặc định' };
-  for (const l of ['en', 'vi', 'zh']) ok(typeof TABLES[l]['model.zumiDefault'] === 'string' && TABLES[l]['model.zumiDefault'].trim() !== '' && (!WANT[l] || TABLES[l]['model.zumiDefault'] === WANT[l]), `i18n ${l}: model.zumiDefault`, String(TABLES[l]['model.zumiDefault']));
+  // alpha.12: the owner saw "Model from this PC" in English in a VI app; a real user model is named by key too (label = English fallback)
+  ok(u.labelKey === 'model.fromThisPc' && u.label === 'Model from this PC', 'models-core: a real user model carries labelKey model.fromThisPc (label stays the English fallback)', JSON.stringify(u));
+  const WANT = { 'model.zumiDefault': { en: 'Zumi default', vi: 'Zumi mặc định' }, 'model.fromThisPc': { en: 'Model from this PC', vi: 'Model từ máy này' } };
+  for (const [k, want] of Object.entries(WANT)) for (const l of ['en', 'vi', 'zh']) ok(typeof TABLES[l][k] === 'string' && TABLES[l][k].trim() !== '' && (!want[l] || TABLES[l][k] === want[l]), `i18n ${l}: ${k}`, String(TABLES[l][k]));
   const tr = (k) => TABLES.vi[k];
-  ok(typeof modelLabel === 'function' && modelLabel(d, tr) === 'Zumi mặc định' && modelLabel(u, tr) === 'Model from this PC', 'renderer modelLabel(): translated for the default, host label otherwise');
+  ok(typeof modelLabel === 'function' && modelLabel(d, tr) === 'Zumi mặc định' && modelLabel(u, tr) === 'Model từ máy này', 'renderer modelLabel(): VI paints both user-slot labels', `${modelLabel(d, tr)} | ${modelLabel(u, tr)}`);
+  ok(modelLabel({ label: 'Second model' }, tr) === 'Second model', 'renderer modelLabel(): a bundled model with no key keeps its host label');
   ok(/modelLabel\(m, t\)/.test(read('src/renderer/app.js')), 'app.js paints the dropdown option through modelLabel()');
 }
 

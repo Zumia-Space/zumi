@@ -10,6 +10,11 @@ const ALLOW = {
   'scripts/check-kokoro-tts.mjs': 'real Kokoro model latency measurement; needs the model weights and a quiet CPU, not a pass/fail gate',
   'scripts/check-mouth-sync.mjs': 'measurement on real Kokoro-synthesized WAV bytes; needs the model weights',
   'scripts/check-speech-stream.mjs': 'needs headless Chromium (playwright-core) and a real AudioContext; run by hand',
+  'scripts/check-fix-round-mutations.mjs': 'mutation proofs for the renderer-side fix-round checks: edits repo files in place (restored by sha256), run by hand',
+  'scripts/check-room-live-real.mjs': 'the real app run of the live 3D room (live, A1, A3, video rooms, shots): built owner payload, the spare box and the HEAVY lock',
+  'scripts/check-stage-guest.mjs': 'real-guest N1-N7 run: needs a built app payload, the spare box and the HEAVY lock (room-live-b bridge RESULT.md)',
+  'scripts/check-stage-guest-mutations.mjs': 'mutation proofs for the real-guest tests: builds the app per mutation (about 30 min), HEAVY lock',
+  'scripts/check-stage-mutations.mjs': 'host mutation proofs: one cargo build + test run per mutation (about 35 min), HEAVY lock',
   'scripts/check-toe-gap-offline.mjs': 'takes a saved sweep directory as an argument; not runnable without input',
 };
 

@@ -83,6 +83,9 @@ const voiced = (o = {}) => ({ sayId: 's1', kind: 'ask', text: 'A task needs your
   const p = h.say.onSay(voiced());
   await tick(5);
   ok(h.log.tts.length === 1 && h.log.tts[0].sayId === 's1' && h.log.tts[0].text === 'A task needs your answer.', 'line: a voiced line is synthesised with its sayId (main authorises it by id)', h.log.tts);
+  // T-31-MAUS A2: the voice routes refuse a turn id that is not 128-bit hex (the local Windows voice answered `turnId must be 128-bit hex`
+  // to the scheduler's `say-<n>-<time>` id, so no proactive line was ever spoken without Kokoro). The line's own id is only its authorisation.
+  ok(/^[0-9a-f]{32}$/.test(h.log.tts[0].turnId) && h.log.tts[0].turnId !== h.log.tts[0].sayId, 'line: the synthesis turn id is a fresh 128-bit hex id, never the scheduler sayId', h.log.tts[0]);
   ok(h.log.line[0].text === 'Avatar needs your answer: pick a level.' && h.log.line[0].ms >= 1500 + 800, 'line: the SUBTITLE shows the full text and lasts the audio length plus a tail', h.log.line[0]);
   ok(h.log.gestures.length === 1 && h.log.gestures[0].id === 'cmd-point-screen' && h.log.gestures[0].source === 'speech', 'line: the mood plays a speech-library gesture', h.log.gestures);
   ok(h.log.ack[0].spoken === true && h.log.ack[0].reason === 'spoken', 'line: acked as spoken once playback starts');
@@ -124,9 +127,11 @@ const voiced = (o = {}) => ({ sayId: 's1', kind: 'ask', text: 'A task needs your
   // streamed sentence 2+ (Kokoro): chunks before and after the start are appended, and the whole line is cached
   const h = makeHarness();
   const p = h.say.onSay(voiced({ sayId: 'k1', text: 'Hello. Again.' }));
-  h.moreHandlers.get('k1')(new Uint8Array([9])); // arrives before tts resolves
+  const turnKey = [...h.moreHandlers.keys()][0];
+  ok(/^[0-9a-f]{32}$/.test(turnKey), 'stream: the chunk subscription is keyed by the hex turn id', turnKey);
+  h.moreHandlers.get(turnKey)(new Uint8Array([9])); // arrives before tts resolves
   await tick(5);
-  h.moreHandlers.get('k1')(new Uint8Array([8])); // arrives while playing
+  h.moreHandlers.get(h.log.tts[0].turnId)(new Uint8Array([8])); // arrives while playing: the same id the synthesis carries
   h.finishPlayback('ended');
   await p;
   ok(h.log.appended.length === 2, 'stream: sentence 2+ chunks are appended, whether they arrive before or after playback starts', h.log.appended);
@@ -307,6 +312,9 @@ class FakeEl {
   ok(/id="talk-mute-menu"[^>]*role="menu"[^>]*\bhidden\b/.test(toolbar), 'markup: the menu is role=menu and starts hidden');
   ok(['hour', 'tomorrow'].every((a) => toolbar.includes(`data-action="${a}"`)) && ['off', 'quiet', 'normal', 'chatty'].every((l) => new RegExp(`role="menuitemradio"[^>]*data-level="${l}"`).test(toolbar)), 'markup: the menu offers 1 hour, until tomorrow and the four levels (radio)');
   ok(/id="say-line"[^>]*aria-live="polite"[^>]*\bhidden\b/.test(html), 'markup: #say-line is an aria-live subtitle, hidden until used');
+  // alpha.12: the Zumi toolbar wraps; a faded reflex chip that kept its width pushed the Room picker to a second row at 1296 px
+  const appSrc = read('src/renderer/app.js');
+  ok(/id="reflex-chip"[^>]*\bhidden\b/.test(toolbar) && /chip\.hidden = false;[\s\S]{0,200}chip\.classList\.add\('show'\)/.test(appSrc) && /chip\.classList\.remove\('show'\);[^\n]*chip\.hidden = true;/.test(appSrc), 'markup + app.js: #reflex-chip takes no toolbar space between reactions (hidden after its fade)');
   const css = read('src/renderer/styles.css');
   ok(/#talk-mute\.muted/.test(css) && /#talk-mute\.off/.test(css) && /\.say-line/.test(css) && /\.mute-menu\[hidden\]/.test(css), 'styles: muted / off states, the menu and the subtitle are styled');
   const pre = read('src/main/preload.js');
