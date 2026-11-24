@@ -678,7 +678,7 @@ a.wk-code.code { padding: 1px 4px; text-align: center; }
    thread box (the column's 10px gap would shift the text under a new item of its own), so showing it moves no text. */
 .new-above { position: sticky; top: 8px; z-index: 6; height: 0; display: flex; justify-content: center; overflow: visible; }
 .new-above .btn { position: relative; margin-top: 2px; border-radius: 999px; padding: 4px 14px; box-shadow: 0 6px 18px #0008; }
-/* Pi2 note (1920): the pill sat on the first text line, cutting words in half. A thin band across the thread behind it (the
+/* Review note (1920): the pill sat on the first text line, cutting words in half. A thin band across the thread behind it (the
    card's colour, mostly opaque, fading out below) makes the line under it read as covered, not as broken text; still no reflow. */
 .new-above::before { content: ''; position: absolute; left: -14px; right: -14px; top: -8px; height: 48px; pointer-events: none;
   background: linear-gradient(color-mix(in srgb, var(--card) 92%, transparent) 70%, transparent); backdrop-filter: blur(2px); }
