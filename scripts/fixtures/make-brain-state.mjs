@@ -35,7 +35,7 @@ const rev = (taskId, stepId) => board.state.steps[`${taskId}/${stepId}`].rev;
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 w('task.create', 'T-31', {
-  title: 'Zumi agent: Brain panel (memory + task library)', status: 'doing', lane: 'Pi CoS', health: 'yellow', order: 1,
+  title: 'Zumi agent: Brain panel (memory + task library)', status: 'doing', lane: 'CoS', health: 'yellow', order: 1,
   goal: 'Let anh read every task and its dossier inside the app, with plan, diagram and media, and manage memory in the same panel.',
   now: '27-10 18:20: library and detail built against the board state; diagrams next.',
   next: 'Memory list against the fixture, then the three read-only host calls behind the CoS gate.',
@@ -67,7 +67,7 @@ w('task.create', 'T-31', {
   },
 });
 w('task.create', 'F-04', {
-  title: 'Wardrobe: outfit round 4', status: 'waiting', lane: 'Vesta', health: 'green', order: 2,
+  title: 'Wardrobe: outfit round 4', status: 'waiting', lane: 'Worker B', health: 'green', order: 2,
   goal: 'Pick the final look for outfit round 4.', now: 'Round 4 looks are ready; waiting for anh.',
   dossier: 'D:/data/notes/f04/round4/DOSSIER.md',
   steps: [
@@ -75,10 +75,10 @@ w('task.create', 'F-04', {
     { id: 'r4-pick', label: 'Round 4 looks ready for review', zone: 'owner', state: 'waiting' },
   ],
 });
-w('task.create', 'C-52', { title: 'Content factory: crawl + classify', status: 'doing', lane: 'Pi', health: 'green', order: 3, steps: [{ id: 'gate', label: 'Quality gate on 40 drafts', zone: 'test', state: 'active' }] });
-w('task.create', 'H-03', { title: 'Hunter: job review board', status: 'doing', lane: 'Pi', health: 'red', order: 4, steps: [{ id: 'scan', label: 'Link scanner pass', zone: 'build', state: 'blocked' }] });
-w('task.create', 'P-02', { title: 'Tidewell Tours: schedule page', status: 'paused', lane: 'Pi', health: 'grey', order: 5, steps: [{ id: 'page', label: 'Schedule page', zone: 'build', state: 'todo' }] });
-w('task.create', 'Z-09', { title: 'Old: release 0.2.10 notes', status: 'closed', lane: 'Pi', health: 'green', order: 6, steps: [{ id: 'notes', label: 'Release notes', zone: 'ship', state: 'done' }] });
+w('task.create', 'C-52', { title: 'Content factory: crawl + classify', status: 'doing', lane: 'Worker A', health: 'green', order: 3, steps: [{ id: 'gate', label: 'Quality gate on 40 drafts', zone: 'test', state: 'active' }] });
+w('task.create', 'H-03', { title: 'Hunter: job review board', status: 'doing', lane: 'Worker A', health: 'red', order: 4, steps: [{ id: 'scan', label: 'Link scanner pass', zone: 'build', state: 'blocked' }] });
+w('task.create', 'P-02', { title: 'Tidewell Tours: schedule page', status: 'paused', lane: 'Worker A', health: 'grey', order: 5, steps: [{ id: 'page', label: 'Schedule page', zone: 'build', state: 'todo' }] });
+w('task.create', 'Z-09', { title: 'Old: release 0.2.10 notes', status: 'closed', lane: 'Worker A', health: 'green', order: 6, steps: [{ id: 'notes', label: 'Release notes', zone: 'ship', state: 'done' }] });
 
 w('step.update', 'T-31/diagrams', { state: 'waiting' }, { expected_revision: rev('T-31', 'diagrams') });
 w('step.update', 'T-31/diagrams', { state: 'active' }, { expected_revision: rev('T-31', 'diagrams') });

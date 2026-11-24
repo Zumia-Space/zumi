@@ -1,0 +1,8 @@
+{
+  "name": "mcp-weather",
+  "model": "mock/loop-v1",
+  "turns": [
+    { "text": "Asking the weather tool.", "tool_calls": [{ "name": "mcp.fixture.get_weather", "args": { "city": "{{city}}" } }], "usage": { "in": 300, "out": 40 } },
+    { "text": "{{result.mcp.fixture.get_weather.text}}", "usage": { "in": 360, "out": 20 } }
+  ]
+}

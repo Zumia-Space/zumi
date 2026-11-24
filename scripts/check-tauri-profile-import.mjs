@@ -16,7 +16,7 @@ import crypto from 'node:crypto';
 const ROOT = path.resolve(import.meta.dirname, '..');
 let fail = 0;
 const ok = (cond, name, detail = '') => { if (!cond) fail++; console.log(`${cond ? 'PASS' : 'FAIL'} ${name}${!cond && detail ? '  ' + detail : ''}`); };
-const tmp = fs.mkdtempSync(path.join(process.env.CHECK_TMP_BASE || os.tmpdir(), 'zumi-pi-'));
+const tmp = fs.mkdtempSync(path.join(process.env.CHECK_TMP_BASE || os.tmpdir(), 'zumi-profile-import-'));
 process.on('exit', () => { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* temp only */ } });
 
 let mod;

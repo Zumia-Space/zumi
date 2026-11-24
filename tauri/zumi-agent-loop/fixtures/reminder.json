@@ -1,0 +1,8 @@
+{
+  "name": "reminder",
+  "model": "mock/loop-v1",
+  "turns": [
+    { "text": "Setting the reminder.", "tool_calls": [{ "name": "reminder.add", "args": { "text": "{{text}}", "time": "{{time}}" } }], "usage": { "in": 380, "out": 40 } },
+    { "text": "Done: the reminder is set.", "usage": { "in": 430, "out": 12 } }
+  ]
+}

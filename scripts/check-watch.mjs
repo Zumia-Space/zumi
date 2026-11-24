@@ -275,7 +275,7 @@ function harness({ cad = {}, settings = {}, memo = null, clock = { t: T0 }, stat
   const owner = b.ownerCredential;
   let n = 0;
   const w = (op, target_id, data, extra = {}) => b.write(owner, { version: 1, request_id: `check-watch-${++n}`, op, target_id, data, ...extra });
-  w('task.create', 'T-31', { title: 'Zumi desktop app', status: 'doing', lane: 'Pi', steps: Array.from({ length: 5 }, (_, i) => ({ id: `s${i}`, label: `step ${i}`, zone: 'build', state: 'active' })) });
+  w('task.create', 'T-31', { title: 'Zumi desktop app', status: 'doing', lane: 'Worker A', steps: Array.from({ length: 5 }, (_, i) => ({ id: `s${i}`, label: `step ${i}`, zone: 'build', state: 'active' })) });
   const results = [];
   const core = createAgentCore({
     dataDir: path.join(root, 'scratch-core'), settings: () => ({ talkLevel: 'normal' }), saveSettings: (p) => p,

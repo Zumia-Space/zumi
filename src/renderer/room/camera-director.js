@@ -58,7 +58,7 @@ const easeOutCubic = (k) => 1 - Math.pow(1 - k, 3);
 // off-frame at the new zoom.
 const CHEST_UP = { zoom: 1.45, anchor: { plateYFrac: 0.269, frameYFrac: 0.375 }, biasRight: 0 };
 // Work-view "tight over-the-shoulder" framing (coordinator round 7, NEW APPROACH B): camera stays where it is
-// (re-solving an actual new camera position needs Vesta's own fSpy/camlib pipeline, out of scope here) --
+// (re-solving an actual new camera position needs the room author's own fSpy/camlib pipeline, out of scope here) --
 // instead a further crop/zoom, same mechanism as CHEST_UP, narrows the window and biases it up AND right so
 // the painted backrest fills the lower frame (hiding everything below her shoulder blades -- round 6's whole
 // lower-body/occluder fight becomes moot, there is nothing left below the crop to occlude) while the desk/

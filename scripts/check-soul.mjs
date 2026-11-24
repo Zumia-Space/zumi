@@ -29,7 +29,9 @@ const ALPHA10_SHA = '544a497e13291c0fb9e6a45eda2c51f39adcb61fc27b75ef0a0ec5987a1
 const def = soulSystemPrompt(null);
 // owner 01-11 + 02-11: the two sentences added to alpha.10's text (address words: scripts/check-soul-address.mjs)
 // The spoken rule is the last hard rule since 02-11; RULE_TAIL rows read through it.
-const defLessRule = def.replace(`${COMPANION_RULE} `, '').replace(`${addressRule(DEFAULT_SOUL)} `, '').replace(` ${SPOKEN_RULE}`, '');
+const defLessRule = def.replace(`${COMPANION_RULE} `, '').replace(`${addressRule(DEFAULT_SOUL)} `, '').replace(` ${SPOKEN_RULE}`, '')
+  // T-31-YOKI 3.2: the auto reply-language sentence is the one alpha.10 sentence changed on purpose (pinned in section 1b below); map it back so the rest stays pinned to alpha.10.
+  .replace(soulMod.LANG_AUTO, 'Reply in the same language the owner just wrote in: English by default, Vietnamese for Vietnamese, Simplified Chinese for Chinese.');
 ok(def.split(COMPANION_RULE).length === 2 && sha(defLessRule) === ALPHA10_SHA, 'default soul text minus COMPANION_RULE == alpha.10 SYSTEM_PROMPT (sha256 pin)', sha(defLessRule));
 ok(brain.SYSTEM_PROMPT === def, 'chat-brain SYSTEM_PROMPT is the default soul text');
 ok(soulSystemPrompt(DEFAULT_SOUL) === def, 'DEFAULT_SOUL object renders the same text');
@@ -107,6 +109,10 @@ ok(JSON.parse(fs.readFileSync(path.join(dir, 'soul-history.json'), 'utf8')).leng
 ok(validateSoul({ style: 'Talk like a pirate.' }, DEFAULT_SOUL).soul.template === 'custom', 'a hand-edited style becomes template "custom"');
 ok(soulPrefs({ soul: { name: 'sk-or-v1-0123456789abcdef0123456789abcdef', replyLang: 'xx' } }).name === 'Zumi', 'a stored key-shaped value reads as the default (never sent)');
 ok(soulSystemPrompt(validateSoul({ replyLang: 'vi' }, DEFAULT_SOUL).soul).includes('Always reply in Vietnamese.'), 'replyLang vi -> fixed language sentence');
+// T-31-YOKI 3.2 (plan M3): the auto sentence follows each message; the old "English by default" sentence is gone from both texts.
+ok(soulMod.LANG_AUTO === "Reply in the language of your owner's latest message; when it is too short to tell, keep the language you were just using." && soulSystemPrompt(null).includes(soulMod.LANG_AUTO), 'owner auto reply-language sentence pinned (per-message, keeps the last language when too short)');
+ok(soulMod.LANG_AUTO_PUBLIC === "Reply in the language of the user's latest message; when it is too short to tell, keep the language you were just using." && soulSystemPrompt(null, { publicBuild: true }).includes(soulMod.LANG_AUTO_PUBLIC), 'public auto reply-language sentence pinned');
+ok(!/English by default|same language/.test(soulSystemPrompt(null) + soulSystemPrompt(null, { publicBuild: true })), 'the old auto sentence ("English by default") is gone');
 
 // Fable QC 01-11: label over value, so a value is not cut in the ~290 px Brain card (measured in alpha12-0111/shots/shots-result.json soulFit).
 ok(/\.nb-soul-row \{ display: grid; grid-template-columns: minmax\(0, 1fr\);/.test(fs.readFileSync(path.join(ROOT, 'src/renderer/next/brain/brain.css'), 'utf8')), 'Soul form rows stack the label over the value');

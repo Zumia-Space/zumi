@@ -45,7 +45,7 @@ performance.now = () => vclock;
 // a constant here. exposure/tint/tintStrength (coordinator round 2, 2026-10-05) now come from the loaded
 // room's own views.<v>.grade instead of a hand-picked constant -- GRADE is built in window.setup(), once the
 // room has actually loaded, by merging FRAMING with each view's grade (or neutral, if that view has none).
-// window.__grade=false (the --before shot) renders with NO override -- Vesta's original camera numbers, no
+// window.__grade=false (the --before shot) renders with NO override -- the room author's original camera numbers, no
 // blur, no tint, no exposure change -- for a direct comparison. Module scope: both window.setup (builds
 // CameraDirector with this as its getFramingOverride) and window.renderView (applies blur/tint/exposure when
 // compositing) need GRADE.
@@ -221,7 +221,7 @@ try {
     console.log(`wrote ${file}`);
   }
   if (arg('before-talk')) {
-    // Coordinator addendum: one extra talk shot with NO look-tuning override (Vesta's original camera, no blur,
+    // Coordinator addendum: one extra talk shot with NO look-tuning override (the room author's original camera, no blur,
     // no tint) for a direct before/after comparison against the graded default above.
     const dataUrl = await page.evaluate(async (v) => { window.__grade = false; const d = await window.renderView(v); window.__grade = true; return d; }, 'talk');
     const file = path.join(outDir, `${tag}talk-before.png`);

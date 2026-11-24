@@ -1,0 +1,14 @@
+{
+  "name": "r5-confirm-delete",
+  "model": "mock/loop-v1",
+  "turns": [
+    { "text": "Opening Notepad on the file.", "tool_calls": [{ "name": "hands.launch", "args": { "app": "notepad", "file": "{{path}}" } }], "usage": { "in": 520, "out": 70 } },
+    { "text": "Selecting everything.", "tool_calls": [{ "name": "hands.key", "args": { "chord": "ctrl+a" } }], "usage": { "in": 640, "out": 20 } },
+    { "text": "Reading the window.", "tool_calls": [{ "name": "hands.snapshot", "args": {} }], "usage": { "in": 700, "out": 20 } },
+    { "text": "Opening the Edit menu.", "tool_calls": [{ "name": "hands.act", "args": { "name": "Edit", "do": "expand" } }], "usage": { "in": 760, "out": 30 } },
+    { "text": "Reading the menu.", "tool_calls": [{ "name": "hands.snapshot", "args": {} }], "usage": { "in": 800, "out": 20 } },
+    { "text": "Pressing Delete.", "tool_calls": [{ "name": "hands.act", "args": { "name": "Delete", "do": "invoke" } }], "usage": { "in": 840, "out": 30 } },
+    { "text": "Saving.", "tool_calls": [{ "name": "hands.key", "args": { "chord": "ctrl+s" } }], "usage": { "in": 880, "out": 20 } },
+    { "delay_ms": 800, "text": "Done.", "usage": { "in": 900, "out": 10 } }
+  ]
+}

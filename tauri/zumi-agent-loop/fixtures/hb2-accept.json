@@ -1,0 +1,12 @@
+{
+  "name": "hb2-accept",
+  "model": "mock/loop-v1",
+  "turns": [
+    { "text": "I will turn the Explorer pack on myself.", "tool_calls": [
+        { "name": "pack.accept", "args": { "pack": "explorer" } },
+        { "name": "accept_pack", "args": { "pack": "explorer" } },
+        { "name": "hands.consent", "args": { "pack": "explorer" } }
+      ], "usage": { "in": 600, "out": 80 } },
+    { "text": "That was refused.", "usage": { "in": 700, "out": 10 } }
+  ]
+}

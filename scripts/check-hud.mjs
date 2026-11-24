@@ -53,7 +53,7 @@ const ask = (id, rev = 1, task = 'F-04', text = `Pick a look\n[sheet](https://ev
 
 // The panel fields (T-31 hud-panels, PLAN section 2): one task in the REAL board shape -- step ids carry the
 // `TASK/STEP` key the projection stores (vendor/laneboard/src/ops.mjs), roles come from resolveRoles.
-function panelState({ stepCount = 3, times, goal, now, health = 'yellow', lane = 'Pi CoS', asks = [] } = {}) {
+function panelState({ stepCount = 3, times, goal, now, health = 'yellow', lane = 'CoS', asks = [] } = {}) {
   const steps = Array.from({ length: stepCount }, (_, i) => ({
     id: `T-31/s${i}`, label: `Step ${i}`, sub: i === 1 ? 'half (50,4%)' : '', state: i === 0 ? 'done' : i === 1 ? 'active' : 'todo',
   }));
@@ -91,7 +91,7 @@ function panelState({ stepCount = 3, times, goal, now, health = 'yellow', lane =
   ok(Object.entries(types).every(([k, ty]) => typeof base[k] === ty) && Array.isArray(base.steps) && Array.isArray(base.log) && Array.isArray(base.doneAts),
     'panel: every section-2 row field exists with the right type', Object.fromEntries(Object.entries(types).map(([k]) => [k, typeof base[k]])));
 
-  ok(base.goal === 'Ship the panels' && base.now === '22-10 15:55: wiring' && base.health === 'yellow' && base.lane === 'Pi CoS',
+  ok(base.goal === 'Ship the panels' && base.now === '22-10 15:55: wiring' && base.health === 'yellow' && base.lane === 'CoS',
     'panel: goal / now / health / lane come from the task row', { goal: base.goal, now: base.now, health: base.health, lane: base.lane });
   ok(base.roles.code === 'deepseek' && base.roles.review === 'opus' && Object.keys(base.roles).length === 2,
     'panel: roles carry exactly the code and review model names', base.roles);

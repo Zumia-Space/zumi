@@ -1,0 +1,72 @@
+[package]
+name = "zumi-stt"
+version = "0.0.1"
+description = "T-31-MAUS R4: voice in (dictation). One provider trait: whisper.cpp on this PC, or an API the user chose (Fish, ElevenLabs, DeepSeek, OpenAI, Groq). Push-to-talk hotkey. No tauri dependency"
+authors = ["Zumia Space"]
+edition = "2021"
+rust-version = "1.90"
+license = "AGPL-3.0-only"
+publish = false
+
+# Rule 3.7 (no new crate): crates of this repository (zumi-audit, zumi-egress) plus serde_json and `windows` 0.62, all already in
+# tauri/src-tauri/Cargo.lock; scripts/check-zumi-hands-lock.mjs (pass this crate's lock as argument 1) proves the subset.
+[dependencies]
+serde_json = "1"
+# First-use install of the local engine (install.rs): the pinned sha256 of each download, and the redirect address of a CDN.
+sha2 = "0.10"
+url = "2"
+# The child-handle fix (Windows CreateProcess hands a child every inheritable handle): `inherit::private_std_handles`.
+zumi-audit = { path = "../zumi-audit" }
+# The one door for outbound HTTP. The API engines go through it: the origin of the engine the user chose is the only one added.
+zumi-egress = { path = "../zumi-egress" }
+
+[dev-dependencies]
+zumi-egress = { path = "../zumi-egress", features = ["fixture"] }
+
+[features]
+# The fake whisper.cpp CLI for tests and goal harnesses (not part of the app).
+fixture = []
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  # push-to-talk: RegisterHotKey, GetAsyncKeyState (release), SendInput (tests).
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+  # the tests read a handle's inherit flag.
+  "Win32_System_Console",
+  # the fake whisper CLI reports its priority class; the local engine opens a process to see if it still runs.
+  "Win32_System_Threading",
+  # the local engine's job object (kill the CLI's whole tree) and the thread list used to start it only once it is inside.
+  "Win32_System_JobObjects",
+  "Win32_Security",
+  "Win32_System_Diagnostics_ToolHelp",
+] }
+
+[[bin]]
+name = "fake-whisper-cli"
+path = "src/bin/fake-whisper-cli.rs"
+required-features = ["fixture"]
+
+[profile.release]
+codegen-units = 1
+
+[[test]]
+name = "install"
+path = "tests/install.rs"
+required-features = ["fixture"]
+
+[[test]]
+name = "local"
+path = "tests/local.rs"
+required-features = ["fixture"]
+
+[[test]]
+name = "t58"
+path = "tests/t58.rs"
+required-features = ["fixture"]
+
+[[test]]
+name = "service"
+path = "tests/service.rs"
+required-features = ["fixture"]

@@ -1,0 +1,9 @@
+{
+  "name": "reminder-inject",
+  "model": "mock/loop-v1",
+  "turns": [
+    { "text": "Opening Notepad.", "tool_calls": [{ "name": "hands.launch", "args": { "app": "notepad" } }], "usage": { "in": 400, "out": 30 } },
+    { "text": "The window says to set this reminder.", "tool_calls": [{ "name": "reminder.add", "args": { "text": "{{text}}", "time": "{{time}}" } }], "usage": { "in": 500, "out": 50 } },
+    { "text": "Done.", "usage": { "in": 560, "out": 8 } }
+  ]
+}

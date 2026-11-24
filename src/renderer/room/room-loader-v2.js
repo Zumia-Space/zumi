@@ -2,7 +2,7 @@
 // descriptor -- already validated by the main process (src/main/room-check.mjs's checkRoomJsonV2, same "main
 // process gates, renderer trusts and just reads" split v1's loadRoom()/room-check.mjs already use; this module
 // imports NOTHING from src/main -- that file touches node:fs/node:crypto, which esbuild's browser-platform
-// bundle cannot resolve). This is VESTA'S REAL v2-B SCHEMA: no .glb SCENE (the room itself is a painted PLATE
+// bundle cannot resolve). This is THE ROOM AUTHOR'S REAL v2-B SCHEMA: no .glb SCENE (the room itself is a painted PLATE
 // image per view), but occluders come from one shared .glb of named, depth-only meshes (`model`), picked per
 // view by node name. Each view carries its OWN zumi_seat and camera -- views are NOT geometrically consistent
 // with each other (separate paintings, separate local origins) -- and may carry its own `lights` (round 3).
@@ -84,7 +84,7 @@ function loadGltf(url) { return gltfLoader.loadAsync(url); }
 // onto its own plane), not solid boxes -- a single-sided plane would stop occluding once the camera crosses it.
 function occluderMaterial() { return new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: true, side: THREE.DoubleSide }); }
 
-// Vesta's real v2-B light shapes: 'directional' {color, toward}, 'point' {color, position, distance?, decay?},
+// the room author's real v2-B light shapes: 'directional' {color, toward}, 'point' {color, position, distance?, decay?},
 // 'hemisphere' {skyColor, groundColor} (three.js's own HemisphereLight shape, used as-is, no `color` field).
 function buildLight(spec) {
   if (spec.type === 'hemisphere') return new THREE.HemisphereLight(new THREE.Color(spec.skyColor), new THREE.Color(spec.groundColor), spec.intensity);

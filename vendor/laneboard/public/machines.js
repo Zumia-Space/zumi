@@ -15,7 +15,7 @@
   'use strict';
   const MACHINES = {
     main: { id: 'main', label: 'Máy 1', nick: 'main', lanes: [], reach: 'local session (Agent tool)' },
-    spare: { id: 'spare', label: 'Máy 2', nick: 'spare', lanes: ['pi2', 'vesta2'], reach: 'mail lane (pi2 / vesta2)' },
+    spare: { id: 'spare', label: 'Máy 2', nick: 'spare', lanes: ['worker-a', 'worker-b'], reach: 'mail lane (worker-a / worker-b)' },
     laptop: { id: 'laptop', label: 'Máy 3', nick: 'laptop', lanes: [], reach: 'ssh + worktree + claude -p (or mail cos with the brief)' }
   };
   const MACHINE_IDS = Object.keys(MACHINES);

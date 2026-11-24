@@ -16,7 +16,7 @@ const ok = (cond, name, detail) => { if (cond) { pass++; console.log(`PASS ${nam
   ok(JSON.stringify(PANEL_DESIGNS) === '["none","t1","t2","t3"]' && JSON.stringify(PANEL_PLACES) === '["inplace","below-left","below-right"]',
     'prefs: the three designs (plus none) and the three places, in the plan\'s order', { PANEL_DESIGNS, PANEL_PLACES });
   ok(DEFAULT_PANEL.design === 't1' && DEFAULT_PANEL.place === 'inplace',
-    'prefs: the default is T1, in place (Pi decision, PLAN section 10)', DEFAULT_PANEL);
+    'prefs: the default is T1, in place (lead decision, PLAN section 10)', DEFAULT_PANEL);
   ok(PANEL_PREF_KEY === 'zumi.hud.panel', 'prefs: the localStorage key is the one the plan/Tauri note names', PANEL_PREF_KEY);
 
   const def = resolvePanel(null);

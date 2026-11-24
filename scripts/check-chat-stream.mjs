@@ -871,5 +871,81 @@ for (const [aEnds, aMs, bMs] of [['resolves', 200, 600], ['rejects', 200, 600], 
   }
 }
 
+// ---------- 5c. barge-in aborts the LLM stream (T-31-ROOM-live-b P1 item 3) ----------
+// Before: only a timeout aborted the request (chat-brain streamChat). A barge-in stopped playback and Kokoro but the
+// request kept streaming, kept being charged, and its tokens kept reaching the voice and the stored reply. Now the
+// turn id owns the stream's AbortController: abortTurn(turnId) -> request aborted, no further token is pushed or kept.
+{
+  const turnA = 'ab'.repeat(16);
+  const brain = brainFor();
+  ok(typeof brain.abortTurn === 'function' && typeof CB.abortTurn === 'function', 'barge-in: chat-brain exposes abortTurn(turnId), on the brain and on the module');
+  // A body that IGNORES the signal and keeps yielding: a chunk already buffered when the abort lands must still be dropped.
+  const seenSignal = [];
+  let yieldedAfterAbort = 0;
+  const stubborn = (opts) => ({
+    ok: true, status: 200,
+    body: (async function* () {
+      let i = 0;
+      const words = ['[explain] One', ' two', ' three', ' four', ' five', ' six', ' seven', ' eight', ' nine', ' ten', ' eleven', ' twelve'];
+      for (const d of words) {
+        await sleep(30);
+        if (opts.signal.aborted) yieldedAfterAbort++;
+        yield sse({ provider: 'Baidu', choices: [{ delta: { content: d } }] });
+        i++;
+      }
+      yield enc.encode('data: [DONE]\n\n');
+    })(),
+  });
+  bodies.length = 0; logs.length = 0;
+  script = [(_b, opts) => { seenSignal.push(opts.signal); return stubborn(opts); }];
+  const { head, live } = await brain.turnStream({ turnId: turnA, message: 'Count to twelve', history: [] });
+  ok(head.ok && head.streaming === true && live, 'barge-in: the streamed head arrived before the abort');
+  const pushes = [];
+  live.onText((t) => pushes.push(t));
+  await sleep(100);
+  const textAtAbort = live.text();
+  const pushesAtAbort = pushes.length;
+  const aborted = typeof brain.abortTurn === 'function' ? brain.abortTurn(turnA) : false;
+  ok(aborted === true, 'barge-in: abortTurn on a live turn answers true');
+  ok(seenSignal[0] && seenSignal[0].aborted === true, 'barge-in: the request\'s own AbortSignal is aborted (the HTTP request is cut, not left running)');
+  const fin = await live.final;
+  await sleep(450); // the body keeps yielding for ~360 ms more: none of it may arrive
+  ok(!fin.ok && fin.error === 'aborted', 'barge-in: the final reply says aborted', JSON.stringify(fin));
+  ok(live.text() === textAtAbort && (fin.reply === textAtAbort || fin.reply === textAtAbort.trim()), 'barge-in: no token after the abort is kept (stored text == text at the abort)', JSON.stringify({ textAtAbort, final: fin.reply, now: live.text() }));
+  ok(pushes.length === pushesAtAbort, 'barge-in: no token after the abort is pushed to the voice/text subscribers', JSON.stringify({ pushesAtAbort, now: pushes.length }));
+  ok(yieldedAfterAbort > 0, 'barge-in negative control: the stub DID keep producing tokens after the abort (so the drop above is chat-brain\'s doing)', String(yieldedAfterAbort));
+  ok(bodies.length === 1, 'barge-in: no retry and no non-streamed fallback after an abort', JSON.stringify({ calls: bodies.length }));
+  ok(logs.some((l) => /turn aborted \(barge-in\)/.test(l)) && !logs.some((l) => /stream broke|falling back/.test(l)), 'barge-in: logged as an abort, not as a broken stream or a fallback', JSON.stringify(logs.slice(-3)));
+  ok(await Promise.race([live.checked, sleep(200).then(() => 'pending')]) === null, 'barge-in: no Check call runs on an aborted reply');
+  ok((typeof brain.abortTurn === 'function' ? brain.abortTurn(turnA) : true) === false, 'barge-in: a second abortTurn for the same finished turn answers false (registry cleaned)');
+  ok((typeof brain.abortTurn === 'function' ? brain.abortTurn('ff'.repeat(16)) : true) === false, 'barge-in: abortTurn for an unknown turn answers false');
+}
+{
+  // Abort BEFORE the first clause: the head resolves as aborted, no live, no second call, no fallback.
+  const turnB = 'cd'.repeat(16);
+  const brain = brainFor();
+  bodies.length = 0; logs.length = 0;
+  let sig = null;
+  script = [(_b, opts) => { sig = opts.signal; return { ok: true, status: 200, body: timedBody(opts.signal, [{ wait: 400, content: '[agree] Late.' }, { raw: enc.encode('data: [DONE]\n\n') }]) }; }];
+  const p = brain.turnStream({ turnId: turnB, message: 'x', history: [] });
+  await sleep(60);
+  const aborted = typeof brain.abortTurn === 'function' ? brain.abortTurn(turnB) : false;
+  const r = await p;
+  ok(aborted === true && sig && sig.aborted === true, 'barge-in before the head: the request is aborted');
+  ok(!r.head.ok && r.head.error && r.head.error.code === 'aborted' && r.live === null, 'barge-in before the head: the head is a plain aborted failure, no live reply', JSON.stringify(r.head));
+  ok(bodies.length === 1 && !logs.some((l) => /falling back/.test(l)), 'barge-in before the head: no non-streamed fallback is started', JSON.stringify({ calls: bodies.length, logs }));
+}
+{
+  // Wiring: the barge-in IPC (renderer -> main / sidecar) reaches chat-brain.
+  const mainSrc = fs.readFileSync(path.join(ROOT, 'src/main/main.js'), 'utf8');
+  const h = /ipcMain\.handle\('talk:ttsAbandon'[\s\S]*?\n\}\);/.exec(mainSrc);
+  ok(h && /chatBrain\.abortTurn\(/.test(h[0]), 'barge-in wiring (Electron): talk:ttsAbandon also aborts the chat stream');
+  const sideSrc = fs.readFileSync(path.join(ROOT, 'tauri/sidecar/main.mjs'), 'utf8');
+  const s = /'talk\.ttsAbandon':[\s\S]*?voice\.handlers\['talk\.ttsAbandon'\]\(p\)/.exec(sideSrc);
+  ok(s && /abortTurn\(/.test(s[0]), 'barge-in wiring (Tauri sidecar): talk.ttsAbandon also aborts the chat stream');
+  const hostSrc = fs.readFileSync(path.join(ROOT, 'tauri/sidecar/chat-host.mjs'), 'utf8');
+  ok(/abortTurn/.test(hostSrc), 'barge-in wiring (Tauri sidecar): chat-host exposes abortTurn');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

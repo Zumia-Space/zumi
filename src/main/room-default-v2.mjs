@@ -1,7 +1,7 @@
 // Default-room-v2 validation + copy-on-success (T-31 camera modes, coordinator final ruling 03-10: "make v2-B
 // the bundled default room the same way the current default is handled -- copied by sha into Zumi-data,
 // room-check validated"). Mirrors room-default.mjs's v1 pattern exactly (same reasoning: the install waits on
-// this; a bad re-export at Vesta's own live path can't change what the owner sees until it passes the checker
+// this; a bad re-export at the room author's own live path can't change what the owner sees until it passes the checker
 // again) -- a SEPARATE module, not a shared abstraction with v1, because v1 copies exactly one file (room.glb)
 // while v2 copies a JSON plus a variable set of assets it references (occluders.glb, N plate images), and
 // forcing those two shapes through one function would cost more than the few lines of overlap save.
@@ -16,7 +16,7 @@ import { checkRoomJsonFile, roomContentId } from './room-check.mjs';
 export function createDefaultRoomV2Cache() { return { entry: null }; }
 
 /** Runs the v2 checker on `jsonPath`, skipping the (re)run when the file's size+mtime match the cached entry
- *  (same cache-key granularity as v1 -- a plate-only edit with room.json untouched is not detected; Vesta's own
+ *  (same cache-key granularity as v1 -- a plate-only edit with room.json untouched is not detected; the room author's own
  *  pipeline regenerates room.json alongside new plates, same precedent v1 already accepts for its one file). */
 export function checkDefaultRoomV2Cached(cache, jsonPath) {
   let stat;
@@ -34,7 +34,7 @@ export function checkDefaultRoomV2Cached(cache, jsonPath) {
 }
 
 /** Finds an asset room.json references (occluders.glb, a plate) -- first beside room.json, then one directory
- *  up. Vesta's real, FINAL v2-B room ships room.json in out/ but its plates one level up (confirmed, pinned
+ *  up. the room author's real, FINAL v2-B room ships room.json in out/ but its plates one level up (confirmed, pinned
  *  shas, coordinator 2026-10-03); this does not assume a future room uses the same layout, it just tries both,
  *  nearest first, and preserves whatever relative path (incl. a subfolder, e.g. "plates/talk.png") room.json
  *  itself gives when writing the copy -- so the copy's own room.json (served byte-for-byte, unmodified) still
