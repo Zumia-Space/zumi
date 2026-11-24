@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/nudge.clear.json",
+  "title": "data for nudge.clear",
+  "description": "The board's own task supervisor (src/supervisor.mjs) closes an escalation chain whose condition no longer holds (the lane resumed, the owner answered, the dossier was marked, the idle episode ended). Target = the chain's head; ids = the open nudges of the chain. Written only by the board itself: no role may send it.",
+  "x-roles": [],
+  "x-target": "recordId",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ids", "reason"],
+  "properties": {
+    "ids": { "type": "array", "minItems": 1, "maxItems": 10, "items": { "$ref": "../common.json#/$defs/recordId" } },
+    "reason": { "enum": ["condition_cleared", "superseded"], "description": "condition_cleared: the condition is gone; superseded: a re-nudge of the same chain replaced these open links (src/supervisor.mjs rearmCandidates)." }
+  }
+}

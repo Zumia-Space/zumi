@@ -19,6 +19,10 @@
     "id": {
       "$ref": "common.json#/$defs/taskId"
     },
+    "dossier_at": {
+      "$ref": "common.json#/$defs/timestamp",
+      "description": "J-05 dossier gate: when the task's dossier was last brought up to date (dossier.mark, written by the CLI). The supervisor's rule R5 compares it with last_activity_at."
+    },
     "rev": {
       "$ref": "common.json#/$defs/revision"
     },
@@ -110,6 +114,71 @@
     },
     "architecture": {
       "$ref": "common.json#/$defs/architecture"
+    },
+    "goal_check": {
+      "$ref": "common.json#/$defs/goalCheck"
+    },
+    "phases": {
+      "$ref": "common.json#/$defs/phases"
+    },
+    "phases_at": {
+      "$ref": "common.json#/$defs/timestamp",
+      "description": "When the phases last changed, plan or a phase state (server clock). The Now/Next text of a task with phases is stale when its phases moved after it."
+    },
+    "replans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "at",
+          "by",
+          "reason",
+          "from",
+          "to"
+        ],
+        "properties": {
+          "at": {
+            "$ref": "common.json#/$defs/timestamp"
+          },
+          "by": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "from": {
+            "type": "array",
+            "items": {
+              "$ref": "common.json#/$defs/stepId"
+            }
+          },
+          "to": {
+            "type": "array",
+            "items": {
+              "$ref": "common.json#/$defs/stepId"
+            }
+          },
+          "relabeled": {
+            "type": "array",
+            "description": "Phases kept by id whose label changed: {id, from, to}.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "from", "to"],
+              "properties": {
+                "id": { "$ref": "common.json#/$defs/stepId" },
+                "from": { "type": "string" },
+                "to": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "description": "The phase replans, oldest first: who, when, why, phase ids before and after."
     }
   }
 }

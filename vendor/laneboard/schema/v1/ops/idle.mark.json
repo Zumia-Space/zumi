@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/idle.mark.json",
+  "title": "data for idle.mark",
+  "description": "The board's own idle detector (guard B4, src/guards.mjs) opens (idle: true, the open steps) or closes (idle: false) a task's idle episode. Written only by the board itself: no role may send it.",
+  "x-roles": [],
+  "x-target": "taskId",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "idle"
+  ],
+  "properties": {
+    "idle": {
+      "type": "boolean"
+    },
+    "steps": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "$ref": "../common.json#/$defs/stepId"
+      }
+    }
+  }
+}

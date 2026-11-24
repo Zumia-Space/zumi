@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "diagram/restore.json",
+  "title": "data for diagram.restore",
+  "description": "Write a new revision whose content is revision to_rev of the attached diagram (404 rev_not_found). rev = current + 1; contentRev = current + 1 when the content differs from the current revision, else unchanged; stamps recomputed. No revision is ever deleted. Ids of to_rev that were removed since come back (a restore is not an id reuse). Reads only the to_rev blob, never the current one. Rev 2 (M1): owner (UI credential) always. Coordinator: on a pinned diagram 409 needs_owner_act (DO: diagram.propose with restore_to and a bound ask); on an unpinned diagram allowed unless it is a bulk removal (contract 3.4: more than 10 nodes or 20 edges removed by coordinator lines since the last owner act), else 409 needs_owner_act. No evidence field: an owner note never backs a restore. An owner restore that bumps contentRev writes the pointer message. Rev 3 (contract 3.7): owner-only, needs an owner device (TOTP step-up once per device); otherwise 403 owner_device_required. Rev 3: the coordinator never restores directly (403 forbidden_for_role); it proposes restore_to with a bound ask.",
+  "x-roles": [
+    "owner"
+  ],
+  "x-owner-ui": true,
+  "x-target": "taskId",
+  "x-revision": "required",
+  "x-pinned": "n/a (owner only; the coordinator proposes restore_to)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "to_rev",
+    "note"
+  ],
+  "properties": {
+    "to_rev": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "note": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "pattern": "^[^<>]*$"
+    }
+  },
+  "x-owner-only": true
+}

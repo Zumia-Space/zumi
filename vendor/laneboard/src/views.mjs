@@ -5,7 +5,10 @@ import { currentStep } from './rules.mjs';
 import { resolveRoles } from './roles.mjs';
 import { resolveMachines, withSlotMachines } from './machines.mjs';
 import { latestTurns } from './turns.mjs';
+import { progressOf, unansweredOnBoard } from './guards.mjs';
 import '../public/measure.js'; // sets globalThis.LaneMeasure (one copy for the server and the page)
+import { liveSets, windowBlock } from './window.mjs';
+import { OWNER_TZ, stepStamps, stampsLocal, ownerWaiting, waitIndex, formatLocal } from './times.mjs';
 
 const { measuredTimes: measure, askSince } = globalThis.LaneMeasure;
 
@@ -14,23 +17,65 @@ const INACTIVE = new Set(['paused', 'closed']);
 export const RECEIPT_MS = 3 * 3600000;
 const ANSWER_KINDS = new Set(['note', 'approve', 'reject', 'choice', 'redirect']);
 /** The ask an owner message answers: the one it was scoped to (unless it asked back), the one an ask.answer linked, or
- *  the first one its write closed. */
-const answeredAskOf = f => f.answers_asks?.[0] || (f.kind !== 'askback' ? f.ask_id || f.scope_ask_id : '') || '';
+ *  the first one its write closed. Owner messages only: a supervisor nudge carries the ask it is ABOUT in ask_id and answers
+ *  nothing (13-11; the same rule as legacy-compat `answered`). */
+const answeredAskOf = f => (f.attribution.created_by.role !== 'owner' ? ''
+  : f.answers_asks?.[0] || (f.kind !== 'askback' ? f.ask_id || f.scope_ask_id : '') || '');
 /** An owner message the coordinator owes a receipt for: it answered an ask, or it is a change of direction. */
 const needsReceipt = f => f.attribution.created_by.role === 'owner' && ANSWER_KINDS.has(f.kind) && (!!answeredAskOf(f) || f.kind === 'redirect');
 
+/**
+ * The coordinator's pickup of each owner message: its receipt ("Nhận", stored on the message), else the first coordinator
+ * reply or note in that message's thread (`reply <id>` with or without --keep, a `say` scoped to it). J-05 10-11: CoS answered
+ * the owner in the thread and the board still said "CoS chưa nhận". Derived on every read, so it holds for replies written
+ * before this rule and a board one release older reads the same data. { [ownerFeedbackId]: { at, by, receipt_id? | reply_id? } }
+ */
+export function pickups(state) {
+  const out = {};
+  for (const f of Object.values(state.feedback)) {
+    const by = f.attribution.created_by;
+    if (by.role !== 'owner' || by.token_id === 'system' || f.info) continue;
+    if (f.received) out[f.id] = { at: f.received.at, by: f.received.by, receipt_id: f.received.receipt_id };
+  }
+  for (const r of Object.values(state.feedback)) {
+    const by = r.attribution.created_by, m = r.reply_to && state.feedback[r.reply_to];
+    if (!m || by.role !== 'coordinator' || by.token_id === 'system' || r.info || !['reply', 'note'].includes(r.kind)) continue;
+    if (m.task_id !== r.task_id || m.attribution.created_by.role !== 'owner' || m.attribution.created_by.token_id === 'system' || m.info) continue;
+    const at = r.attribution.created_at;
+    if (!out[m.id] || (out[m.id].reply_id && at < out[m.id].at)) out[m.id] = { at, by, reply_id: r.id };
+  }
+  return out;
+}
+
+/**
+ * Who a message is from, as every surface groups it (J-05 17-11, ADR 2026-11-17): 'progress' = CoS's progress post (kind
+ * cos-report); 'system' = the board's own word (a nudge, an idle notice, any auto record such as the freshness sweep's status
+ * request, or anything the board's own token wrote); 'receipt'; 'owner'; 'cos' = every other coordinator or lane message.
+ * Decided here once; a page, the desktop app and the phone read it and never re-derive it.
+ */
+export function messageClass(f) {
+  const by = f.attribution.created_by;
+  if (f.kind === 'cos-report') return 'progress';
+  if (f.kind === 'nudge' || f.kind === 'idle' || f.auto || by.token_id === 'system') return 'system';
+  if (f.kind === 'receipt') return 'receipt';
+  return by.role === 'owner' ? 'owner' : 'cos';
+}
+
 /** Every feedback record as one message: task, scope (step / ask), kind, author, body, time, the ask it answers, the
- *  message it replies to, and the coordinator's receipt. Derived on every read from the stored records, so nothing was
- *  migrated or rewritten (and a board one release older reads the same data dir). */
-export function messagesView(state) {
+ *  message it replies to, and the coordinator's pickup (receipt or reply). Derived on every read from the stored records, so
+ *  nothing was migrated or rewritten (and a board one release older reads the same data dir). `deliveryOf` (J-05, src/delivery.mjs):
+ *  f -> its delivery state or undefined, passed only while the board tracks delivery; else no message carries a delivery field. */
+export function messagesView(state, picked = pickups(state), deliveryOf = null) {
   return Object.values(state.feedback).map(f => ({
     id: f.id, task_id: f.task_id, scope: { ...(f.step_id ? { step_id: f.step_id } : {}), ...(f.scope_ask_id || f.ask_id ? { ask_id: f.scope_ask_id || f.ask_id } : {}), ...(f.plan_id ? { plan_id: f.plan_id } : {}) },
-    kind: f.kind, author: who(f.attribution.created_by), body: f.text || '', ts: f.attribution.created_at, ...(f.info ? { info: true } : {}),
+    kind: f.kind, class: messageClass(f), author: who(f.attribution.created_by), body: f.text || '', ts: f.attribution.created_at, ...(f.info ? { info: true } : {}),
+    ...(f.tasks ? { tasks: f.tasks } : {}), // a news item's related rows (already scoped for a reporter: scopedState / history)
     answers_ask_id: answeredAskOf(f) || null, ...(f.reply_to ? { reply_to: f.reply_to } : {}), ...(f.receipt ? { receipt: f.receipt } : {}),
     // pasted images: served behind the board's own auth (owner, coordinator), never a public URL
     ...(f.attachments?.length ? { attachments: f.attachments.map(id => ({ id, name: state.attachments[id]?.name || id, mime: state.attachments[id]?.mime || '', url: `api/v1/media/${id}` })) } : {}),
-    status: f.status, ...(f.received ? { received: { at: f.received.at, by: f.received.by.name, receipt_id: f.received.receipt_id } } : {}),
-    needs_receipt: needsReceipt(f) && !f.received && f.status === 'open'
+    status: f.status, ...(picked[f.id] ? { received: { at: picked[f.id].at, by: picked[f.id].by.name, ...(picked[f.id].receipt_id ? { receipt_id: picked[f.id].receipt_id } : { reply_id: picked[f.id].reply_id }) } } : {}),
+    needs_receipt: needsReceipt(f) && !picked[f.id] && f.status === 'open',
+    ...(deliveryOf ? (d => (d ? { delivery: d } : {}))(deliveryOf(f)) : {})
   })).sort((a, b) => a.ts.localeCompare(b.ts) || a.id.localeCompare(b.id, 'en', { numeric: true }));
 }
 
@@ -62,61 +107,47 @@ export function effectiveWorker(task, routing, roles) {
 
 const who = actor => ({ name: actor.name, role: actor.role, ...(actor.lane ? { lane: actor.lane } : {}), ...(actor.model ? { model: actor.model } : {}), ...(actor.origin ? { origin: actor.origin } : {}) });
 
-/** Every owner-zone step that is waiting on the owner right now, with the time its wait began, covered by an ask or not.
- *  A step whose ask the owner already answered during this wait — or on which the owner recorded a choice, approval or
- *  rejection — is the coordinator's move, not the owner's, and is left out. */
-export function ownerStepWaits(state) {
-  const answeredAt = new Map();
-  const noteAnswer = (key, at) => { if (!(answeredAt.get(key) >= at)) answeredAt.set(key, at); };
-  for (const a of Object.values(state.asks)) if (a.status === 'answered' && a.step_id) noteAnswer(`${a.task_id}/${a.step_id}`, a.answer.at);
-  for (const f of Object.values(state.feedback)) {
-    if (f.step_id && ['choice', 'approve', 'reject', 'redirect'].includes(f.kind) && f.attribution.created_by.role === 'owner') noteAnswer(`${f.task_id}/${f.step_id}`, f.attribution.created_at);
-  }
-  const waits = [];
-  for (const s of Object.values(state.steps)) {
-    if (s.state !== 'waiting' || s.zone !== 'owner') continue;
-    const since = state.times[s.id]?.waiting_since || s.attribution.updated_at;
-    if (!(answeredAt.get(s.id) >= since)) waits.push({ step: s, since });
-  }
-  return waits;
-}
-
-/** Owner attention: every open, owner-actionable item across all lanes, oldest first. */
-export function ownerAttention(state, nowMs) {
-  const messages = messagesView(state); // the owner's replies: a re-asked question keeps its age only until the owner replies (measure.js askSince)
+/** Owner attention: every open, owner-actionable item across all lanes, oldest first. Every item carries `since_local` (dd-mm HH:mm in the
+ *  owner's zone), so a reader (the page, the Zumi agent's digest) prints the time as the board states it. The steps that wait with no ask
+ *  come from waitIndex, the same list as each task's waiting_on_owner and the CLI's waiting. */
+export function ownerAttention(state, nowMs, deliveryOf = null, { tz = OWNER_TZ, idx = waitIndex(state) } = {}) {
+  const picked = pickups(state);
   const live = id => state.tasks[id] && !INACTIVE.has(state.tasks[id].status);
   const waiting = [];
-  const covered = new Set(); // task/step pairs already represented by an ask or proposal
   for (const a of Object.values(state.asks)) {
     if (a.status !== 'open' || !live(a.task_id)) continue;
-    waiting.push({ kind: 'ask', id: a.id, task_id: a.task_id, step_id: a.step_id, ...(a.lane ? { lane: a.lane } : {}), text: a.text, options: a.options || [], rev: a.rev, from: who(a.attribution.created_by), since: askSince(a, Object.values(state.asks), messages, state.times), ...(a.asked_back ? { asked_back_at: a.asked_back.at } : {}) });
-    if (a.step_id) covered.add(`${a.task_id}/${a.step_id}`);
+    waiting.push({ kind: 'ask', id: a.id, task_id: a.task_id, step_id: a.step_id, ...(a.lane ? { lane: a.lane } : {}), text: a.text, options: a.options || [], rev: a.rev, from: who(a.attribution.created_by), since: askSince(a), ...(a.asked_back ? { asked_back_at: a.asked_back.at } : {}) });
   }
   for (const i of Object.values(state.inbox)) {
     if (i.kind !== 'ask' || i.resolution || !live(i.task_id)) continue;
     waiting.push({ kind: 'proposal', id: i.id, task_id: i.task_id, step_id: i.step_id, text: i.text, options: i.options || [], rev: i.rev, from: who(i.attribution.created_by), since: i.attribution.created_at });
-    if (i.step_id) covered.add(`${i.task_id}/${i.step_id}`);
   }
-  for (const { step: s, since } of ownerStepWaits(state)) {
-    if (!live(s.task_id) || covered.has(s.id)) continue;
+  for (const list of idx.stepsWithoutAsk.values()) for (const { step: s, since } of list) {
     waiting.push({ kind: 'step', id: s.id, task_id: s.task_id, step_id: s.id.split('/')[1], text: s.label, options: [], rev: s.rev, from: who(s.attribution.updated_by), since });
   }
   // The owner answered, the coordinator has not picked it up (no receipt, not resolved) for RECEIPT_MS: back to the owner,
   // so an answer or a change of direction cannot vanish unread.
   for (const f of Object.values(state.feedback)) {
-    if (!needsReceipt(f) || f.received || f.status !== 'open' || !live(f.task_id)) continue;
+    if (!needsReceipt(f) || picked[f.id] || f.status !== 'open' || !live(f.task_id)) continue;
     if (nowMs - Date.parse(f.attribution.created_at) < RECEIPT_MS) continue;
     waiting.push({ kind: 'unreceived', id: f.id, task_id: f.task_id, step_id: f.step_id, text: f.text || '', options: [], rev: f.rev, from: who(f.attribution.created_by), since: f.attribution.created_at, message_kind: f.kind, ...(answeredAskOf(f) ? { ask_id: answeredAskOf(f) } : {}) });
   }
+  // J-05 delivery alarm: an open owner message no agent session has received (src/delivery.mjs); the owner may wake or re-send.
+  if (deliveryOf) for (const f of Object.values(state.feedback)) {
+    if (f.status !== 'open' || !live(f.task_id)) continue;
+    const d = deliveryOf(f);
+    if (d?.state !== 'undelivered') continue;
+    waiting.push({ kind: 'undelivered', id: f.id, task_id: f.task_id, step_id: f.step_id, text: f.text || '', options: [], rev: f.rev, from: who(f.attribution.created_by), since: f.attribution.created_at, message_kind: f.kind, reason: d.reason });
+  }
   waiting.sort((a, b) => a.since.localeCompare(b.since));
-  for (const w of waiting) w.age_ms = Math.max(0, nowMs - Date.parse(w.since));
+  for (const w of waiting) { w.age_ms = Math.max(0, nowMs - Date.parse(w.since)); w.since_local = formatLocal(w.since, tz); }
   const dayAgo = nowMs - 86400000;
   const answered = Object.values(state.asks)
     .filter(a => a.status === 'answered' && Date.parse(a.answer.at) >= dayAgo)
     .map(a => {
       const f = a.answer.feedback_id ? state.feedback[a.answer.feedback_id] : Object.values(state.feedback).find(x => x.ask_id === a.id);
       return { id: a.id, task_id: a.task_id, text: a.text, choice: a.answer.choice, answer_text: a.answer.text, at: a.answer.at, ...(a.answer.kind ? { kind: a.answer.kind } : {}),
-        ...(f ? { feedback_id: f.id } : {}), ...(f?.received ? { received_at: f.received.at, next: state.feedback[f.received.receipt_id]?.receipt?.next || '' } : f && f.status !== 'open' ? { handled_at: f.resolved?.at || '' } : {}) };
+        ...(f ? { feedback_id: f.id } : {}), ...(f && picked[f.id] ? { received_at: picked[f.id].at, next: state.feedback[picked[f.id].receipt_id]?.receipt?.next || '', ...(picked[f.id].reply_id ? { replied: true } : {}) } : f && f.status !== 'open' ? { handled_at: f.resolved?.at || '' } : {}) };
     })
     .sort((a, b) => b.at.localeCompare(a.at));
   return { waiting, answered };
@@ -127,29 +158,33 @@ export const FRESHNESS_DEFAULTS = { stale_h: 24, auto_request: true };
 /**
  * The sweep's quiet rules (they only withhold the board's own request; the stale badge is unaffected):
  * no request while a lane or the coordinator wrote to the task in the last SWEEP_QUIET_MS, none between
- * 23:00 and 07:00 Asia/Ho_Chi_Minh (UTC+7, no DST), and (J-05) none for a row whose only open work waits on the
- * owner after a push in the last SWEEP_OWNER_ONLY_MS. A request due in a quiet window is dropped, not queued.
+ * 23:00 and 07:00 Asia/Ho_Chi_Minh (UTC+7, no DST), and (T-31 15-11) never one for a row whose only open item waits on the
+ * owner while no worker runs on it: only the owner's answer can move such a row, so asking its lane for a status only
+ * produced "không đổi" receipts that buried the news (the 24 h "chase" re-ask is gone). A request due in a quiet window
+ * is dropped, not queued.
  */
 export const SWEEP_QUIET_MS = 3600000;
-/** A row that only waits on the owner is left alone this long after its last push, then asked again to chase it. */
-export const SWEEP_OWNER_ONLY_MS = 24 * 3600000;
 export const sweepNight = ms => { const h = Math.floor(ms / 3600000 + 7) % 24; return h >= 23 || h < 7; };
 /** A step the owner must move: it waits in the owner zone, or an open ask sits on it. (Legacy pushes spell the owner
  *  zone 'anh'; adapt-legacy maps it to 'owner' before it is stored.) */
 const ownerPending = (state, s) => (s.state === 'waiting' && s.zone === 'owner')
   || Object.values(state.asks || {}).some(a => a.status === 'open' && a.task_id === s.task_id && a.step_id === s.id.split('/')[1]);
-/** True when the task still has open work and every open step waits on the owner (a waiting owner step, or an open ask
- *  on it). A task with no open step is not owner-only: the sweep still asks it (unchanged). */
-export const onlyOwnerPending = (state, task) => {
+/** True when the task's only open item waits on the owner and no worker runs on it: it has an open owner item (a waiting
+ *  owner step or an open ask, on a step or on the task) and every step that is not done either waits on the owner or has
+ *  not started (todo). An active step without an owner ask, a blocked step or a step waiting on a lane is other open work,
+ *  and the sweep still asks such a row. A row with no owner item is not owner-only (unchanged). */
+export const ownerOnlyIdle = (state, task) => {
   const open = task.step_ids.map(id => state.steps[`${task.id}/${id}`]).filter(s => s && s.state !== 'done');
-  return open.length > 0 && open.every(s => ownerPending(state, s));
+  const pending = open.filter(s => ownerPending(state, s));
+  const taskAsk = Object.values(state.asks || {}).some(a => a.status === 'open' && a.task_id === task.id);
+  return (pending.length > 0 || taskAsk) && open.every(s => s.state === 'todo' || ownerPending(state, s));
 };
-/** True when the sweep should leave this task alone: parked/finished, grey, written to a moment ago, or (J-05) only
- *  waiting on the owner after a push in the last SWEEP_OWNER_ONLY_MS. */
+/** True when the sweep should leave this task alone: parked/finished, grey, written to a moment ago, or (T-31 15-11)
+ *  only waiting on the owner with no worker running. */
 export const sweepSkips = (state, task, nowMs) => {
   if (INACTIVE.has(task.status) || task.health === 'grey') return true;
   const idleMs = nowMs - Date.parse(state.activity[task.id] || '1970-01-01T00:00:00Z');
-  return idleMs < SWEEP_QUIET_MS || (idleMs < SWEEP_OWNER_ONLY_MS && onlyOwnerPending(state, task));
+  return idleMs < SWEEP_QUIET_MS || ownerOnlyIdle(state, task);
 };
 /** A step written within this long after the Now/Next text is the same push (the compat layer writes text, then steps). */
 const SAME_PUSH_MS = 60000;
@@ -168,7 +203,11 @@ export function staleText(state, nowMs, freshness) {
     const steps = t.step_ids.map(id => state.steps[`${t.id}/${id}`]);
     if (steps.length && steps.every(s => s.state === 'done')) continue;
     const text_at = t.text_at ?? t.attribution.updated_at;
-    const step_at = steps.map(s => s.state_at ?? s.attribution.updated_at).sort().at(-1);
+    // What the text must keep up with (J-05 phase-view-0911 R5): on a task with phases, its phases (progress = phases; a step
+    // moving inside a phase does not make "đang làm chặng 2" wrong; no phases_at yet = nothing to be behind); on a task
+    // without, its steps -- never the board's own `lich-su` fold, which is housekeeping, not a step moving.
+    const step_at = t.phases?.length ? t.phases_at
+      : steps.filter(s => !s.id.endsWith('/lich-su')).map(s => s.state_at ?? s.attribution.updated_at).sort().at(-1);
     if (step_at && Date.parse(step_at) - Date.parse(text_at) > SAME_PUSH_MS) out.push({ task_id: t.id, reason: 'steps_newer', text_at, step_at });
     else if (stale_h && nowMs - Date.parse(text_at) > stale_h * 3600000) out.push({ task_id: t.id, reason: 'age', text_at, step_at: step_at || null });
   }
@@ -218,7 +257,7 @@ export function measuredTimes(state, taskId, nowMs) {
 
 export const SIGNAL_TYPES = ['feedback', 'answer', 'ask'];
 /** Every signal type a stream may ask for; `turn` (a lane finished a turn) is opt-in, so the default stream is what it always was. */
-export const STREAM_TYPES = [...SIGNAL_TYPES, 'turn'];
+export const STREAM_TYPES = [...SIGNAL_TYPES, 'turn', 'delivery']; // delivery: J-05, only while the board tracks it (src/delivery.mjs)
 export const NOTIFY_DEFAULTS = { coordinator_feedback: true, delivery: 'watch', webhook_url: '' };
 
 /** One journal event as an owner signal for coordinators, or null: owner feedback, owner answers, new asks. */
@@ -230,7 +269,9 @@ export function ownerSignal(state, ev) {
   }
   if (ev.op === 'ask.answer') {
     const a = state.asks[ev.target_id];
-    return { ...base, type: 'answer', id: ev.target_id, task_id: a?.task_id, ...step(a?.step_id), question: a?.text, ...pick(ev.data, ['choice', 'text']) };
+    // feedback_id: the owner message the answer is stored as (ops ask.answer: fb-<seq>, or the row a migration linked), so a
+    // reader that tracks owner messages (the J-05 delivery connector) can follow an answer given with the ask buttons.
+    return { ...base, type: 'answer', id: ev.target_id, task_id: a?.task_id, ...step(a?.step_id), question: a?.text, ...pick(ev.data, ['choice', 'text']), feedback_id: ev.data.feedback_id || `fb-${ev.seq}` };
   }
   if (ev.op === 'ask.raise') return { ...base, type: 'ask', id: ev.result.id, task_id: ev.target_id, ...step(ev.data.step_id), text: ev.data.text };
   // Goal locks and re-brief requests are owner feedback the coordinator must act on (they write a feedback record).
@@ -269,6 +310,14 @@ export const inScope = (actor, taskId) => actor.role !== 'reporter' || actor.sco
  * messages, stale_text) is then built from this copy by the same code as for any other role, so nothing can leak
  * through a view that forgot to filter. Board-wide notes (summary) are dropped; the registry keeps its scoped entries.
  */
+/** A news item's related rows (`tasks`) as a scoped reader may see them: only the codes `ok` accepts; no list when none is left. */
+export function scopedRelated(f, ok) {
+  if (!f.tasks) return f;
+  const tasks = f.tasks.filter(ok);
+  if (tasks.length) return { ...f, tasks };
+  const { tasks: _all, ...rest } = f;
+  return rest;
+}
 function scopedState(state, actor) {
   const ok = id => inScope(actor, id);
   const byTask = rec => Object.fromEntries(Object.entries(rec || {}).filter(([k]) => ok(k)));
@@ -278,7 +327,8 @@ function scopedState(state, actor) {
   return {
     ...state,
     tasks: byTask(state.tasks), steps: byKeyPrefix(state.steps), archive: byTask(state.archive), times: byKeyPrefix(state.times), task_times: byTask(state.task_times),
-    asks: byTaskField(state.asks), inbox: byTaskField(state.inbox), feedback: byTaskField(state.feedback), attachments: byTaskField(state.attachments),
+    asks: byTaskField(state.asks), inbox: byTaskField(state.inbox), attachments: byTaskField(state.attachments),
+    feedback: Object.fromEntries(Object.entries(byTaskField(state.feedback)).map(([k, f]) => [k, scopedRelated(f, ok)])),
     routing: byTask(state.routing), roles: byTask(state.roles), route_override: byTask(state.route_override), machines: byTask(state.machines), pins: byTask(state.pins), gate_fails: byTask(state.gate_fails), activity: byTask(state.activity),
     goals: byTask(state.goals), plans: byTask(state.plans),
     pings: (state.pings || []).filter(p => p.task_id && ok(p.task_id)),
@@ -286,15 +336,38 @@ function scopedState(state, actor) {
   };
 }
 
+/** The newest cos-report of each task, { [taskId]: { id, ts, body } }, from the full records (the state window never hides it). */
+function progressLatest(state) {
+  const out = {};
+  for (const f of Object.values(state.feedback)) {
+    if (f.kind !== 'cos-report') continue;
+    const ts = f.attribution.created_at, cur = out[f.task_id];
+    if (!cur || ts > cur.ts || (ts === cur.ts && Number(f.id.slice(3)) > Number(cur.id.slice(3)))) out[f.task_id] = { id: f.id, ts, body: f.text };
+  }
+  return out;
+}
+
+/** A reporter sees a message's delivery state and times, not which session or transport took it (that is the coordinator's). */
+const reporterDelivery = of => f => { const d = of(f); if (!d) return d; const { session_id, via, ...rest } = d; return rest; };
+
 /** Full board view for authenticated readers; anonymous readers get only records marked public. A scoped reporter reads only its own tasks. */
-export function boardView(fullState, { actor, nowMs, stallMs, config, webhookStatus, watcherAt = '', roleSlots = true, turns = false, archived = false }) {
+export function boardView(fullState, { actor, nowMs, stallMs, config, webhookStatus, watcherAt = '', roleSlots = true, turns = false, archived = false, guards = false, phaseRulesSince = '', r4PerMessageSince = '', windowDays = 0, window: windowMode = '', delivery, workOf }) {
   const state = actor?.role === 'reporter' && !actor.scope_tasks.includes('*') ? scopedState(fullState, actor) : fullState;
+  // R4: owner messages CoS handled with no CoS answer in the thread after them (only while the phase rules are on).
+  const waitIdx = actor ? waitIndex(state) : null; // one pass for every step stamp and waiting list of this read
+  const unanswered = phaseRulesSince ? unansweredOnBoard(state, Date.parse(phaseRulesSince), r4PerMessageSince ? Date.parse(r4PerMessageSince) : undefined) : {};
+  const progress = actor ? progressLatest(state) : {}; // messages are never public: an anonymous reader gets no report text
   const tasksAll = Object.values(state.tasks).sort((a, b) => (a.order ?? 1e9) - (b.order ?? 1e9) || a.id.localeCompare(b.id));
+  const tz = config?.owner_tz || OWNER_TZ;
   const withSteps = t => {
-    const steps = t.step_ids.map(id => state.steps[`${t.id}/${id}`]);
+    const rec = t.step_ids.map(id => state.steps[`${t.id}/${id}`]);
+    // J-05 times-waiting: an owner or lane reader gets each step's server-set moments (ISO UTC + dd-mm HH:mm in the owner's zone);
+    // the public view stays as it was.
+    const steps = actor ? rec.map(s => { const stamps = stepStamps(state, s.id, waitIdx); return { ...s, stamps, stamps_local: stampsLocal(stamps, tz) }; }) : rec;
     return {
       ...t,
       steps,
+      ...(actor ? { waiting_on_owner: ownerWaiting(state, t.id, nowMs, tz, waitIdx) } : {}),
       current_step: currentStep(steps), // server-derived on every read (src/rules.mjs); clients render it as given
       last_activity_at: state.activity[t.id] || null, // last accepted event on the task, server clock
       ...(state.pins?.[t.id] ? { pinned: true, pinned_at: state.pins[t.id].pinned_at } : {}), // only once pinned: older views stay byte-identical
@@ -307,6 +380,10 @@ export function boardView(fullState, { actor, nowMs, stallMs, config, webhookSta
         ...(state.machines?.[t.id] ? machineFields(state.machines[t.id]) : {}) // only once picked: older views stay byte-identical
       } : {}),
       ...(archived ? { archived_steps: archivedSteps(state, t.id) } : {}), // ?archived=1 only: default output unchanged
+      ...(t.phases?.length ? { progress: progressOf(t.phases) } : {}), // done phases / phases (J-05 W-42 B3); no phases, no field
+      ...(unanswered[t.id] ? { unanswered_on_board: unanswered[t.id] } : {}), // R4: only while flagged; older views stay byte-identical
+      ...(progress[t.id] ? { progress_latest: progress[t.id] } : {}), // newest Cập nhật tiến độ (cos-report); none, no field
+      ...(guards && state.idle?.[t.id] ? { idle: { since: state.idle[t.id].since, steps: state.idle[t.id].steps } } : {}), // B4: only while idle, and only while the guards are on
       measured: measuredTimes(state, t.id, nowMs)
     };
   };
@@ -317,14 +394,23 @@ export function boardView(fullState, { actor, nowMs, stallMs, config, webhookSta
     return { ...base, me: null, tasks: pub.map(t => { const v = withSteps(t); delete v.attribution; v.steps = v.steps.map(({ attribution, ...s }) => s); return v; }),
       attachments: Object.values(state.attachments).filter(a => a.visibility === 'public' && ids.has(a.task_id)).map(({ attribution, ...a }) => a) };
   }
+  // The default view serves the live and recent ask/feedback records only (src/window.mjs); every derived block above and below is
+  // built from the FULL state, so attention, stalled, stale_text and the task rows do not depend on the window.
+  let asks = Object.values(state.asks), feedback = Object.values(state.feedback), messages = messagesView(state, undefined, delivery && (actor.role === 'reporter' ? reporterDelivery(delivery.of) : delivery.of)), win;
+  if (windowDays > 0 && windowMode !== 'all') {
+    const live = liveSets(state, messages, nowMs, windowDays);
+    win = windowBlock(state, live, nowMs, windowDays);
+    if (!win.trimmed.asks && !win.trimmed.feedback) win = undefined; // nothing left out: the view stays byte-identical to the full one
+    asks = asks.filter(a => live.asks.has(a.id)); feedback = feedback.filter(f => live.feedback.has(f.id)); messages = messages.filter(m => live.feedback.has(m.id));
+  }
   return {
     ...base,
     me: { token_id: actor.token_id, name: actor.name, role: actor.role, label: actor.label, lane: actor.lane, model: actor.model, scope_tasks: actor.scope_tasks, prefs: prefsOf(state, actor.token_id), ...(actor.via ? { via: actor.via } : {}) },
     tasks: tasksAll.map(t => ({ ...withSteps(t), status_request: openStatusRequest(state, t.id) })),
-    asks: Object.values(state.asks),
+    asks,
     inbox: Object.values(state.inbox),
-    feedback: Object.values(state.feedback),
-    messages: messagesView(state),
+    feedback,
+    messages,
     attachments: Object.values(state.attachments),
     routing: state.routing,
     route_override: routeOverrideView(state, nowMs), // CoS allowance per task code, `expired` derived on this read
@@ -336,11 +422,14 @@ export function boardView(fullState, { actor, nowMs, stallMs, config, webhookSta
     plans: state.plans || {},
     pings: (state.pings || []).slice(-20),
     watcher_at: watcherAt,
-    attention: ownerAttention(state, nowMs),
+    attention: ownerAttention(state, nowMs, delivery?.of, { tz, ...(waitIdx ? { idx: waitIdx } : {}) }),
+    ...(delivery && actor.role !== 'reporter' ? { connectors: delivery.connectors } : {}), // J-05 delivery: connector presence per machine; off, no field
+    ...(workOf ? { work: workOf(actor) } : {}), // J-05 working status (src/work.mjs): live agent runs per task; delivery off, no field
     stalled: stalled(state, nowMs, stallMs),
     freshness: { ...FRESHNESS_DEFAULTS, ...state.freshness },
     stale_text: staleText(state, nowMs, state.freshness),
     notify: notifyView(state, actor, webhookStatus),
-    ...(turns ? { turns: latestTurns(fullState, actor) } : {})
+    ...(turns ? { turns: latestTurns(fullState, actor) } : {}),
+    ...(win ? { window: win } : {})
   };
 }

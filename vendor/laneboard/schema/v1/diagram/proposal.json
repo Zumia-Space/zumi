@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "diagram/proposal.json",
+  "title": "A diagram proposal (projection of its propose and decide lines)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "task", "diagram_id", "base_rev", "why", "state", "by", "at"],
+  "anyOf": [{ "required": ["ops"] }, { "required": ["restore_to"] }],
+  "properties": {
+    "id": { "type": "string", "pattern": "^dp-[0-9]+$" },
+    "task": { "$ref": "../common.json#/$defs/taskId" },
+    "diagram_id": { "type": "string", "pattern": "^dg-[0-9]+$" },
+    "base_rev": { "type": "integer", "minimum": 1 },
+    "ops": { "type": "array", "minItems": 1, "maxItems": 200, "items": { "$ref": "op.json" } },
+    "restore_to": { "type": "integer", "minimum": 1 },
+    "why": { "type": "string", "maxLength": 1000 },
+    "ask_id": { "type": "string", "pattern": "^ask-[0-9]+(?:-[0-9]+)?$", "description": "The bound ask: held by this proposal only while it is open." },
+    "removes": { "type": "object", "additionalProperties": false, "required": ["nodes", "edges"], "description": "Dry-run count of ids the proposal removes from its base, shown on the bound ask card.", "properties": { "nodes": { "type": "integer", "minimum": 0 }, "edges": { "type": "integer", "minimum": 0 } } },
+    "state": { "enum": ["open", "accepted", "rejected"] },
+    "by": { "$ref": "../common.json#/$defs/actor" },
+    "at": { "$ref": "../common.json#/$defs/timestamp" },
+    "decided": {
+      "type": "object", "additionalProperties": false, "required": ["by", "at"],
+      "properties": { "by": { "$ref": "../common.json#/$defs/actor" }, "at": { "$ref": "../common.json#/$defs/timestamp" }, "rev": { "type": "integer", "minimum": 1 }, "note": { "type": "string", "maxLength": 300 }, "evidence": { "type": "string", "maxLength": 40 } }
+    }
+  }
+}

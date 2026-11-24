@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "diagram/view.json",
+  "title": "Response of GET /api/v1/diagram/:task (JSON form): everything the viewer (5A.3) and the editor (5B) draw",
+  "description": "Readers: owner, coordinator, a reporter whose scope holds the task; anonymous 401. ETag = sha256 of the response body; If-None-Match answers 304, so the phone and the Zumi tab can poll cheaply. ?rev=N returns that revision's document with pointer, comments and proposals of now (a past revision is immutable: Cache-Control: private, max-age=31536000, immutable). ?format=md returns text/markdown (the agent export, contract section 5.1) instead of this object. tracks is kept in the JSON form for the build's staleness check; the Markdown form leaves it out.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "task", "pointer", "document", "comments", "removed_comments", "proposals"],
+  "properties": {
+    "format": { "const": "diagram-view/1" },
+    "task": { "$ref": "../common.json#/$defs/taskId" },
+    "pointer": { "$ref": "pointer.json" },
+    "document": { "$ref": "document.json" },
+    "comments": {
+      "type": "array",
+      "description": "Comment threads anchored on nodes of the returned document: each root is a feedback with a feedback.anchor line in the side store (rev 2, M3: the anchor never comes from state.json); replies are the feedback whose reply_to chain reaches the root. Newest root first; closed threads of the state window included (status tells).",
+      "items": { "$ref": "#/$defs/thread" }
+    },
+    "removed_comments": {
+      "type": "array",
+      "description": "Threads whose node_id is not in the returned document (the node was removed later, or the asked rev predates it). Listed, never dropped.",
+      "items": { "$ref": "#/$defs/thread" }
+    },
+    "proposals": { "type": "array", "maxItems": 20, "items": { "$ref": "proposal.json" }, "description": "Open proposals only. The read-only viewer shows the count; the editor shows the diff." }
+  },
+  "$defs": {
+    "message": {
+      "type": "object", "additionalProperties": false, "required": ["id", "kind", "text", "by", "at", "status"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^fb-[0-9]+$" },
+        "kind": { "type": "string", "maxLength": 20 },
+        "text": { "type": "string", "maxLength": 8000, "description": "Verbatim. The owner's Vietnamese is never rewritten." },
+        "by": { "type": "object", "additionalProperties": false, "required": ["role", "name"], "properties": { "role": { "$ref": "../common.json#/$defs/role" }, "name": { "type": "string", "maxLength": 64 } } },
+        "at": { "$ref": "../common.json#/$defs/timestamp" },
+        "status": { "enum": ["open", "resolved"] },
+        "received": { "type": "boolean" }
+      }
+    },
+    "thread": {
+      "type": "object", "additionalProperties": false, "required": ["node_id", "root", "replies"],
+      "properties": {
+        "node_id": { "$ref": "document.json#/$defs/id" },
+        "root": { "$ref": "#/$defs/message" },
+        "replies": { "type": "array", "items": { "$ref": "#/$defs/message" } }
+      }
+    }
+  }
+}

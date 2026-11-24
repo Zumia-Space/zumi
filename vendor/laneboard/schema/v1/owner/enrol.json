@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "owner/enrol.json",
+  "title": "POST /api/v1/owner/2fa/enrol: request body (empty object)",
+  "description": "W-42 5A rev 3 (contract 3.7.4). Owner UI via the proxy login only. The first enrolment needs the enrol window (BOARD_OWNER_2FA_ENROL_UNTIL); a re-enrolment needs an owner device. The response carries the seed and the backup codes once.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

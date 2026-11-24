@@ -150,7 +150,7 @@
   // Refs: the images and links an agent attached to an ask or a card line (the CoS CLI writes them, cos-board.mjs
   // ask --img/--link). They travel as the text's last line(s), so a board that predates them still shows them as
   // plain links and paths: tokens joined by " · ", each one of
-  //   [label](https://…)                a link; one to …/media/<name>.png|jpg|jpeg|webp|gif is an image (label = caption)
+  //   [label](https://…)                a link; one to …/media/<name>.png|jpg|jpeg|webp|gif|mp4|webm is media (label = caption)
   //   `D:/path/file.md`, label `D:/…`   a path on the owner's computer (a "local" link)
   const REF_LINK = /^\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)$/;
   const REF_LOCAL = /^(?:([^`\n]*?) )?`([A-Za-z]:[\\/][^`\n]*)`$/;
@@ -158,7 +158,7 @@
   // prose that ends on a path — "Kế hoạch: `D:/…/PLAN.md`", how cos-board writes an ask — so it is not a refs line. Before
   // this, that whole question was popped as one label and its text vanished: ask-6568 on V-03 showed a chip and no question.
   const PROSE_LABEL = /[:;,.!?…]$/;
-  const MEDIA_URL = /\/media\/([\w.-]+\.(?:png|jpe?g|webp|gif))$/i;
+  const MEDIA_URL = /\/media\/([\w.-]+\.(?:png|jpe?g|webp|gif|mp4|webm))$/i; // a clip (--img clip.mp4) is a media ref like a picture
   const baseName = p => { const parts = p.replace(/\\/g, '/').split('/').filter(Boolean); const last = parts.pop() || p; return /[\\/]$/.test(p) ? last + '/' : last; };
   /** One key per ref for de-duplication: slashes written one way, runs of slashes folded (never after "://"), and case
    *  folded where it does not matter -- a local path whole, a URL only in its scheme and host (its path is case-sensitive).

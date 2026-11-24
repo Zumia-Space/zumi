@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "diagram/archive.json",
+  "title": "data for diagram.archive",
+  "description": "Rev 2 (M2): the owner's explicit confirmation that a task may lose its diagram. Owner only, from an owner UI credential (contract 3.5). Detaches the attached diagram (dg-N) from the task: a side-log line diagram.archive is written, the pointer leaves tasks[id].diagram, and nothing is destroyed (every revision blob and side line stays; the diagram is read through GET /api/v1/diagram/:task?diagram=dg-N[&rev=R] and its history through .../history?diagram=dg-N). confirm must equal '<task id>@r<current rev>' (400 confirm_mismatch), so the act names this diagram at this revision. Only after it may task.delete remove the task (task.delete on a task with an attached diagram is 409 diagram_attached for every actor). A re-created task id never inherits an archived diagram: diagram.create makes a new dg-N at the sent rev. Rev 3 (contract 3.7): owner-only, needs an owner device (TOTP step-up once per device); otherwise 403 owner_device_required.",
+  "x-roles": [
+    "owner"
+  ],
+  "x-owner-ui": true,
+  "x-target": "taskId",
+  "x-revision": "required",
+  "x-pinned": "n/a (owner only)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "confirm",
+    "note"
+  ],
+  "properties": {
+    "confirm": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,32}@r[0-9]+$"
+    },
+    "note": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "pattern": "^[^<>]*$"
+    }
+  },
+  "x-owner-only": true
+}

@@ -12,7 +12,19 @@ import { readQuota } from './quota.mjs';
 import { OPS, BoardError, taskOf, MAGIC, TEXT_MIMES, createTextCheck, turnLane, STATS_MAX_BYTES, compactPlan, COMPACT_DEFAULT_KEEP } from './ops.mjs';
 import { TURN, mayUseLane, latestTurns, turnList } from './turns.mjs';
 import { violationsForWrite } from './rules.mjs';
-import { boardView, inScope, publicToken, ownerSignal, staleText, openStatusRequest, sweepNight, sweepSkips, FRESHNESS_DEFAULTS, SIGNAL_TYPES, NOTIFY_DEFAULTS } from './views.mjs';
+import { supervisorConfig, sweepPlan, openHeads, supervisorMetrics, rootOf } from './supervisor.mjs';
+import { ownerWaitWithoutAsk, goalQcMissing, GOAL_QC_MESSAGE, GUARDS_OFF_MESSAGE, idleOf, phaseViolations, isNewEra } from './guards.mjs';
+import { boardView, inScope, publicToken, ownerSignal, staleText, openStatusRequest, sweepNight, sweepSkips, FRESHNESS_DEFAULTS, SIGNAL_TYPES, NOTIFY_DEFAULTS, messagesView, pickups, scopedRelated } from './views.mjs';
+import { liveSets, historyPage } from './window.mjs';
+import { OWNER_TZ, validTimeZone } from './times.mjs';
+import { openConnectorTokens } from './connector-tokens.mjs';
+import { openDiagrams } from './diagrams.mjs';
+import { openOwner2fa, readKeyFile } from './owner-2fa.mjs';
+import { workView, knownRuns, cappedRuns, RUN_FRESH_MS } from './work.mjs';
+import { openDeliveryStore, checkMark, checkPresence, tracked, deliveryOf, connectorsView, PRESENCE_STALE_MS, PRESENCE_MACHINES_MAX } from './delivery.mjs';
+
+/** GET /api/v1/history: records per page. */
+const HISTORY_PAGE = { default: 200, max: 500 };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const SCHEMA_DIR = path.join(ROOT, 'schema', 'v1');
@@ -31,7 +43,7 @@ function eventTask(state, ev) {
   if (op.startsWith('step.')) return t.slice(0, t.indexOf('/'));
   if (op === 'ask.clear' || op === 'ask.answer' || op === 'ask.update') return state.asks[t]?.task_id ?? null;
   if (op === 'inbox.merge') return state.inbox[t]?.task_id ?? null;
-  if (op === 'feedback.resolve') return state.feedback[t]?.task_id ?? null;
+  if (op === 'feedback.resolve' || op === 'nudge.clear') return state.feedback[t]?.task_id ?? null;
   if (op.startsWith('token.') || op.startsWith('ping') || ['prefs.set', 'notify.set', 'freshness.set', 'summary.set', 'registry.set', 'turn.report'].includes(op)) return null;
   return t;
 }
@@ -40,7 +52,9 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
 
 /** An image pasted or dropped into a message (upload purpose=message): these types only, and a hard cap. */
 export const MESSAGE_IMAGE = { mimes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], maxBytes: 5 * 1024 * 1024 };
-export const DEFAULTS = { stallMs: 3 * 3600000, maxAttachmentBytes: 256 * 1024, maxUploadBytes: 64 * 1024 * 1024, mediaLinkMs: 3600000, reporterWritesPerMin: 30, models: ['opus', 'sonnet', 'haiku', 'deepseek', 'gpt', 'gemini'] };
+// maxVideoBytes / mediaBudgetBytes (J-05 10-11, gate S1/S2): clips became routine (`say --img`) on a box at 96 % disk. A video is
+// capped on its own, and a new one is refused once the stored media would pass the budget; images are never refused by it.
+export const DEFAULTS = { stateWindowDays: 7, stallMs: 3 * 3600000, maxAttachmentBytes: 256 * 1024, maxUploadBytes: 64 * 1024 * 1024, maxVideoBytes: 25 * 1024 * 1024, mediaBudgetBytes: 2 * 1024 * 1024 * 1024, mediaLinkMs: 3600000, reporterWritesPerMin: 30, models: ['opus', 'sonnet', 'haiku', 'deepseek', 'gpt', 'gemini'] };
 
 /**
  * @param {object} o
@@ -49,21 +63,56 @@ export const DEFAULTS = { stallMs: 3 * 3600000, maxAttachmentBytes: 256 * 1024, 
  * @param {string} [o.ownerToken]  bootstrap owner secret; generated and saved to <dataDir>/owner.token when absent
  * @param {number[]} [o.webhookRetryMs] delays between webhook attempts; injectable for tests only
  * @param {number} [o.maxUploadBytes] cap for streamed uploads (POST /api/v1/upload); base64 attachment.add keeps maxAttachmentBytes
+ * @param {number} [o.maxVideoBytes]  cap for one streamed video/* upload
+ * @param {number} [o.mediaBudgetBytes] a new video/* upload is refused (507) when the stored media would pass this
  * @param {number} [o.reporterWritesPerMin] most write attempts per rolling minute for one reporter token; the next is refused 429 rate_limited
  * @param {object} [o.mailboxLimits] { dailyPerLane, maxBytes } lane-mailbox caps; the production values live in MAILBOX, tests only override them
  * @param {boolean} [o.roleSlots]  default true: every task carries its plan/code/review/scout slots (ADR 2026-10-09). An embedder
  *   whose users must not see lane model names (the Zumi desktop app's local board) passes false: the view then has no
  *   `roles`, so the page draws no "Workers by task" table. The journal and the ops are unchanged either way.
+ * @param {string} [o.ownerTz]  IANA zone the owner reads times in (env BOARD_OWNER_TZ, default Asia/Ho_Chi_Minh): every reader shows dd-mm HH:mm there and keeps the ISO UTC value
+ * @param {string} [o.guardsSince]  ISO time (env BOARD_GUARDS_SINCE): from then on the "drive to goal" guards hold (src/guards.mjs:
+ *   an owner wait needs an ask, goal QC at task open, the idle detector). Tasks created before it are grandfathered. Unset = off,
+ *   and the board writes and reads exactly as it did without them.
+ * @param {string} [o.r4PerMessageSince]  ISO time (env BOARD_R4_PER_MESSAGE_SINCE): owner messages older than this keep R4's old "any later CoS reply clears"; unset = every message is per message
+ * @param {string} [o.phaseRulesSince]  ISO time (env BOARD_PHASE_RULES_SINCE): from then on the phase rules hold (src/guards.mjs
+ *   R1 a new step names its phase / a busy task gets phases, R2 a new phase plan folds the old era, R4 an owner message CoS
+ *   handled needs a CoS answer in the thread). A switch of its own: unset = off, the board writes and reads as without them.
  */
-export function createBoard({ dataDir, now = Date.now, ownerToken, stallMs = DEFAULTS.stallMs, maxAttachmentBytes = DEFAULTS.maxAttachmentBytes, maxUploadBytes = DEFAULTS.maxUploadBytes, models = DEFAULTS.models, modelLabels = {}, webhookRetryMs = [1000, 5000], roleSlots = true, reporterWritesPerMin = DEFAULTS.reporterWritesPerMin, mailboxLimits = {} } = {}) {
+export function createBoard({ dataDir, now = Date.now, ownerToken, stallMs = DEFAULTS.stallMs, maxAttachmentBytes = DEFAULTS.maxAttachmentBytes, maxUploadBytes = DEFAULTS.maxUploadBytes, maxVideoBytes = DEFAULTS.maxVideoBytes, mediaBudgetBytes = DEFAULTS.mediaBudgetBytes, models = DEFAULTS.models, modelLabels = {}, webhookRetryMs = [1000, 5000], roleSlots = true, reporterWritesPerMin = DEFAULTS.reporterWritesPerMin, mailboxLimits = {}, guardsSince = '', phaseRulesSince = '', r4PerMessageSince = '', stateWindowDays = DEFAULTS.stateWindowDays, supervisorSince = '', runFreshMs = RUN_FRESH_MS, supervisorConfig: supervisorOverrides = {}, deliverySince = '', ownerTz = OWNER_TZ, owner2faKey = null, owner2faKeyFile = '', owner2faEnrolUntil = '', owner2faOff = false, diagramLimits = {} } = {}) {
   const store = openStore(dataDir);
   // The lane mailbox lives in its own append file, never in the journal (see src/mailbox.mjs for the rollback
   // reason). Opening it here prunes bodies older than 30 days on startup; a daily timer keeps pruning.
   const mailbox = openMessageStore(dataDir, { now, ...mailboxLimits });
   // models: suggestions for the owner's worker picker only; any id matching the schema pattern is accepted.
   // modelLabels: display names for those ids (e.g. sonnet -> "Sonnet 5.5"), shown wherever a worker is.
-  const config = { version: VERSION, stall_ms: stallMs, max_attachment_bytes: maxAttachmentBytes, max_upload_bytes: maxUploadBytes, models, model_labels: modelLabels };
+  if (!validTimeZone(ownerTz)) throw new Error(`ownerTz is not a time zone: ${ownerTz}`);
+  const config = { version: VERSION, owner_tz: ownerTz, stall_ms: stallMs, max_attachment_bytes: maxAttachmentBytes, max_upload_bytes: maxUploadBytes, models, model_labels: modelLabels, ...(guardsSince ? { guards_since: guardsSince } : {}), ...(phaseRulesSince ? { phase_rules_since: phaseRulesSince } : {}) };
+  if (guardsSince && !Number.isFinite(Date.parse(guardsSince))) throw new Error(`guardsSince is not an ISO time: ${guardsSince}`);
+  if (phaseRulesSince && !Number.isFinite(Date.parse(phaseRulesSince))) throw new Error(`phaseRulesSince is not an ISO time: ${phaseRulesSince}`);
+  if (r4PerMessageSince && !Number.isFinite(Date.parse(r4PerMessageSince))) throw new Error(`r4PerMessageSince is not an ISO time: ${r4PerMessageSince}`);
+  /** True once the phase rules hold (src/guards.mjs R1, R2, R4). */
+  const phaseRulesOn = () => !!phaseRulesSince && now() >= Date.parse(phaseRulesSince);
+  // J-05 supervisor (src/supervisor.mjs): off unless supervisorSince (env BOARD_SUPERVISOR_SINCE); thresholds from supervisorConfig.
+  if (supervisorSince && !Number.isFinite(Date.parse(supervisorSince))) throw new Error(`supervisorSince is not an ISO time: ${supervisorSince}`);
+  const supervisorOn = () => !!supervisorSince && now() >= Date.parse(supervisorSince);
+  const svConfig = supervisorConfig(supervisorOverrides);
+  /** True once the guards hold (src/guards.mjs). */
+  const guardsOn = () => !!guardsSince && now() >= Date.parse(guardsSince);
   const iso = () => new Date(now()).toISOString();
+  // J-05 delivery states (src/delivery.mjs): off unless deliverySince (env BOARD_DELIVERY_SINCE). Off = the two routes answer
+  // 409 delivery_off, no view carries a delivery field, no side file is written: the board behaves as the release before it.
+  if (deliverySince && !Number.isFinite(Date.parse(deliverySince))) throw new Error(`deliverySince is not an ISO time: ${deliverySince}`);
+  const deliveryOn = () => !!deliverySince;
+  const deliveryStore = deliverySince ? openDeliveryStore(dataDir) : null;
+  const presence = {}; // machine -> { machine, atMs, lanes, runs?, runs_error? }: in memory only, like watcherAt
+  const lastRunMs = {}; // task -> last time a run of it was in a beat (J-05 working status: when "nobody" began); in memory only
+  const bootMs = now();
+  const deliveryListeners = new Set();
+  // J-05 connector tokens (src/connector-tokens.mjs): the connector's own credential, never a board token. Opened whether delivery is
+  // on or off, so the owner can issue one before switching delivery on; the file is written only when the owner issues or revokes.
+  const connTokens = openConnectorTokens(dataDir, { now });
+  const publishDelivery = sig => { for (const l of deliveryListeners) queueMicrotask(() => { try { l(sig); } catch (e) { console.error('delivery listener failed', e); } }); };
 
   // The board's task-statistics document (J-05): derived data the CoS `stats` command regenerates on every push.
   // It is kept in its own file and NEVER in the journal, so an older board that knows no stats op can replay this
@@ -135,19 +184,44 @@ export function createBoard({ dataDir, now = Date.now, ownerToken, stallMs = DEF
   // The owner credential a trusted front end vouches for (server.mjs: a request that arrives through the reverse
   // proxy's owner route carrying the proxy's secret header). An object, never a string: no bearer value equals it.
   const ownerCredential = Object.freeze({ trustedOwnerProxy: true });
+  // W-42 5A rev 3: the owner second factor (src/owner-2fa.mjs). Off (the switch, or no key): every owner-only act is 503 owner_2fa_off.
+  // With the switch the key file is not even read, so the view + comment release needs no key on the server.
+  const twofa = openOwner2fa(dataDir, { now, key: owner2faOff ? null : owner2faKey || (owner2faKeyFile ? readKeyFile(owner2faKeyFile) : null), enrolUntil: owner2faEnrolUntil });
   /** Bearer secret -> actor, or null. Revoked tokens resolve to null. */
   function authenticate(secret) {
     if (!secret) return null;
     if (secret === ownerCredential) {
       // Never a device token (J-05 D3): the login is the owner's own, and a phone token must not become its identity.
-      const o = Object.values(store.state.tokens).find(x => x.role === 'owner' && !x.revoked_at && !x.device);
+      const o = Object.values(store.state.tokens).find(x => x.role === 'owner' && !x.revoked_at && !x.device && !x.ui); // W-42 5A: nor a ui token
       return o ? { token_id: o.id, name: o.name, role: 'owner', ...(o.label ? { label: o.label } : {}), scope_tasks: o.scope_tasks, via: 'proxy' } : null;
     }
     if (typeof secret !== 'string') return null;
     const h = sha256(secret);
     const t = Object.values(store.state.tokens).find(x => x.sha256 === h && !x.revoked_at);
     if (!t) return null;
-    return { token_id: t.id, name: t.name, role: t.role, ...(t.label ? { label: t.label } : {}), ...(t.lane ? { lane: t.lane } : {}), ...(t.model ? { model: t.model } : {}), ...(t.device ? { device: true } : {}), scope_tasks: t.scope_tasks };
+    return { token_id: t.id, name: t.name, role: t.role, ...(t.label ? { label: t.label } : {}), ...(t.lane ? { lane: t.lane } : {}), ...(t.model ? { model: t.model } : {}), ...(t.device ? { device: true } : {}), ...(t.ui ? { ui: true } : {}), scope_tasks: t.scope_tasks };
+  }
+  /**
+   * W-42 5A contract 3.5: which owner UI credential an actor is ('proxy' | 'device' | 'ui'), or false. A raw owner bearer is never
+   * one, and nor is a device or ui token minted with a raw bearer before 5A (it carries parent, gate rev-2 should-fix).
+   */
+  function ownerUi(actor) {
+    if (!actor || actor.role !== 'owner') return false;
+    if (actor.via === 'proxy') return 'proxy';
+    const t = store.state.tokens[actor.token_id];
+    if (!t || t.revoked_at || t.parent) return false;
+    return t.ui ? 'ui' : t.device ? 'device' : false;
+  }
+  /** Rev 3 (3.7.3): the owner device this request comes from ('dv-N'), or null. The cookie counts only on top of the owner login. */
+  function ownerDeviceOf(actor, cookie) {
+    const ui = ownerUi(actor);
+    if (!ui) return null;
+    return ui === 'proxy' ? twofa.browserDevice(cookie) : twofa.tokenDevice(actor.token_id);
+  }
+  /** The actor as the journal records it. via, owner_device and relay are server-set, never read from request data. */
+  function journalActor(actor, body) {
+    return { token_id: actor.token_id, name: actor.name, role: actor.role, ...(actor.label ? { label: actor.label } : {}), ...(actor.lane ? { lane: actor.lane } : {}), ...(actor.model ? { model: actor.model } : {}), ...(body.origin ? { origin: body.origin } : {}),
+      ...(actor.via ? { via: actor.via } : {}), ...(actor.owner_device ? { owner_device: actor.owner_device } : {}), ...(/^zumi-relay-/.test(body.request_id || '') ? { relay: true } : {}) };
   }
 
   // Reporter tokens are handed to outside parties (a lane on another host), so each is capped: attempts in the last
@@ -177,6 +251,7 @@ export function createBoard({ dataDir, now = Date.now, ownerToken, stallMs = DEF
   // At most one open long poll per token (Opus review, change 7): a new poll closes the previous one, so a
   // re-arming waiter or a second tab can never park two requests on the same credential.
   const inboxWaiters = new Map();
+  let boardClosed = false;
 
   /** POST /api/v1/msg: `from` comes from the token; the body may only name a target and content. */
   function sendMessage(secret, input) {
@@ -307,10 +382,19 @@ export function createBoard({ dataDir, now = Date.now, ownerToken, stallMs = DEF
     return closed ? { ...out, closed: true } : out;
   }
 
-  function write(secret, body, { crashAfterJournal = false } = {}) {
-    const actor = authenticate(secret);
+  /** `ownerAskChecked`: in-process callers only (the legacy row push), never reachable over HTTP: the caller already checked
+   *  guard B1 for its whole push, asks raised later in the same push included, so the per-op check is not repeated. */
+  function write(secret, body, { crashAfterJournal = false, ownerAskChecked = false, phaseChecked = false, deferEra = false, internalActor = null, ownerDeviceCookie = '' } = {}) {
+    // internalActor: the diagram route's pointer message (contract 4.1). No HTTP caller can set it (server.mjs passes only the cookie).
+    const actor = internalActor || authenticate(secret);
     if (!actor) throw new BoardError(401, 'unauthorized');
     if (actor.role === 'reporter') limitReporter(actor);
+    if (!internalActor) {
+      if (typeof body?.request_id === 'string' && body.request_id.startsWith('diagram-')) throw new BoardError(400, 'reserved_request_id', { message: 'BLOCKED write / WHY request ids starting diagram- belong to the diagram messages of the board / DO pick another request id' });
+      if (body?.op === 'feedback.add' && body.data?.kind === 'diagram') throw new BoardError(403, 'server_only_kind', { message: 'BLOCKED feedback kind diagram / WHY only the diagram route writes it / DO save the diagram through POST /api/v1/diagram' });
+      const dev = actor.role === 'owner' ? ownerDeviceOf(actor, ownerDeviceCookie) : null;
+      if (dev) actor.owner_device = dev;
+    }
     const envErrors = validate(schemas, 'write-request.json', body);
     if (envErrors.length) throw new BoardError(400, 'invalid_request', { errors: envErrors });
     const rule = OP_RULES[body.op];
@@ -343,6 +427,24 @@ export function createBoard({ dataDir, now = Date.now, ownerToken, stallMs = DEF
     const withViolations = violations.length ? { violations } : {};
     if (dataErrors.length) throw new BoardError(400, 'invalid_data', { errors: dataErrors, ...withViolations });
     if (violations.length) { const { error, ...first } = violations[0]; throw new BoardError(400, error, { ...first, violations }); }
+    // Open questions mint asks with ids ask-<seq>-<n>, which a build older than the guards cannot take: a guard write, refused while off.
+    if (!guardsOn() && body.op === 'task.create' && body.data?.open_questions?.length) throw new BoardError(400, 'guards_off', { task: body.target_id, message: GUARDS_OFF_MESSAGE });
+    // Guard B2: a task opens with its goal QC (tasks created before guardsSince are grandfathered: only a create is checked).
+    const qcMissing = guardsOn() && body.op === 'task.create' ? goalQcMissing(body.data) : [];
+    if (qcMissing.length) throw new BoardError(400, 'goal_qc_required', { task: body.target_id, missing: qcMissing, message: GOAL_QC_MESSAGE });
+    // Guard B1: a step enters an owner wait only with an open ask on it (or one the same write raises).
+    const ownerWaits = guardsOn() && !ownerAskChecked ? ownerWaitWithoutAsk(store.state, body) : [];
+    if (ownerWaits.length) { const { error, ...first } = ownerWaits[0]; throw new BoardError(400, error, { ...first, violations: ownerWaits }); }
+    // Phase rule R1: a new step names its phase; a task with no phases takes no new goal and no open step past the limit.
+    const phaseErrs = phaseRulesOn() && !phaseChecked ? phaseViolations(store.state, body) : [];
+    if (phaseErrs.length) { const { error, ...first } = phaseErrs[0]; throw new BoardError(400, error, { ...first, violations: phaseErrs }); }
+    // Phase rule R2 (gate finding 6): an era fold archives every done step naming no phase of the plan, the last ones too, and
+    // archived ids are retired. The board folds only on a new plan with the rules on (foldEra); a caller's era fold is held to
+    // the same two conditions, or a phase-less task (empty plan) would lose its whole done history in one write.
+    if (body.op === 'steps.compact' && body.data?.era === true) {
+      if (!phaseRulesOn()) throw new BoardError(400, 'phase_rules_off', { task: body.target_id, message: 'an era fold (steps.compact era) runs only with the phase rules on' });
+      if (!store.state.tasks[body.target_id]?.phases?.length) throw new BoardError(400, 'era_needs_phases', { task: body.target_id, message: 'an era fold needs the task\'s phases: a task without phases would fold every done step' });
+    }
     const targetErrors = validate(schemas, 'common.json', body.target_id, { $ref: `#/$defs/${rule.target}` });
     if (targetErrors.length) throw new BoardError(400, 'invalid_target_id', { errors: targetErrors });
     if (!rule.roles.includes(actor.role)) throw new BoardError(403, 'forbidden_for_role', { role: actor.role, allowed: rule.roles });
@@ -354,13 +456,110 @@ export function createBoard({ dataDir, now = Date.now, ownerToken, stallMs = DEF
       throw new BoardError(403, 'out_of_scope', { task_id: task });
     }
 
-    return commit(actor, body, bodyHash, (seq, at) => OPS[body.op].check({ state, req: body, seq, at, actor, config: { maxAttachmentBytes }, storeBlob: store.storeBlob, webhookSecret, readEvent: n => store.readEvents(n - 1, 1)[0] }), { crashAfterJournal });
+    // W-42 5A: a node comment's checks run after the schema and before the op's own check (asksAnsweredBy), contract 1.3.
+    const anchorOn = body.op === 'feedback.add' ? diagrams.checkNodeComment(actor, body) : null;
+    if (body.op === 'task.delete') { const D = diagrams.attached(body.target_id); if (D) throw new BoardError(409, 'diagram_attached', { diagram_id: D.id, rev: D.rev, pinned: D.pinned, message: 'BLOCKED task.delete / WHY the task has a diagram attached / DO the owner archives it first (diagram.archive)' }); }
+    if (body.op === 'feedback.resolve' && store.state.feedback[body.target_id]?.kind === 'diagram' && !store.state.feedback[body.target_id].received) throw new BoardError(409, 'needs_receipt', { message: 'BLOCKED resolve / WHY a diagram change is closed by a receipt (it is the replan gate) / DO reply with a receipt (Đổi:, Lịch:, Bước tiếp:)' });
+    const eraBefore = body.op === 'task.update' && body.data?.phases !== undefined ? store.state.tasks[body.target_id]?.phases : undefined;
+    const out = commit(internalActor ? { ...internalActor, internal: true } : actor, body, bodyHash, (seq, at) => OPS[body.op].check({ state, req: body, seq, at, actor, config: { maxAttachmentBytes, supervisorOn: supervisorOn() }, storeBlob: store.storeBlob, webhookSecret, readEvent: n => store.readEvents(n - 1, 1)[0] }), { crashAfterJournal });
+    // Phase rule R2: a new phase plan is a new era. The legacy push defers it to after its last row (deferEra) and calls foldEra.
+    if (!deferEra && body.op === 'task.update' && body.data?.phases !== undefined && isNewEra(eraBefore, body.data.phases)) foldEra(body.target_id);
+    if (anchorOn && out.event_id) diagrams.anchor(anchorOn, { result: { id: out.id }, target_id: body.target_id, request_id: body.request_id, body_sha256: bodyHash, actor: lastActor, seq: out.seq, data: body.data });
+    const touched = eventTask(store.state, body); // guard B4: the task this write touched may have stopped (or started) standing still
+    if (touched) checkIdle(touched);
+    if (deliveryOn() && body.op === 'feedback.add' && actor.role === 'owner') sweepDelivery(); // no connector: the alarm goes out now
+    return out;
+  }
+
+  // ---------- J-05 delivery (src/delivery.mjs) ----------
+  const deliveryCtx = () => ({ marks: deliveryStore.marks, presence, nowMs: now(), picked: pickups(store.state), bootMs });
+  const sinceMs = () => Date.parse(deliverySince);
+  /** The view's hook: the delivery of one message (undefined when it is not tracked) and the connector list; undefined when off. */
+  function deliveryFor() {
+    if (!deliveryOn()) return undefined;
+    const ctx = deliveryCtx(), since = sinceMs();
+    return { of: f => (tracked(f, since) ? deliveryOf(store.state, f, ctx) : undefined), connectors: connectorsView(presence, ctx.nowMs) };
+  }
+  /** J-05 working status (src/work.mjs) for one reader: a reporter sees its scope's tasks and runs, no sessions. */
+  const workFor = actor => workView(store.state, presence, now(), { bootMs, freshMs: runFreshMs, lastRunMs, ...(actor.role === 'reporter' ? { scopeTasks: actor.scope_tasks } : {}) });
+  /** The delivery routes take a connector token and nothing else: no owner, coordinator or lane token (so no model session can set a
+   *  state with its own token), 401 for no token. Returns the connector's public record. */
+  const connectorOnly = secret => {
+    const c = connTokens.authenticate(secret);
+    if (!c) {
+      const a = authenticate(secret);
+      if (a) throw new BoardError(403, 'forbidden_for_role', { role: a.role, allowed: ['connector'] });
+      throw new BoardError(401, 'unauthorized');
+    }
+    if (!deliveryOn()) throw new BoardError(409, 'delivery_off');
+    return c;
+  };
+  const ownerOnly = secret => {
+    const a = authenticate(secret);
+    if (!a) throw new BoardError(401, 'unauthorized');
+    if (a.role !== 'owner') throw new BoardError(403, 'forbidden_for_role', { role: a.role, allowed: ['owner'] });
+    // a phone (device token) may not mint credentials, as it may not token.issue (x-device false); the owner's login or full token can
+    if (a.device) throw new BoardError(403, 'forbidden_for_device', { op: 'connector-tokens' });
+    return a;
+  };
+  const signalOf = (f, mark) => ({ type: 'delivery', id: f.id, task_id: f.task_id, stage: mark.stage, at: mark.at, ...(mark.reason ? { reason: mark.reason } : {}), ...(mark.session_id ? { session_id: mark.session_id } : {}) });
+  /**
+   * The watchdog (plan §6.3): every tracked open message whose derived state is undelivered and that carries no mark yet gets
+   * one failed mark, written by the board itself with the derived reason, and one `delivery` signal. Run after every owner
+   * message and on the server's timer. The state never waits for it: deliveryOf derives undelivered on every read.
+   */
+  function sweepDelivery() {
+    if (!deliveryOn()) return 0;
+    const ctx = deliveryCtx(), since = sinceMs();
+    let n = 0;
+    for (const f of Object.values(store.state.feedback)) {
+      if (f.status !== 'open' || !tracked(f, since) || deliveryStore.marks[f.id]) continue;
+      const d = deliveryOf(store.state, f, ctx);
+      if (d.state !== 'undelivered') continue;
+      const mark = { at: iso(), fb: f.id, stage: 'failed', reason: d.reason, by: { token_id: 'system', name: 'board' } };
+      if (deliveryStore.add(mark)) { publishDelivery(signalOf(f, mark)); n++; }
+    }
+    return n;
+  }
+
+  // Guard B4, the idle detector (src/guards.mjs idleOf): when a task turns idle, or stops being idle, the board writes ONE
+  // idle.mark as itself -- an idle episode, so the lane gets one feedback per episode, never one per check. Run after every
+  // accepted write on the task it touched, and by the server's timer (a run stamp ages out with no write). With the guards
+  // off it writes NOTHING, not even the close of an episode an earlier run left open: rolling stage 2 back is "unset
+  // BOARD_GUARDS_SINCE, restart the same build", and that must add no guard event to the journal (the view hides the mark).
+  // The board's own process, not the owner: its notice must never read as anh's word (legacy by 'board', not 'anh').
+  const BOARD_ACTOR = { token_id: 'system', name: 'board', role: 'coordinator' };
+  function checkIdle(taskId) {
+    const state = store.state, t = state.tasks[taskId], was = !!state.idle?.[taskId];
+    if (!t || !guardsOn()) return 0;
+    const idle = idleOf(state, t, now());
+    if (!!idle === was) return 0;
+    const body = { request_id: `idle-${taskId}-${idle ? 'on' : 'off'}-${now()}`, op: 'idle.mark', target_id: taskId, data: idle ? { idle: true, steps: idle.steps } : { idle: false } };
+    commit(BOARD_ACTOR, body, sha256(canonical(body)), seq => OPS[body.op].check({ state, req: body, seq, actor: BOARD_ACTOR }));
+    return 1;
+  }
+
+  /**
+   * Phase rule R2: folds the done steps of an older phase plan into `lich-su` as the board itself (one steps.compact with
+   * era: true). Returns how many moved; 0 (and no event) when the rules are off or nothing is eligible.
+   */
+  function foldEra(taskId) {
+    const state = store.state, t = state.tasks[taskId];
+    if (!t || !phaseRulesOn() || !t.phases?.length) return 0;
+    const moved = compactPlan(state, taskId, 0, { era: true }).moved.length;
+    if (!moved) return 0;
+    const body = { request_id: `era-${taskId}-${now()}`, op: 'steps.compact', target_id: taskId, expected_revision: t.rev, data: { era: true } };
+    commit(BOARD_ACTOR, body, sha256(canonical(body)), seq => OPS[body.op].check({ state, req: body, seq, actor: BOARD_ACTOR }));
+    return moved;
   }
 
   /** Journal one accepted event. `prepare(seq, at)` runs the op's checks and returns { data, result, reveal? }. */
+  let lastActor = null;
   function commit(actor, body, bodyHash, prepare, { crashAfterJournal = false } = {}) {
     const seq = store.state.seq + 1;
-    const fullActor = { token_id: actor.token_id, name: actor.name, role: actor.role, ...(actor.label ? { label: actor.label } : {}), ...(actor.lane ? { lane: actor.lane } : {}), ...(actor.model ? { model: actor.model } : {}), ...(body.origin ? { origin: body.origin } : {}) };
+    const { internal, ...rest } = actor;
+    const fullActor = internal ? rest : journalActor(actor, body);
+    lastActor = fullActor;
     const at = iso(); // taken before the checks: an op that words its result with the time (turn.report) uses the event's own
     const prepared = prepare(seq, at);
     // An op may decide the write changes nothing (e.g. clearing a route override that is already absent): answer
@@ -370,6 +569,13 @@ export function createBoard({ dataDir, now = Date.now, ownerToken, stallMs = DEF
     store.append(ev, { crashAfterJournal });
     publish(ev);
     return { ok: true, event_id: ev.id, seq, id: ev.result.id, revision: ev.result.revision, ...(prepared.reveal || {}) };
+  }
+
+  /** Bytes of media the board stores: every attachment blob once (blobs are content-addressed, so the same bytes count once). */
+  function mediaUsedBytes() {
+    const seen = new Set(); let n = 0;
+    for (const a of Object.values(store.state.attachments)) if (a.sha256 && !seen.has(a.sha256)) { seen.add(a.sha256); n += a.size || 0; }
+    return n;
   }
 
   /**
@@ -387,9 +593,15 @@ export function createBoard({ dataDir, now = Date.now, ownerToken, stallMs = DEF
     if (errors.length) return refuse(new BoardError(400, 'invalid_request', { errors }));
     if (!['owner', 'coordinator'].includes(actor.role)) return refuse(new BoardError(403, 'forbidden_for_role', { role: actor.role, allowed: ['owner', 'coordinator'] }));
     if (contentLength > maxUploadBytes) return refuse(new BoardError(413, 'attachment_too_large', { max_bytes: maxUploadBytes }));
-    const forMessage = meta.purpose === 'message', cap = forMessage ? Math.min(maxUploadBytes, MESSAGE_IMAGE.maxBytes) : maxUploadBytes;
+    const forMessage = meta.purpose === 'message', video = /^video\//.test(meta.mime);
+    const cap = forMessage ? Math.min(maxUploadBytes, MESSAGE_IMAGE.maxBytes) : video ? Math.min(maxUploadBytes, maxVideoBytes) : maxUploadBytes;
     if (forMessage && !MESSAGE_IMAGE.mimes.includes(meta.mime)) return refuse(new BoardError(400, 'image_type_not_allowed', { allowed: MESSAGE_IMAGE.mimes }));
     if (forMessage && contentLength > cap) return refuse(new BoardError(413, 'image_too_large', { max_bytes: cap }));
+    if (video && contentLength > cap) return refuse(new BoardError(413, 'video_too_large', { max_bytes: cap }));
+    // the media budget, for a video only: what the board stores now plus this body (checked again as the bytes arrive)
+    const room = video ? mediaBudgetBytes - mediaUsedBytes() : Infinity;
+    const overBudget = () => new BoardError(507, 'media_budget_full', { used_bytes: mediaBudgetBytes - room, budget_bytes: mediaBudgetBytes });
+    if (contentLength > room) return refuse(overBudget());
     const checkTarget = () => {
       if (!store.state.tasks[meta.task_id]) throw new BoardError(404, 'task_not_found', { target_id: meta.task_id });
       if (meta.step_id && !store.state.steps[`${meta.task_id}/${meta.step_id}`]) throw new BoardError(404, 'step_not_found', { target_id: `${meta.task_id}/${meta.step_id}` });
@@ -406,7 +618,8 @@ export function createBoard({ dataDir, now = Date.now, ownerToken, stallMs = DEF
         body.on('data', chunk => {
           if (failure) return; // keep draining so the client receives the error response instead of a reset
           size += chunk.length;
-          if (size > cap) { failure = new BoardError(413, forMessage ? 'image_too_large' : 'attachment_too_large', { max_bytes: cap }); out.destroy(); return; }
+          if (size > cap) { failure = new BoardError(413, forMessage ? 'image_too_large' : video ? 'video_too_large' : 'attachment_too_large', { max_bytes: cap }); out.destroy(); return; }
+          if (size > room) { failure = overBudget(); out.destroy(); return; }
           if (head.length < 16) head = Buffer.concat([head, chunk.subarray(0, 16 - head.length)]);
           if (text) text.push(chunk);
           hash.update(chunk);
@@ -451,17 +664,177 @@ export function createBoard({ dataDir, now = Date.now, ownerToken, stallMs = DEF
   // Last time the coordinator's watcher read the board (the predecessor's watcherAt: shown to the owner as
   // "the coordinator is on duty"). In memory only; noted by the compatibility layer's direct loopback read.
   let watcherAt = '';
+  // W-42 5A: the diagram side store (src/diagrams.mjs). Opened last: its start reconcile writes through write().
+  const diagrams = openDiagrams({ dataDir, now, schemas, validate, state: () => store.state, authenticate, inScope, ownerUi, ownerDeviceOf, twofa, journalActor,
+    limits: diagramLimits, readJournal: () => store.readEvents(0, Number.MAX_SAFE_INTEGER),
+    pointerWrite: ({ actor, task, request_id, note, block }) => write(null, { version: 1, request_id, op: 'feedback.add', target_id: task, data: { kind: 'diagram', text: note, diagram: block } }, { internalActor: actor, ownerAskChecked: true, phaseChecked: true }) });
+  diagrams.reconcile();
+  /** GET /api/v1/state joins: the pointer on each task with a diagram, node_id and the diagram block on feedback (rev 2 M3: never stored). */
+  function joinDiagrams(v) {
+    if (!v.me) return v;
+    for (const t of v.tasks || []) { const D = diagrams.attached(t.id); if (D) t.diagram = diagrams.pointer(D); }
+    const ridOf = new Map();
+    for (const [k, r] of Object.entries(store.state.requests)) if (k.startsWith('diagram-')) ridOf.set(r.id, k);
+    const join = (rec, id) => {
+      const a = diagrams.anchorOf(id); if (a) rec.node_id = a.node_id;
+      const b = ridOf.has(id) && diagrams.blockOf(ridOf.get(id)); if (b) rec.diagram = b;
+    };
+    for (const f of v.feedback || []) join(f, f.id);
+    for (const m of v.messages || []) join(m, m.id);
+    return v;
+  }
+  /** Owner 2FA routes (contract 3.7.4). Every one needs the owner UI; enrol and confirm need the web login itself. */
+  function ownerActor(secret) {
+    const a = authenticate(secret);
+    if (!a) throw new BoardError(401, 'unauthorized');
+    if (a.role !== 'owner') throw new BoardError(403, 'forbidden_for_role', { role: a.role, allowed: ['owner'] });
+    const ui = ownerUi(a);
+    if (!ui) throw new BoardError(403, 'owner_ui_only', { message: 'BLOCKED owner 2FA / WHY it is set up only from the owner UI / DO open the board page from your own browser or phone app' });
+    return { a, ui };
+  }
+  const owner2fa = {
+    view(secret, cookie) { const { a } = ownerActor(secret); return twofa.view(ownerDeviceOf(a, cookie)); },
+    enrol(secret, cookie) {
+      const { a, ui } = ownerActor(secret);
+      if (ui !== 'proxy') throw new BoardError(403, 'owner_ui_only', { message: 'BLOCKED enrolment / WHY the owner code is enrolled from the web login / DO open the board page in your browser' });
+      return twofa.enrol({ reenrol: twofa.enrolled && !!ownerDeviceOf(a, cookie) });
+    },
+    confirm(secret, body) {
+      const { ui } = ownerActor(secret);
+      if (ui !== 'proxy') throw new BoardError(403, 'owner_ui_only');
+      const errs = validate(schemas, 'owner/confirm.json', body);
+      if (errs.length) throw new BoardError(400, 'invalid_data', { errors: errs });
+      return twofa.confirm(body.code, { kind: 'browser', label: body.label });
+    },
+    stepUp(secret, body) {
+      const { a, ui } = ownerActor(secret);
+      const errs = validate(schemas, 'owner/step-up.json', body);
+      if (errs.length) throw new BoardError(400, 'invalid_data', { errors: errs });
+      return twofa.stepUp(body, ui === 'proxy' ? { kind: 'browser', label: body.label } : { kind: 'token', tokenId: a.token_id, label: body.label || a.name });
+    },
+    revoke(secret, body, cookie) {
+      const { a } = ownerActor(secret);
+      const errs = validate(schemas, 'owner/device-revoke.json', body);
+      if (errs.length) throw new BoardError(400, 'invalid_data', { errors: errs });
+      const dev = ownerDeviceOf(a, cookie);
+      if (!dev) { if (!twofa.configured) twofa.needKey(); twofa.audit({ event: 'owner_only_refused', ok: false, op: 'owner.device.revoke', reason: 'no_owner_device' }); throw new BoardError(403, 'owner_device_required', { op: 'owner.device.revoke' }); }
+      const out = twofa.revoke(body.device_id);
+      twofa.audit({ event: 'owner_only', ok: true, op: 'owner.device.revoke', target: body.device_id, device_id: dev });
+      return { ok: true, ...out };
+    }
+  };
+
   return {
     bootstrapTokenFile,
     ownerCredential,
+    diagramWrite: (secret, body, opts) => diagrams.write(secret, body, opts),
+    diagramView: (secret, task, q) => diagrams.view(secret, task, q),
+    diagramHistory: (secret, task, q) => diagrams.history(secret, task, q),
+    owner2fa,
     noteWatcher() { watcherAt = iso(); },
+    /** POST /api/v1/delivery: a connector's proof for one owner message (stage delivered | read | failed{reason}). Forward-only:
+     *  a stage at or behind the current one answers ok with noop and writes nothing. Connector tokens only. */
+    deliveryMark(secret, body) {
+      const c = connectorOnly(secret);
+      const b = checkMark(body);
+      const f = store.state.feedback[b.feedback_id];
+      if (!f) throw new BoardError(404, 'feedback_not_found', { target_id: b.feedback_id });
+      if (!tracked(f, sinceMs())) throw new BoardError(400, 'not_tracked', { target_id: f.id });
+      const mark = { at: iso(), fb: f.id, stage: b.stage, by: { token_id: c.id, name: c.label } };
+      for (const k of ['session_id', 'machine', 'via', 'reason']) if (b[k]) mark[k] = b[k];
+      if (!deliveryStore.add(mark)) return { ok: true, noop: true, id: f.id };
+      publishDelivery(signalOf(f, mark));
+      return { ok: true, id: f.id, state: deliveryOf(store.state, f, deliveryCtx()).state };
+    },
+    /** POST /api/v1/presence: a connector's beat (machine, lanes served, session status per lane). In memory only, never journaled. */
+    presenceBeat(secret, body) {
+      connectorOnly(secret);
+      const p = checkPresence(body);
+      // the map is in memory and keyed by a caller-chosen name: capped, so a typo loop cannot grow it without bound
+      if (!presence[p.machine] && Object.keys(presence).length >= PRESENCE_MACHINES_MAX) throw new BoardError(429, 'too_many_machines', { max: PRESENCE_MACHINES_MAX });
+      const { runs_dropped: dropped, ...rec } = p;
+      if (rec.runs) rec.runs = knownRuns(store.state, rec.runs); // only codes of board tasks are kept (lastRunMs too)
+      presence[p.machine] = { ...rec, atMs: now() };
+      for (const r of cappedRuns(rec.runs, now())) if (r.task) lastRunMs[r.task] = Math.max(lastRunMs[r.task] || 0, now()); // a killed run past the cap never moves it
+      return { ok: true, stale_after_ms: PRESENCE_STALE_MS, ...(dropped ? { runs_dropped: dropped } : {}) };
+    },
+    sweepDelivery,
+    /** GET /api/v1/delivery/open: what a connector must still deliver: open tracked owner messages still sent or undelivered,
+     *  as pointers only (id, task, lane, state, sent_at), never their text. Connector tokens only. */
+    deliveryOpen(secret) {
+      connectorOnly(secret);
+      const ctx = deliveryCtx(), since = sinceMs(), messages = [];
+      for (const f of Object.values(store.state.feedback)) {
+        if (f.status !== 'open' || !tracked(f, since)) continue;
+        const d = deliveryOf(store.state, f, ctx);
+        if (d.state === 'sent' || d.state === 'undelivered') messages.push({ id: f.id, task_id: f.task_id, lane: d.lane, state: d.state, sent_at: d.sent_at });
+      }
+      return { messages };
+    },
+    /** GET /api/v1/delivery/me: the connector token itself (id, label, lane). */
+    deliveryMe(secret) { return connectorOnly(secret); },
+    /**
+     * The connector's pointer stream: { id, task_id } of each new tracked owner message, never its text. Live only. Ends with
+     * onEnd('revoked') once the token stops being valid. "New owner message" is read off the state, not off a list of ops: every op
+     * that adds a feedback record names it fb-<seq> (ops addFeedback / feedback.add), so an owner feedback.add, an ask-button answer,
+     * a goal lock and an owner re-brief request are all streamed, and a later op that adds one is too (gate must-fix: goal locks and
+     * re-briefs used to wait for a reconnect). tracked() keeps out the board's own records (auto, system) and info notes.
+     */
+    deliveryWatch(secret, { onMessage, onEnd }) {
+      connectorOnly(secret);
+      const follow = ev => {
+        if (!connTokens.authenticate(secret)) { listeners.delete(follow); return onEnd?.('revoked'); }
+        const f = store.state.feedback[`fb-${ev.seq}`];
+        // W-42 5A rev 3: a node comment's pointer names its node, so the lane opens the right place
+        if (f && tracked(f, sinceMs())) { const a = diagrams.anchorOf(f.id); onMessage({ id: f.id, task_id: f.task_id, ...(a ? { node_id: a.node_id } : {}) }); }
+      };
+      listeners.add(follow);
+      return () => listeners.delete(follow);
+    },
+    /** Owner-only connector token administration (POST/GET /api/v1/connector-tokens, POST .../revoke). Never journaled. */
+    connectorTokenIssue(secret, body) { ownerOnly(secret); return { ok: true, ...connTokens.issue(body || {}) }; },
+    connectorTokenList(secret) { ownerOnly(secret); return { tokens: connTokens.list() }; },
+    connectorTokenRevoke(secret, body) { ownerOnly(secret); return { ok: true, ...connTokens.revoke(body?.id) }; },
     get state() { return store.state; },
     get replayed() { return store.replayed; },
     authenticate,
     write,
+    guardsOn,
+    phaseRulesOn,
+    foldEra,
     /** `turns` (GET /api/v1/state?v=2) adds the latest turn report of each lane the token may read; `archived` (?archived=1)
      *  adds each task's archived step metadata. Without either the view is the v1 one. */
-    view(secret, { turns = false, archived = false } = {}) { return boardView(store.state, { actor: authenticate(secret), nowMs: now(), stallMs, config, webhookStatus, watcherAt, roleSlots, turns, archived }); },
+    view(secret, { turns = false, archived = false, window = '' } = {}) { return joinDiagrams(boardView(store.state, { actor: authenticate(secret), nowMs: now(), stallMs, config, webhookStatus, watcherAt, roleSlots, turns, archived, window, windowDays: stateWindowDays, guards: guardsOn(), phaseRulesSince: phaseRulesOn() ? phaseRulesSince : '', r4PerMessageSince, delivery: deliveryFor(), workOf: deliveryOn() ? workFor : undefined })); },
+    /** GET /api/v1/work: which task has a live agent run, on which session and machine (src/work.mjs). Any signed-in token. */
+    work(secret) {
+      const a = authenticate(secret);
+      if (!a) throw new BoardError(401, 'unauthorized');
+      return workFor(a);
+    },
+    /**
+     * The archived ask and feedback records of one task that GET /api/v1/state leaves out (src/window.mjs), newest first, one page per call:
+     * `limit` 1..500 (default 200) counts asks and feedback together, `before` is the previous page's next_before. Same audience as the state:
+     * every role, a reporter only for its scope_tasks. messages are the view's own shape of the feedback records returned.
+     */
+    history(secret, { task, before = '', limit } = {}) {
+      const actor = authenticate(secret);
+      if (!actor) throw new BoardError(401, 'unauthorized');
+      if (!task) throw new BoardError(400, 'task_required');
+      const n = limit == null || limit === '' ? HISTORY_PAGE.default : Number(limit);
+      if (!Number.isInteger(n) || n < 1) throw new BoardError(400, 'invalid_limit', { min: 1, max: HISTORY_PAGE.max });
+      if (!inScope(actor, task)) throw new BoardError(403, 'forbidden_task', { task });
+      const st = store.state;
+      if (!st.tasks[task] && !Object.values(st.asks).some(a => a.task_id === task) && !Object.values(st.feedback).some(f => f.task_id === task)) throw new BoardError(404, 'task_not_found', { task });
+      const live = liveSets(st, messagesView(st), now(), stateWindowDays > 0 ? stateWindowDays : Infinity);
+      const page = historyPage(st, task, live, { before, limit: Math.min(n, HISTORY_PAGE.max) });
+      // A scoped reporter reads a news item's related rows only within its scope (the same rule as the state view).
+      if (actor.role === 'reporter' && !actor.scope_tasks.includes('*')) {
+        const ok = id => inScope(actor, id);
+        page.feedback = page.feedback.map(f => scopedRelated(f, ok));
+        page.messages = page.messages.map(m => scopedRelated(m, ok));
+      }
+      return { task, days: stateWindowDays, ...page };
+    },
     /**
      * Dry run of steps.compact, shared with the op's own eligibility function (compactPlan): a GET route, never board.write,
      * so it can write nothing and does not enter the request-id/replay bookkeeping. Owner and coordinator only.
@@ -539,7 +912,12 @@ export function createBoard({ dataDir, now = Date.now, ownerToken, stallMs = DEF
       listeners.add(follow);
       if (afterSeq != null) for (const ev of store.readEvents(afterSeq, Infinity)) follow(ev);
       onCursor?.(last);
-      return stop;
+      // Delivery signals are not journal events: live only, without an id (they never move a client's resume cursor).
+      if (!types.includes('delivery')) return stop;
+      const onDelivery = sig => { if (!authenticate(secret)) { stopAll(); return onEnd?.('revoked'); } onSignal(sig); };
+      const stopAll = () => { stop(); deliveryListeners.delete(onDelivery); };
+      deliveryListeners.add(onDelivery);
+      return stopAll;
     },
     /** Audit journal after `after`, oldest first, at most `limit`; with `task`, only events on that task (a task's history). */
     events(secret, after = 0, limit = 200, { task } = {}) {
@@ -570,6 +948,13 @@ export function createBoard({ dataDir, now = Date.now, ownerToken, stallMs = DEF
       if (!linked && !canRead(secret, a)) throw new BoardError(404, 'not_found');
       return { mime: a.mime, file: store.blobPath(a.sha256), size: a.size };
     },
+    /** GET /api/v1/media/usage (owner, coordinator): what the board stores against its media budget and the video cap. */
+    mediaUsage(secret) {
+      const actor = authenticate(secret);
+      if (!actor) throw new BoardError(401, 'unauthorized');
+      if (!['owner', 'coordinator'].includes(actor.role)) throw new BoardError(403, 'forbidden_for_role', { role: actor.role, allowed: ['owner', 'coordinator'] });
+      return { used_bytes: mediaUsedBytes(), budget_bytes: mediaBudgetBytes, max_video_bytes: maxVideoBytes, max_upload_bytes: maxUploadBytes };
+    },
     /** A relative URL that streams one attachment without a bearer header, until it expires. */
     mediaLink(secret, id) {
       const a = store.state.attachments[id];
@@ -581,9 +966,46 @@ export function createBoard({ dataDir, now = Date.now, ownerToken, stallMs = DEF
      * Files one status request (rebrief.request, mode status) for every stale task that has none open, when the owner
      * left auto_request on. A task.update that changes Now/Next closes the request, so a second sweep on the same
      * task files nothing. Quiet rules (views.mjs sweepSkips/sweepNight): none for a grey, paused or closed task, none for a
-     * task written to in the last 60 min, none 23:00-07:00 ICT, and (J-05) none for a row whose every open step waits on the
-     * owner (a waiting owner step or an open ask) after a push in the last 24 h. Returns how many it filed. server.mjs runs it hourly.
+     * task written to in the last 60 min, none 23:00-07:00 ICT, and (T-31 15-11) never one for a row whose only open item waits
+     * on the owner while no worker runs (views.mjs ownerOnlyIdle). Returns how many it filed. server.mjs runs it hourly.
      */
+    /** Guard B4 on the timer: re-checks every task (and every open episode); returns how many idle.mark events it wrote. */
+    /**
+     * J-05 supervisor on the timer: files the nudges, escalations and daily digests src/supervisor.mjs finds, each as one
+     * nudge.raise written by the board itself (a key filed once is never filed again). Off: nothing, not even an escalation.
+     * Returns how many it filed.
+     */
+    sweepSupervisor() {
+      if (!supervisorOn()) return 0;
+      const state = store.state, t = now(), plan = sweepPlan(state, t, svConfig, Date.parse(supervisorSince));
+      const bodies = [
+        ...plan.clears.map(c => ({ op: 'nudge.clear', target_id: c.head, data: { ids: c.ids, reason: c.reason || 'condition_cleared' }, key: c.key })),
+        ...[...plan.raise, ...plan.digests].map(({ task_id, ...data }) => ({ op: 'nudge.raise', target_id: task_id, data, key: data.key })),
+      ];
+      let n = 0;
+      for (const { key, ...b } of bodies) { // one bad candidate is logged and skipped; the rest of the sweep still lands
+        const body = { request_id: `nudge-${sha256(key).slice(0, 16)}-${t}`, ...b }; // the key itself carries / and @
+        try { commit(BOARD_ACTOR, body, sha256(canonical(body)), seq => OPS[body.op].check({ state, req: body, seq, actor: BOARD_ACTOR })); n++; }
+        catch (e) { console.error(`supervisor: ${body.op} ${key} skipped: ${e.code || e.message}`); }
+      }
+      return n;
+    },
+    /** GET /api/v1/supervisor: on/off, thresholds, the open nudges (oldest first) and the metrics, derived from the records. */
+    supervisorView(secret) {
+      const actor = authenticate(secret);
+      if (!actor) throw new BoardError(401, 'unauthorized');
+      if (actor.role === 'reporter') throw new BoardError(403, 'forbidden_for_role', { role: actor.role, allowed: ['owner', 'coordinator'] });
+      const state = store.state;
+      const open = openHeads(state) // one line per issue: the head of each open chain, owner level first, then oldest
+        .map(f => ({ id: f.id, task_id: f.task_id, rule: f.kind === 'idle' ? 'R4' : f.rule, level: f.kind === 'idle' ? 1 : f.level, lane: f.kind === 'idle' ? state.tasks[f.task_id]?.lane || '' : f.lane,
+          text: f.text, at: f.attribution.created_at, since: rootOf(state, f).attribution.created_at, ...(f.escalated_to ? { escalated_to: f.escalated_to } : {}) }));
+      return { on: supervisorOn(), since: supervisorSince || null, config: svConfig, open, metrics: supervisorMetrics(state, Date.parse(supervisorSince) || 0) };
+    },
+    sweepIdle() {
+      let n = 0;
+      for (const id of new Set([...Object.keys(store.state.tasks), ...Object.keys(store.state.idle || {})])) n += checkIdle(id);
+      return n;
+    },
     sweepFreshness() {
       const state = store.state, fr = { ...FRESHNESS_DEFAULTS, ...state.freshness };
       if (!fr.auto_request || sweepNight(now())) return 0;
@@ -601,9 +1023,11 @@ export function createBoard({ dataDir, now = Date.now, ownerToken, stallMs = DEF
     sendMessage,
     inbox: inboxFor,
     close: () => {
+      if (boardClosed) return; // a signal handler and a test teardown may both close: the second call does nothing
+      boardClosed = true;
       for (const w of inboxWaiters.values()) w.close();
       inboxWaiters.clear();
-      store.close(); mailbox.close();
+      store.close(); mailbox.close(); diagrams.close(); twofa.close();
     }
   };
 }

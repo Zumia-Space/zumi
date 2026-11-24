@@ -70,7 +70,9 @@ try {
     fs.mkdirSync(path.join(fake, 'scripts'), { recursive: true });
     fs.writeFileSync(path.join(fake, 'src', 'board.mjs'), `import fs from 'node:fs'; import path from 'node:path';
 export function createBoard({ dataDir }) { fs.mkdirSync(dataDir, { recursive: true }); fs.writeFileSync(path.join(dataDir, 'owner.token'), 't');
-  return { state: { seq: 1 }, close() { globalThis.__fakeBoardCloses = (globalThis.__fakeBoardCloses || 0) + 1; } }; }\n`);
+  return { state: { seq: 1 }, ownerCredential: 't', authenticate() { return null; },
+    write() { if (globalThis.__fakeMintThrows) throw new Error('mint failed'); return { token: 'ui' }; },
+    close() { globalThis.__fakeBoardCloses = (globalThis.__fakeBoardCloses || 0) + 1; } }; }\n`);
     fs.writeFileSync(path.join(fake, 'src', 'server.mjs'), `import http from 'node:http';
 export function createServer() { return http.createServer((q, r) => r.end('ok')); }
 `);
@@ -96,6 +98,13 @@ export function createServer() { return http.createServer((q, r) => r.end('ok'))
     for (const srv of made) if (srv.listening) srv.close(); // each case starts with nothing listening
     const listenFail = await tryOpen('listen-fail', { port: 70000 }); // not EADDRINUSE: no fallback to port 0, the open throws
     check('S2 listen fails (not EADDRINUSE): the open rejects and the store is closed', Boolean(listenFail.err) && listenFail.closes === 1 && listenFail.listening === 0, listenFail);
+    for (const srv of made) if (srv.listening) srv.close();
+    // the ui token mint (laneboard-host appUiToken: since Laneboard 988ecc6 the page needs an owner-UI credential) runs inside the open:
+    // a mint that throws closes what the open opened, like a failed seed (T-31-ALPHA11 merge)
+    globalThis.__fakeMintThrows = true;
+    const mintFail = await tryOpen('mint-fail', {});
+    globalThis.__fakeMintThrows = false;
+    check('S2 ui token mint fails: the open rejects, the store is closed and no server is left listening', mintFail.err === 'mint failed' && mintFail.closes === 1 && mintFail.listening === 0 && mintFail.downs.length === 0, mintFail);
     for (const srv of made) if (srv.listening) srv.close();
     const good = await tryOpen('fake-ok', {});
     check('S2 control: a good open keeps the store open', good.err === null && good.closes === 0 && good.listening === 1, good);

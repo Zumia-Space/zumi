@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "ops/feedback.add.json",
   "title": "data for feedback.add",
-  "description": "Owner note on a task, or coordinator reply. Kind sweep (owner-only, target * = the whole board, the Cập nhật button) asks the coordinator to re-check every task status; one may be open at a time (409 sweep_open); the coordinator closes it with a reply (reply_to, resolve_reply_to) or feedback.resolve. approve/reject/newtask/choice/goal-lock are owner-only; choice records an option the owner picked on a step (step_id) or a reviewer plan (plan_id) outside an ask; goal-lock (with goal_version) is how a migration records a predecessor's goal-lock row (goal.lock writes its own). target_id NEW is the board's thread of new-task requests (no task needed). An owner note/approve/reject/choice answers the open asks it lands on (on a step: that step's asks and the task's step-less asks; on the task: its step-less asks); the server journals their ids as answers_asks and the feedback stays open for the coordinator. With ask_id the message is scoped to that ask and answers only it. Kinds: redirect (Đổi hướng) and askback (Hỏi lại: the ask stays open, journaled as asks_back) are owner-only; receipt (Nhận) is coordinator-only, needs reply_to = an owner message of the task and a text with the lines 'Đổi:', 'Lịch:', 'Bước tiếp:' (parsed into receipt), is recorded on that message (received) and closes it.",
+  "description": "Owner note on a task, or coordinator reply. Kind sweep (owner-only, target * = the whole board, the Cập nhật button) asks the coordinator to re-check every task status; one may be open at a time (409 sweep_open); the coordinator closes it with a reply (reply_to, resolve_reply_to) or feedback.resolve. approve/reject/newtask/choice/goal-lock are owner-only; choice records an option the owner picked on a step (step_id) or a reviewer plan (plan_id) outside an ask; goal-lock (with goal_version) is how a migration records a predecessor's goal-lock row (goal.lock writes its own). target_id NEW is the board's thread of new-task requests (no task needed). An owner note/approve/reject/choice answers the open asks it lands on (on a step: that step's asks and the task's step-less asks; on the task: its step-less asks); the server journals their ids as answers_asks and the feedback stays open for the coordinator. With ask_id the message is scoped to that ask and answers only it. Kinds: redirect (Đổi hướng) and askback (Hỏi lại: the ask stays open, journaled as asks_back) are owner-only; receipt (Nhận) is coordinator-only, needs reply_to = an owner message of the task and a text with the lines 'Đổi:', 'Lịch:', 'Bước tiếp:' (parsed into receipt), is recorded on that message (received) and closes it. cos-report and cos-event are the coordinator's news (T-31 B2 news feed, merged with J-05 17-11): coordinator-only (403 coordinator_only_kind), on a task or on target_id NEWS (the board-wide news thread, which takes no other kind: 400 news_kind_only), with an optional tasks list (max 10, each must exist); ask_id, step_id, reply_to, resolve_reply_to, plan_id and goal_version are refused (400 news_fields); they answer no ask, need no receipt and do not mark the task's activity. A cos-report on a task (Cập nhật tiến độ, J-05 17-11) is CoS's progress post on it: it is no pickup of an owner message and counts as the task's status text (text_at; it closes the open status request). W-42 5A (diagram), rev 2: node_id anchors the message on one node of the task's attached diagram (404 no_diagram when the task has none, 404 node_not_found when the id is not in the current revision). node_id is allowed on kinds note, reply and receipt, and on approve, reject and choice only together with ask_id (400 node_id_kind otherwise): a verdict on a node never sweeps the task's step-less asks, and with ask_id it answers only that ask. A note never answers an ask without ask_id (today's rule). The anchor is stored in the diagram side store (a feedback.anchor line), never in the projection: the reducer's pick list is unchanged, and GET views join node_id from the side store at read time, so a state.json rebuilt by an older release loses no anchor. Kind diagram is the board's own pointer message for an owner content revision: it is written only by the diagram route inside the server (request_id diagram-<diagram_id>-r<rev>, actor = the owner who saved, text = the save note verbatim, with the diagram block); POST /api/v1/write refuses it for every token (403 server_only_kind). It answers no ask, is tracked for delivery like any owner message, and is closed by the coordinator's receipt.",
   "x-roles": [
     "owner",
     "coordinator"
@@ -28,7 +28,10 @@
         "redirect",
         "askback",
         "receipt",
-        "sweep"
+        "sweep",
+        "cos-report",
+        "diagram",
+        "cos-event"
       ]
     },
     "text": {
@@ -41,14 +44,17 @@
     },
     "ask_id": {
       "type": "string",
-      "pattern": "^ask-[0-9]+$",
-      "description": "Scope: the message is about this ask of the task (preset when the owner opens a task from Waiting on you)."
+      "pattern": "^ask-[0-9]+(?:-[0-9]+)?$",
+      "description": "Scope: the message is about this ask of the task (preset when the owner opens a task from Waiting on you). W-42 5A (gate S11): the task.create ask form ask-<seq>-<n> is accepted too."
     },
     "attachments": {
       "type": "array",
       "maxItems": 10,
-      "items": { "type": "string", "pattern": "^att-[0-9]+$" },
-      "description": "Images of this task (uploaded with purpose=message) shown with the message."
+      "items": {
+        "type": "string",
+        "pattern": "^att-[0-9]+$"
+      },
+      "description": "Images of this task (uploaded with purpose=message) shown with the message; a coordinator message may also carry a video/mp4 or video/webm clip of the task (say --img)."
     },
     "reply_to": {
       "$ref": "../common.json#/$defs/recordId"
@@ -63,6 +69,57 @@
     "goal_version": {
       "type": "integer",
       "minimum": 1
+    },
+    "node_id": {
+      "$ref": "../diagram/document.json#/$defs/id",
+      "description": "W-42 5A rev 3: the diagram node this message is about. Kinds note, reply, receipt only, and never together with ask_id (400 node_id_kind): a node comment answers no ask. Owner as an owner UI credential (403 owner_ui_only for a raw owner bearer) or coordinator; a reporter is 403. Stored as a side-store anchor line, not in state.json."
+    },
+    "diagram": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rev",
+        "content_rev",
+        "sha256"
+      ],
+      "description": "kind diagram only: the owner revision this message points at (W-42 5A contract section 4).",
+      "properties": {
+        "rev": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_rev": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "changed_ids": {
+          "type": "array",
+          "maxItems": 240,
+          "items": {
+            "$ref": "../diagram/document.json#/$defs/id"
+          }
+        },
+        "removed_ids": {
+          "type": "array",
+          "maxItems": 240,
+          "items": {
+            "$ref": "../diagram/document.json#/$defs/id"
+          }
+        }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {
+        "$ref": "../common.json#/$defs/taskId"
+      },
+      "description": "cos-report / cos-event only: the related tasks; each must exist, none repeated (400 duplicate_tasks)."
     }
   }
 }

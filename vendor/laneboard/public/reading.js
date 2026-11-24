@@ -51,7 +51,7 @@
     const m = String(mime || '');
     if (/^text\/markdown$/i.test(m)) return 'md';
     if (/^image\/(?:png|jpeg|webp|gif)$/i.test(m)) return 'image';
-    if (/^video\/mp4$/i.test(m)) return 'video';
+    if (/^video\/(?:mp4|webm)$/i.test(m)) return 'video';
     return null;
   };
   /**

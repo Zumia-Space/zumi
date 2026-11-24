@@ -259,6 +259,9 @@ code.cmd.secret { white-space: normal; overflow-wrap: anywhere; user-select: all
 .pin-btn.on { opacity: 1; color: var(--foreground); }
 .pin-btn.on .icon { fill: currentColor; }
 .lmeta .pin-btn { margin-right: 2px; }
+.pin-btn.labelled { gap: 4px; min-height: 24px; padding: 0 8px; border: 1px solid var(--input); border-radius: var(--radius-md); background: var(--card); color: var(--foreground); opacity: 1; font: inherit; font-size: var(--fs-ui); font-weight: 500; }
+.pin-btn.labelled:hover { background: var(--accent); }
+.pin-btn.labelled.on { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
 .pin-strip { margin-bottom: 20px; } /* its own section above the "Cần anh" heading, neutral card border: a pin is not an ask */
 .pin-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
 .pin-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 3px 8px; align-items: center; min-width: 0; max-width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); color: inherit; text-decoration: none; }
@@ -497,6 +500,7 @@ dl.rcpt dd { margin: 0; overflow-wrap: anywhere; }
 .kchip.k-askback[aria-checked="true"] { border-color: var(--focus); color: var(--focus); }
 .composer .scope { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-meta); min-width: 0; flex: 0 1 26rem; }
 .composer .scope select { width: 100%; min-width: 0; }
+.composer .scope > span { white-space: nowrap; flex: none; } /* "Phạm vi" stays on one line beside its select */
 .ev-opts { margin: 4px 0 0; padding-left: 1.2em; font-size: var(--fs-ui); color: var(--muted-foreground); display: grid; gap: 2px; }
 .ev-opts b { color: var(--foreground); }
 /* 3 lines while empty and not focused; 6 (growing to 40% of the window) once focused or filled */
@@ -534,7 +538,7 @@ dl.rcpt dd { margin: 0; overflow-wrap: anywhere; }
 .lrow .lmeta { display: inline-flex; align-items: center; gap: 6px; flex: none; font-size: var(--fs-meta); font-weight: 400; color: var(--muted-foreground); }
 .lrow .n { font-variant-numeric: tabular-nums; }
 .lrow .idle { color: var(--warn); }
-.lrow.need .wait { flex: none; font-size: var(--fs-meta); font-variant-numeric: tabular-nums; color: var(--muted-foreground); min-width: 2.2rem; }
+.lrow.need .wait, .lrow.pinned .wait { flex: none; font-size: var(--fs-meta); font-variant-numeric: tabular-nums; color: var(--muted-foreground); min-width: 2.2rem; }
 .lrow.need .n-asks { flex: none; font-size: var(--fs-meta); font-variant-numeric: tabular-nums; color: var(--muted-foreground); }
 .lrow.need .wait.warn { color: var(--warn); font-weight: 600; } .lrow.need .wait.late { color: var(--danger); font-weight: 600; }
 .st { font-size: var(--fs-meta); color: var(--muted-foreground); white-space: nowrap; }
@@ -610,18 +614,18 @@ a.wk-code.code { padding: 1px 4px; text-align: center; }
   .wk-cell:nth-child(even) .wk-pop { left: auto; right: 0; }
   .wk-err { padding-left: 0; }
 }
-/* Task view: center and right pane fill the window height; each scrolls on its own. */
+/* Task view: center and right pane fill the window height; each scrolls on its own. The center column is ONE scroller: header,
+   Tình hình, progress updates and the thread scroll together, only the composer stays pinned at its bottom (owner 21-11: pinned
+   panels left the thread a few lines of its own inner scroll). */
 .main.tv-mode { padding: 0; }
 .tv { display: grid; grid-template-columns: minmax(0, 960px) minmax(340px, 1fr); height: 100vh; }
-.center { display: flex; flex-direction: column; gap: 10px; min-height: 0; min-width: 0; height: 100vh; padding: 16px 24px 12px; border-right: 1px solid var(--border); }
+.center { display: flex; flex-direction: column; gap: 10px; min-height: 0; min-width: 0; height: 100vh; overflow-y: auto; padding: 16px 24px 12px; border-right: 1px solid var(--border); }
 .tv-head { display: grid; gap: 4px; }
 .tv-head h1 { font-size: var(--fs-title); line-height: 1.25; font-weight: 600; }
 .tv-ids { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: var(--fs-meta); }
 .situation { border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--card); padding: 10px 14px 6px; }
-/* The panel never outgrows the window: it scrolls inside a cap, so an open question can take the room the stream would
-   have had and the composer stays where it is (a 900px window lost 46px before this). flex: none — the column must not
-   trade the panel's height for the stream's; it is capped instead. One scroller: the panel itself. */
-.situation { display: flex; flex-direction: column; flex: none; min-height: 0; max-height: clamp(15rem, calc(100vh - 30rem), 34rem); overflow-y: auto; overflow-x: hidden; }
+/* The panel takes its own height and scrolls with the column (no cap, no inner scroller); its rows fold behind Xem thêm. */
+.situation { display: flex; flex-direction: column; flex: none; min-height: 0; overflow-x: hidden; }
 .situation > .fresh, .situation > dl.kv, .situation > .more { flex: none; }
 .situation dl.kv { gap: 4px 14px; }
 .situation .fresh { margin: 0 0 6px; }
@@ -663,12 +667,46 @@ a.wk-code.code { padding: 1px 4px; text-align: center; }
 .ask-older > summary::before { content: '▸'; }
 .ask-older[open] > summary::before { content: '▾'; }
 .ask-older > .ask-card { margin-top: 4px; }
-.stream-scroll { flex: 1 1 auto; min-height: 140px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--card); padding: 4px 14px; }
+/* The thread grows with its entries inside the column's one scroll, newest first right under the header (owner 09-11 on the
+   phone, 21-11 everywhere): "Xem N mục cũ hơn" sits at its end. */
+.stream-scroll { flex: none; display: flex; flex-direction: column-reverse; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--card); padding: 4px 14px; }
+.stream-scroll > .evs { display: flex; flex-direction: column-reverse; }
+/* A wide window (1920): the thread's lines stop at about 90 characters, centred in the column (Fable R2 21-11: ~190 a line).
+   A ch is a "0", wider than the average letter, so 80ch reads as about 90 characters. Narrower columns are unaffected. */
+.stream-scroll > .evs { width: 100%; max-width: 80ch; align-self: center; }
+/* "Có tin mới ↑" (Fable R2 21-11): pinned under the column's top while the owner reads mid-thread. A zero-height row inside the
+   thread box (the column's 10px gap would shift the text under a new item of its own), so showing it moves no text. */
+.new-above { position: sticky; top: 8px; z-index: 6; height: 0; display: flex; justify-content: center; overflow: visible; }
+.new-above .btn { position: relative; margin-top: 2px; border-radius: 999px; padding: 4px 14px; box-shadow: 0 6px 18px #0008; }
+/* Pi2 note (1920): the pill sat on the first text line, cutting words in half. A thin band across the thread behind it (the
+   card's colour, mostly opaque, fading out below) makes the line under it read as covered, not as broken text; still no reflow. */
+.new-above::before { content: ''; position: absolute; left: -14px; right: -14px; top: -8px; height: 48px; pointer-events: none;
+  background: linear-gradient(color-mix(in srgb, var(--card) 92%, transparent) 70%, transparent); backdrop-filter: blur(2px); }
 .ev.sys .ev-meta { margin: 0; }
+/* Cập nhật tiến độ (J-05 17-11): CoS's progress posts above the stream, newest first; in the stream they keep a success edge.
+   It scrolls with the column (no cap of its own); older posts sit behind Xem thêm. */
+.progress-block { flex: none; margin: 0 0 10px; padding: 8px 14px; border: 1px solid var(--border); border-left: 3px solid var(--success); border-radius: var(--radius-xl); background: var(--card); }
+.progress-block .pg-h { margin: 0 0 4px; font-size: var(--fs-meta); font-weight: 600; color: var(--muted-foreground); }
+.progress-block .pg-list { margin: 0; padding: 0; list-style: none; }
+.progress-block .pg-item { padding: 6px 0; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.progress-block .pg-item:first-child { border-top: 0; }
+.progress-block .pg-item .ev-meta b { font-size: var(--fs-body); }
+.ev.k-cos-report { border-left-color: var(--success); }
+.ev.k-cos-report .kind { color: var(--success); }
+.stream-scroll > .sys-toggle { margin: 6px 0 2px; }
 .ev.sys .si.ok { color: var(--success); }
 .ev.flash { animation: flash 1.6s ease-out; }
 @keyframes flash { from { background: color-mix(in srgb, var(--focus) 25%, transparent); } to { background: transparent; } }
-.tv .composer { position: static; margin-top: 0; box-shadow: none; flex: none; }
+/* Pinned to the bottom of the column's scroll; margin-top: auto keeps it at the bottom under a short thread.
+   The first shadow is solid page colour: it covers the column's bottom padding under the box, where the thread would show. */
+.tv .composer { position: sticky; bottom: 0; margin-top: auto; flex: none; box-shadow: 0 6px 0 6px var(--background), 0 -10px 28px #0007; }
+/* Idle (empty, not focused, no image): one line and no footer, so the pinned box stays small; focus or text opens it in full.
+   Phạm vi shares the chips' row instead of wrapping under it. A phone keeps its 4 lines. */
+@media (min-width: 641px) {
+  .tv .composer .scope { flex: 1 1 14rem; max-width: 26rem; }
+  .tv .composer:not(:focus-within):has(textarea:placeholder-shown):not(:has(.thumb)) textarea { min-height: calc(1.5em + 14px); height: calc(1.5em + 14px); }
+  .tv .composer:not(:focus-within):has(textarea:placeholder-shown):not(:has(.thumb)) .composer-foot { display: none; }
+}
 /* C1. The right pane is a size container: the pane's own width (340px at a 1280px window), not the window's, decides
    when its content switches to the narrow layout. */
 .ctx { height: 100vh; overflow-y: auto; overflow-x: hidden; padding: 14px 16px 24px; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 12px; min-width: 0; container: ctx / inline-size; }
@@ -854,11 +892,8 @@ html.dfv-open, html.dfv-open body { overflow: hidden; }
 @media (max-width: 960px) {
   .main.tv-mode { padding: 16px 16px 40px; }
   .tv { display: block; height: auto; }
-  .center { height: auto; padding: 0; border-right: 0; }
-  .stream-scroll { max-height: none; overflow: visible; }
-  .ask-cards { overflow: visible; } /* the whole page scrolls here: no inner scroller to trap a thumb */
-  .situation { max-height: none; overflow: visible; }
-  .tv .composer { position: sticky; bottom: 0; box-shadow: 0 -10px 28px #0007; }
+  .center { height: auto; overflow: visible; padding: 0; border-right: 0; } /* the whole page scrolls here */
+  .ask-cards { overflow: visible; } /* no inner scroller to trap a thumb */
   .ctx { height: auto; overflow: visible; padding: 16px 0 0; }
 }
 @media (max-width: 640px) {
@@ -867,7 +902,11 @@ html.dfv-open, html.dfv-open body { overflow: hidden; }
   .situation dl.kv { grid-template-columns: max-content minmax(0, 1fr); gap: 4px 10px; }
   .srow, .srow-main { min-height: 34px; }
   .srow.open .srow-edit { opacity: 1; } /* no hover on a phone: the select shows on the opened row */
-  .srow.open .srow-main { padding-right: 108px; } /* and the row reserves its room, as on hover */
+  /* The select drops under the label instead of a 108 px column beside it: beside it, state icon + number + report chip + the column
+     left the label ~50 px at 320 px wide, one word a line (J-05 steps-overlap, 19-11). */
+  .srow.open { flex-wrap: wrap; }
+  .srow.open .srow-main { flex: 1 1 100%; padding-right: 6px; }
+  .srow.open .srow-edit { position: static; width: 100px; margin: 0 0 6px 36px; }
   .srow.open .sr { display: none; }
 }
 
@@ -889,8 +928,12 @@ html.ro [disabled], html.ro [aria-disabled="true"] { cursor: not-allowed; }
 /* "Loading…" before app.js paints, in the language lang-boot.js already put on <html> */
 [data-loading]::after { content: 'Loading…'; } html[lang="vi"] [data-loading]::after { content: 'Đang tải…'; } html[lang="zh-CN"] [data-loading]::after { content: '加载中…'; }
 /* Left rows are a link + (owner) a status button with a popover; the task header carries a visible status select. */
-.lrow.task { position: relative; padding: 0 4px 0 0; }
-.lrow .lmain { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; min-height: 28px; padding: 3px 0 3px 8px; color: inherit; text-decoration: none; }
+.lrow.task { position: relative; padding: 0 4px 0 0; flex-wrap: wrap; }
+/* The link keeps room for its code, a few words of title and the progress; the state word, pin and notes wrap under it, right-aligned, when the rail is too narrow for one line (1440 px: the word sat over the bar). */
+.lrow.task > .lmeta { margin-left: auto; }
+.lrow.task .st-n { font-variant-numeric: tabular-nums; }
+.lrow .badge.notes { font-weight: 400; }
+.lrow .lmain { flex: 1 1 12rem; min-width: 0; overflow: clip; display: flex; align-items: center; gap: 6px; min-height: 28px; padding: 3px 0 3px 8px; color: inherit; text-decoration: none; }
 .st-btn { padding: 0 4px; border: 0; border-radius: var(--radius-sm); background: none; cursor: pointer; font: inherit; }
 .st-btn:hover, .st-btn[aria-expanded="true"] { background: var(--muted); }
 .st.caret { color: var(--muted-foreground); }
@@ -933,11 +976,13 @@ a.chip.ref-link:hover { border-color: var(--primary); }
 .chip.ref-link.local { white-space: normal; }
 .chip.ref-link.doc { cursor: pointer; font-family: inherit; font-size: var(--fs-meta); font-weight: 500; }
 button.chip.ref-link.doc:hover { border-color: var(--primary); }
-/* A link chip the board holds a copy of: an open button (▤ reader / ▣ lightbox / ▶ player), the copy chip stays beside it. */
+/* A link chip the board holds a copy of: an open button (▤ reader / ▣ lightbox), the copy chip stays beside it. A clip is a player (.ref-video). */
 .chip.ref-link.open { cursor: pointer; font-family: inherit; font-size: var(--fs-meta); font-weight: 500; }
 button.chip.ref-link.open:hover { border-color: var(--primary); }
-.ref-videos { display: grid; gap: 6px; min-width: 0; }
-.ref-videos video { width: 100%; max-height: 420px; border-radius: var(--radius-md); background: #000; }
+.ref-videos { display: grid; gap: 6px; min-width: 0; margin-top: 6px; }
+.ref-video { margin: 0; min-width: 0; }
+.ref-videos video { display: block; width: 100%; max-width: 100%; max-height: min(420px, 70vh); border-radius: var(--radius-md); background: #000; }
+.ref-video figcaption { margin-top: 2px; font-size: var(--fs-meta); color: var(--muted-foreground); overflow-wrap: anywhere; }
 .ref-path { font-family: var(--mono); font-size: var(--fs-meta); overflow-wrap: anywhere; }
 .ref-copy { flex: none; padding: 0 8px; border: 1px solid var(--input); border-radius: var(--radius-sm); background: var(--card); color: inherit; font-size: var(--fs-meta); cursor: pointer; }
 .situation dl.kv dd.refs-row { grid-column: 2; display: block; overflow: visible; font-weight: 400; }
@@ -1152,3 +1197,186 @@ html.dark { --m-gpt: #22d3ee; --r-code: #2dd4bf; --r-review: #f472b6; --r-plan: 
 .q-card .upd { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: auto; padding-top: 7px; border-top: 1px solid var(--hud-cy-dim); font-size: 10.5px; }
 .q-foot { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; margin-top: 14px; padding-top: 8px; border-top: 1px solid var(--hud-cy-dim); font-size: 10.5px; color: var(--hud-mute); }
 .q-foot .st { display: flex; align-items: center; gap: 5px; }
+
+/* J-05 W-42 B3: phase progress (done phases / phases) on the rail row and the task header. A native <progress>: the CSP
+   blocks style="" attributes, and the element carries its own value without script. */
+.prog { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-meta); color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.prog progress { appearance: none; -webkit-appearance: none; width: 48px; height: 6px; border: 0; border-radius: 999px; background: var(--muted); overflow: hidden; }
+.prog progress::-webkit-progress-bar { background: var(--muted); border-radius: 999px; }
+.prog progress::-webkit-progress-value { background: var(--success); border-radius: 999px; }
+.prog progress::-moz-progress-bar { background: var(--success); border-radius: 999px; }
+.tv-ids .prog progress { width: 72px; }
+/* J-05 W-42 B4: the idle badge (red "Đứng yên") and Home's "đang đứng, không chờ anh" list. */
+.idle-badge { white-space: nowrap; }
+.idle-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+.idle-list .rows { display: flex; flex-direction: column; }
+.idle-row { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 0; border-top: 1px solid var(--border); color: inherit; text-decoration: none; }
+.idle-row:first-child { border-top: 0; }
+.idle-row:hover .idle-ttl { text-decoration: underline; }
+.idle-row .idle-ttl { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.idle-row .idle-step { flex: 0 1 40%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-meta); }
+@media (max-width: 640px) { .idle-row .idle-step { display: none; } }
+/* J-05 working status: the "Đang làm" badge and Home's "Phiên đang chạy" panel (src/work.mjs, read as given) */
+.work-badge { white-space: nowrap; }
+/* Home, first thing above the fold: run counts per state; a click scrolls to "Phiên đang chạy" */
+.work-strip { width: 100%; font: inherit; cursor: pointer; text-align: left; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 8px 12px; margin-bottom: 12px; color: inherit; text-decoration: none; font-size: var(--fs-meta); }
+.work-strip:hover { border-color: var(--input); }
+.work-count { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.pin-work { grid-column: 2 / -1; min-width: 0; }
+.lrow.need .work-badge { flex: none; padding: 0 5px; }
+/* 1b (Fable R2): the panel lands below the sticky header when scrolled to (strip click, a link): never under it at 390 px */
+#work-panel { scroll-margin-top: 12px; }
+@media (max-width: 640px) { #work-panel { scroll-margin-top: 76px; } }
+.tv-work { margin: 4px 0 2px; } /* the task header's run line: its own line under the ids, never crowding them */
+.work-session { padding: 8px 0; border-top: 1px solid var(--border); }
+.work-session:first-of-type { border-top: 0; }
+.work-sh { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.work-session > p { margin: 4px 0 0; font-size: var(--fs-meta); }
+/* code | seat | state chip on one grid row at every width: a chip never wraps to float between rows (390 px) */
+.work-run { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 4px 0 0 12px; }
+.work-run .muted { font-size: var(--fs-meta); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.work-sum { margin: 0 0 4px; font-size: var(--fs-meta); }
+.work-old { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 6px; }
+.work-old > summary { cursor: pointer; font-size: var(--fs-meta); }
+.work-old-run { padding-top: 4px; }
+.work-old-run > .muted { font-size: var(--fs-meta); padding-left: 12px; }
+/* J-05 supervisor: the board's open nudges on Home; level 3 (owner) and 2 (CoS) carry a left mark */
+.supervisor-strip .rows { display: flex; flex-direction: column; }
+.sv-row { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 0 8px 8px; border-top: 1px solid var(--border); border-left: 3px solid transparent; color: inherit; text-decoration: none; }
+.sv-row:first-child { border-top: 0; }
+.sv-row.lvl3 { border-left-color: var(--danger); }
+.sv-row.lvl2 { border-left-color: var(--warn); }
+.sv-row .muted, .sv-row .chip { flex: 0 0 auto; white-space: nowrap; }
+.sv-row .sv-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-meta); }
+@media (max-width: 640px) { .sv-row .muted { display: none; } }
+.tv-ids .sv-receipt { min-height: 24px; padding: 0 8px; } /* the owner closes an owner-level nudge in the task header (svBadge) */
+
+/* J-05 phase view: the Bước tab of a task with phases, one folded group per phase */
+.slist.phased { max-height: none; }
+details.phase { border-bottom: 1px solid var(--border); }
+details.phase > summary.phase-head { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 6px; cursor: pointer; list-style: none; font-weight: 600; }
+details.phase > summary.phase-head::-webkit-details-marker { display: none; }
+details.phase > summary .phase-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+details.phase.ph-done > summary { color: var(--muted-foreground); font-weight: 500; }
+details.phase.ph-other > summary { color: var(--muted-foreground); font-weight: 500; }
+details.phase[open] > summary { background: var(--muted); border-radius: var(--radius-sm); }
+.situation dd.cos-line { white-space: normal; }
+.ev-wait.unanswered, .chip.unanswered { color: var(--destructive, #e5484d); }
+
+/* J-05 delivery: one status line under each owner message (sent · delivered · read · answered), red when it did not arrive */
+.ev-delivery { margin-top: 4px; font-size: var(--fs-meta); color: var(--muted-fg, #888); display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.ev-delivery .st { opacity: .55; }
+.ev-delivery .st.on { opacity: 1; color: var(--success); }
+.ev-delivery .sep { opacity: .5; }
+.ev-delivery.bad { color: var(--danger); font-weight: 600; }
+.badge.q.bad { background: var(--danger); color: #fff; }
+
+/* J-05 owner-first (owner 19-11): "Chờ anh" opens the Bước tab, above the phases; a phase folds its done steps to one line */
+.owner-first { display: grid; gap: 8px; min-width: 0; padding: 8px 10px; margin-bottom: 4px; border: 1px solid color-mix(in srgb, var(--question) 55%, var(--border)); border-radius: var(--radius-md); background: color-mix(in srgb, var(--question) 8%, var(--background)); }
+.owner-first .of-title { margin: 0; font-size: var(--fs-ui); font-weight: 700; }
+.of-card { display: grid; gap: 6px; min-width: 0; padding-top: 6px; border-top: 1px solid var(--border); }
+.of-card:first-of-type { padding-top: 0; border-top: 0; }
+.of-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.of-head .of-step { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-weight: 600; text-align: left; }
+.of-head .need-age { flex: none; }
+.of-card .ask-card-body { padding: 0; border-top: 0; gap: 8px; }
+.of-card .ac-text { padding-top: 0; max-height: 38vh; overflow-y: auto; overflow-wrap: anywhere; }
+.of-card .actions { flex-wrap: wrap; }
+details.done-fold { border-bottom: 1px solid var(--border); }
+details.done-fold > summary { display: flex; align-items: center; min-height: 32px; padding: 4px 6px 4px 28px; cursor: pointer; list-style: none; color: var(--muted-foreground); font-size: var(--fs-meta); }
+details.done-fold > summary::-webkit-details-marker { display: none; }
+details.done-fold > summary::before { content: '▸'; position: absolute; margin-left: -18px; }
+details.done-fold[open] > summary::before { content: '▾'; }
+details.done-fold > summary:hover { background: var(--accent); }
+
+/* W-42 5A.3: the diagram/1 viewer in the Diagram tab (public/diagram-view.js). Colours from tokens only. */
+.dgv-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.dgv-badge.pinned { border-color: var(--success); color: var(--success); }
+.dgv-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.dgv-stage { position: relative; height: min(48vh, 520px); min-height: 320px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--background); touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.dgv-stage:active { cursor: grabbing; }
+.dgv-canvas { position: absolute; inset: 0; } /* no CSS scale and no will-change: pan and zoom are the SVG viewBox (gate MF-C) */
+.dgv-svg { display: block; font-family: var(--font); }
+.dgv-region rect { fill: color-mix(in srgb, var(--accent) 5%, var(--card)); stroke: var(--border); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.dgv-region.k-guard rect { fill: color-mix(in srgb, var(--danger) 5%, var(--card)); }
+.dgv-region.k-data rect { fill: color-mix(in srgb, var(--warn) 6%, var(--card)); }
+.dgv-region.k-flow rect { fill: color-mix(in srgb, var(--success) 5%, var(--card)); }
+.dgv-region-t { fill: var(--foreground); font-size: 44px; font-weight: 700; }
+.dgv-region-lead { fill: var(--muted-foreground); font-size: 24px; }
+.dgv-region-far { fill: var(--foreground); font-weight: 700; opacity: 0; pointer-events: none; paint-order: stroke; stroke: var(--background); stroke-width: .16em; stroke-linejoin: round; }
+.dgv-edge path { fill: none; stroke: var(--muted-foreground); stroke-width: 1.4; opacity: .75; vector-effect: non-scaling-stroke; }
+.dgv-edge.dashed path { stroke-dasharray: 10 8; }
+.dgv-edge-t { fill: var(--muted-foreground); font-size: 18px; }
+.dgv-arrow { fill: var(--muted-foreground); }
+.dgv-node { cursor: pointer; }
+.dgv-node .dgv-under { fill: var(--background); }
+.dgv-node .dgv-box { fill: var(--card); stroke: var(--border); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.dgv-node.k-ui .dgv-box { stroke: var(--accent); }
+.dgv-node.k-guard .dgv-box { stroke: var(--danger); }
+.dgv-node.k-data .dgv-box { stroke: var(--warn); }
+.dgv-node.k-flow .dgv-box { stroke: var(--success); }
+.dgv-node.k-external .dgv-box { stroke-dasharray: 8 6; }
+.dgv-node.muted { opacity: .62; }
+.dgv-node.sel .dgv-box, .dgv-node:focus-visible .dgv-box { stroke: var(--focus); stroke-width: 3; }
+.dgv-node:hover .dgv-box { stroke-width: 2.5; }
+.dgv-tag { fill: var(--muted-foreground); font-size: 15px; font-weight: 600; letter-spacing: .04em; }
+.dgv-node-t { fill: var(--foreground); font-size: 25px; font-weight: 650; }
+.dgv-node-b { fill: var(--muted-foreground); font-size: 19px; }
+.dgv-core { fill: var(--accent); }
+.dgv-count circle { fill: var(--question); }
+.dgv-count text { fill: var(--question-text); font-size: 18px; font-weight: 700; }
+/* level of detail: far = region titles only; mid = node titles; near = titles and bodies */
+.dgv-stage.lod-far .dgv-node-t, .dgv-stage.lod-far .dgv-node-b, .dgv-stage.lod-far .dgv-tag, .dgv-stage.lod-far .dgv-edge-t, .dgv-stage.lod-far .dgv-region-t, .dgv-stage.lod-far .dgv-region-lead { display: none; }
+.dgv-stage.lod-far .dgv-region-far { opacity: 1; }
+.dgv-stage.lod-far .dgv-node:not(.sel) { opacity: .4; } /* at far zoom the region titles are what reads; boxes stay as a faint map */
+.dgv-stage.lod-far .dgv-edge path { marker-end: none; opacity: .25; }
+.dgv-stage.lod-far .dgv-region-far { pointer-events: auto; cursor: zoom-in; } /* a tap on a title zooms into its region */
+.dgv-node:focus { outline: none; } /* the selected/focus-visible stroke is the marker; no square ring after a drag */
+.dgv-zoombar { display: inline-flex; gap: 6px; } /* in the head row: never over a node */
+.dgv-zoombar .btn { min-width: 32px; min-height: 32px; padding: 3px 10px; }
+@media (pointer: coarse), (max-width: 640px) { .dgv-zoombar .btn { min-width: 44px; min-height: 44px; } } /* thumb-sized on a phone */
+.dgv-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: var(--fs-meta); color: var(--muted-foreground); }
+.dgv-key { display: inline-flex; align-items: center; gap: 6px; }
+.dgv-key::before { content: ""; width: 16px; height: 10px; border-radius: 3px; border: 2px solid var(--border); background: var(--card); }
+.dgv-key.k-ui::before { border-color: var(--accent); }
+.dgv-key.k-guard::before { border-color: var(--danger); }
+.dgv-key.k-data::before { border-color: var(--warn); }
+.dgv-key.k-flow::before { border-color: var(--success); }
+.dgv-key.k-external::before { border-style: dashed; }
+.dgv-key.muted::before { opacity: .62; }
+.dgv-stage.lod-mid .dgv-node-b, .dgv-stage.lod-mid .dgv-edge-t, .dgv-stage.lod-mid .dgv-region-lead, .dgv-stage.lod-mid .dgv-tag { display: none; }
+.dgv-panel { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; display: grid; gap: 8px; background: var(--card); }
+.dgv-panel-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.dgv-node-title { margin: 0; font-size: var(--fs-section); }
+.dgv-node-body { margin: 0; white-space: pre-wrap; }
+.dgv-meta { margin: 0; display: flex; flex-wrap: wrap; gap: 8px; font-size: var(--fs-meta); }
+.dgv-panel h5 { margin: 6px 0 0; font-size: var(--fs-ui); }
+.dgv-thread { list-style: none; margin: 0; padding: 0 0 0 10px; border-left: 2px solid var(--border); display: grid; gap: 6px; }
+.dgv-msg.owner { border-left: 0; }
+.dgv-msg-by { font-weight: 600; }
+.dgv-msg-t { white-space: pre-wrap; }
+.dgv-compose { display: grid; gap: 6px; }
+.dgv-compose textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 8px; border: 1px solid var(--input); border-radius: var(--radius-sm); background: var(--background); color: var(--foreground); resize: vertical; }
+.dgv-compose .btn { justify-self: start; }
+.dgv-foot { margin: 0; font-size: var(--fs-meta); }
+/* Full page: the map takes the whole window; the node panel floats over it (a bottom sheet on a phone). */
+.dgv-card.full { position: fixed; inset: 0; z-index: 55; margin: 0; border: 0; border-radius: 0; box-shadow: none; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 8px; padding: 10px 16px 16px; background: var(--background); }
+.dgv-card.full > :not(.dgv-head):not(.dgv-legend):not(.dgv-stage):not(.dgv-panel) { display: none; }
+.dgv-card.full .dgv-stage { height: auto; min-height: 0; }
+.dgv-card.full .dgv-panel { position: fixed; right: 16px; bottom: 16px; z-index: 56; width: min(420px, calc(100vw - 32px)); max-height: min(70vh, 640px); overflow: auto; box-shadow: var(--shadow); }
+@media (max-width: 640px) {
+  .dgv-card.full { padding: 8px; }
+  .dgv-card.full .dgv-panel { left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 55vh; }
+  .dgv-compose textarea { font-size: 16px; } /* iOS zooms the page on focus below 16 px */
+}
+/* T-31 15-11: Home "Tin quan trọng" (public/news.js renders it; the phone app reuses the same markup) */
+.news .news-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.news .news-toggle[aria-pressed="true"] { border-color: var(--accent, currentColor); }
+.news .news-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; }
+.news .news-item + .news-item { border-top: 1px solid var(--line, rgba(127, 127, 127, .2)); }
+.news .news-link { display: flex; flex-direction: column; gap: 2px; padding: 8px 2px; color: inherit; text-decoration: none; }
+.news a.news-link:hover, .news a.news-link:focus-visible { background: var(--hover, rgba(127, 127, 127, .08)); }
+.news .news-title { font-weight: 500; }
+.news .news-lead { font-weight: 700; }
+.news .news-body { white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.news .news-status { opacity: .7; }

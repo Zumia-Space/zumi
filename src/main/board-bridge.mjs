@@ -111,13 +111,21 @@ const MIME = {
 // CSP is the only thing that can stop it. Exported so the Tauri host check pins the exact string.
 export const GUEST_HTML_CSP = "default-src 'self'; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'";
 // Reads the bridge forwards upstream (deny by default: a new upstream GET stays unreachable until it is listed HERE).
-// Exactly what the vendored page fetches (public/app.js) plus /api/stats (Stats tab). inbox, msg, compact/preview and
+// Exactly what the vendored page fetches (public/app.js, diagram-view.js) plus /api/stats (Stats tab). inbox, msg, compact/preview and
 // every other route are NOT listed: the bridge adds the owner's credentials, so each entry widens owner-read power.
+// 988ecc6 (T-31-MAUS live gate B1): history (a task's archive), supervisor (the nudge strip) and the diagram view (Sơ đồ tab). All three
+// are GET only; the one diagram WRITE route (POST /api/v1/diagram) and /api/v1/owner/* are not here and stay unreachable.
+// scripts/check-board-lane-diagram.mjs fails when the page fetches a route this list does not forward.
 const READ_ROUTES = new Set([
   '/healthz', '/api/v1/state', '/api/v1/whoami', '/api/v1/turns', '/api/v1/events', '/api/v1/quota', '/api/v1/tokens',
+  '/api/v1/supervisor', // T-31 supervisor port: the Board tab's strip, task chip and L3 button (public/app.js ensureSupervisor)
+  '/api/v1/history', // the state window's "load older" (public/app.js loadHistory): one task's archived asks/feedback, read-only
 ]);
 const GET_ONLY_ROUTES = new Set(['/api/stats']); // Stats tab: GET only, no HEAD (same rule as Electron 0.2.10)
-const READ_ROUTE_PATTERNS = [/^\/api\/v1\/media\/[A-Za-z0-9_-]+(\/link)?$/];
+const READ_ROUTE_PATTERNS = [
+  /^\/api\/v1\/media\/[A-Za-z0-9_-]+(\/link)?$/,
+  /^\/api\/v1\/diagram\/[A-Za-z0-9_-]{1,32}$/, // the diagram view of one task: not .../history, not the POST
+];
 const isReadRoute = (p, method) => READ_ROUTES.has(p) || READ_ROUTE_PATTERNS.some((re) => re.test(p)) || (method === 'GET' && GET_ONLY_ROUTES.has(p));
 // Caller secret (every request to the bridge must carry it). Webview: HttpOnly SameSite=Strict cookie set by the
 // one-time session URL; in-process readers: the header. Never in a log, a page, a response body or the Referer.
@@ -228,7 +236,8 @@ async function upstreamFetch(upstreamOrigin, pathname, { method, auth, body, not
  *   'accept'), or the server closed under the bridge. The host (board-live.mjs) restarts a new bridge from it.
  */
 export function createBridge({ upstreamOrigin, getToken, getBasicAuth, publicDir, host = '127.0.0.1', onRefused, ownerOps = false, onAuthRejected, isAuthRejected, authGeneration, onLog, hostTheme = false, onDown } = {}) {
-  const dir = path.resolve(publicDir);
+  // pageDir, not dir: check:data-schema reads a join on `dir` as a userData path, and this is the pinned page's folder
+  const pageDir = path.resolve(publicDir);
   const base = upstreamOrigin.replace(/\/+$/, '');
   // null while locked/unconfigured (either source), so one check covers local mode (bearer only) and live mode
   // (basic, +optional bearer) alike.
@@ -429,12 +438,12 @@ export function createBridge({ upstreamOrigin, getToken, getBasicAuth, publicDir
         return res.end(HOST_GUEST_CSS);
       }
       if (hostTheme === true && p === '/') {
-        const html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
+        const html = fs.readFileSync(path.join(pageDir, 'index.html'), 'utf8');
         if (!html.includes('</head>')) return json(res, 500, { error: 'page_head_missing' });
         res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': GUEST_HTML_CSP });
         return res.end(html.replace('</head>', `${HOST_GUEST_LINK}\n</head>`));
       }
-      return serveStatic(res, dir, p === '/' ? 'index.html' : p.slice(1));
+      return serveStatic(res, pageDir, p === '/' ? 'index.html' : p.slice(1));
     } catch (e) {
       return json(res, e.status || 500, { error: e.code || 'internal', ...(e.channel ? { channel: e.channel } : {}) });
     }

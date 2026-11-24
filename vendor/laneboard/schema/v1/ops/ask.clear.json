@@ -15,6 +15,10 @@
     "note": {
       "type": "string",
       "maxLength": 2000
+    },
+    "keep_step": {
+      "type": "boolean",
+      "description": "A new ask takes this one's place (a replace or a re-ask): the step it sits on keeps waiting. Without it, a waiting owner step with no other open ask ends (done) with the ask."
     }
   }
 }

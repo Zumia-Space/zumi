@@ -1,0 +1,89 @@
+{
+ "format": "diagram/1",
+ "task": "MAP",
+ "rev": 11,
+ "contentRev": 11,
+ "title": {
+  "vi": "Sơ đồ thử",
+  "en": "Test diagram"
+ },
+ "subtitle": {
+  "vi": "Dữ liệu thử cho kiểm tra cổng.",
+  "en": "Test data for the lane check."
+ },
+ "canvas": {
+  "w": 6404,
+  "h": 5480
+ },
+ "regions": [
+  {
+   "id": "owner",
+   "kind": "guard",
+   "n": 1,
+   "x": 120,
+   "y": 120,
+   "w": 1589,
+   "h": 920,
+   "vi": "Vùng thử",
+   "en": "Test region",
+   "viLead": "Vùng thử."
+  }
+ ],
+ "nodes": [
+  {
+   "id": "test.node1",
+   "region": "owner",
+   "kind": "data",
+   "x": 226,
+   "y": 256,
+   "w": 340,
+   "h": 196,
+   "tag": "TEST",
+   "vi": {
+    "title": "Ô thử 1",
+    "body": "Nội dung thử."
+   },
+   "viAt": 4,
+   "en": {
+    "title": "Test node 1",
+    "body": "Test content."
+   },
+   "enAt": 4,
+   "state": "planned",
+   "order": 1,
+   "syncSha": "6d2ae335f609"
+  },
+  {
+   "id": "test.node2",
+   "region": "owner",
+   "kind": "ui",
+   "x": 744,
+   "y": 256,
+   "w": 340,
+   "h": 196,
+   "tag": "TEST",
+   "vi": {
+    "title": "Ô thử 2",
+    "body": "Nội dung thử."
+   },
+   "viAt": 1,
+   "en": {
+    "title": "Test node 2",
+    "body": "Test content."
+   },
+   "enAt": 1,
+   "state": "live",
+   "core": true,
+   "order": 2,
+   "syncSha": "76c03858efed"
+  }
+ ],
+ "edges": [
+  {
+   "id": "e1",
+   "from": "test.node1",
+   "to": "test.node2"
+  }
+ ],
+ "stamp": "fc20dd40e169"
+}

@@ -118,8 +118,9 @@ try {
     const v1 = verdict(chip(`${fixtureRoot}/note.md`));
     ok(v1.action === 'openPath' && v1.kind === 'file' && /note\.md$/i.test(v1.path), 'a valid md chip under the allowed roots opens', stable(v1));
     const refusedReason = (u, o) => { const d = verdict(u, o); return d.action === 'refuse' ? d.reason : `NOT_REFUSED:${stable(d)}`; };
-    // README.md has an allowed extension, so only the root check can refuse it: the traversal itself is what is under test.
-    ok(refusedReason(chip(`${fixtureRoot}/../../TOOL/wt/T-31-tauri-sync-029/README.md`)) === 'outside_allowed_folders', 'traversal (..) out of the root to an allowed-extension file: outside_allowed_folders', refusedReason(chip(`${fixtureRoot}/../../TOOL/wt/T-31-tauri-sync-029/README.md`)));
+    // secret.md (a real .md the check just wrote, outside both roots) has an allowed extension and exists, so only the root check can refuse it: the traversal itself is under test. Reached by a relative ../ path from the fixture root (no other worktree needed).
+    const traversal = chip(`${fixtureRoot}/${path.relative(fixtureRoot, path.join(outside, "secret.md")).split(path.sep).join('/')}`);
+    ok(traversal.includes("..%2F") && refusedReason(traversal) === "outside_allowed_folders", "traversal (..) out of the root to an allowed-extension file: outside_allowed_folders", refusedReason(traversal));
     ok(verdict(chip(`${fixtureRoot}/../../../Windows/System32/notepad.exe`)).action === 'refuse', 'traversal to an executable is refused');
     ok(verdict(chip(`${fixtureRoot}/..\..\..\Windows\win.ini`)).action === 'refuse', 'backslash traversal is refused');
     ok(refusedReason(chip(`${fixtureRoot}/tool.exe`)) === 'type_not_allowed', 'unknown extension (.exe) inside the root: type_not_allowed');

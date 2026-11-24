@@ -16,6 +16,27 @@ const LEGACY_MARKER = 'tasks.json'; // v0.2 wrote tasks.json on its first run
 const load = (laneboardDir, rel) => import(pathToFileURL(path.join(laneboardDir, rel)).href);
 const hasJournal = (dir) => fs.existsSync(path.join(dir, 'events.ndjson'));
 
+const UI_TOKEN_FILE = 'ui.token';
+/**
+ * The credential the app's OWN board page runs on. Since Laneboard 988ecc6 a raw owner bearer is not an owner-UI credential, and an
+ * owner node comment on the Diagram tab needs one (board.mjs ownerUi: a `ui` token, or the web login). The host owns the data dir, so it
+ * mints one `ui` token through the board's in-process owner credential (the same act the web login does) and keeps it in <dataDir>/ui.token
+ * beside owner.token; later launches reuse it. It is an owner token like the bearer was; 2FA-gated acts stay refused (no 2FA key here)
+ * and it cannot mint further tokens. The page still gets it only in the #token fragment.
+ */
+function appUiToken(board, dataDir) {
+  const file = path.join(dataDir, UI_TOKEN_FILE);
+  try {
+    const kept = fs.readFileSync(file, 'utf8').trim();
+    const who = kept && board.authenticate(kept);
+    if (who && who.role === 'owner' && who.ui === true) return kept;
+  } catch { /* first launch, or a file the board no longer knows: mint below */ }
+  const out = board.write(board.ownerCredential, { version: 1, request_id: `zumi-host-ui-${Date.now()}`, op: 'token.issue', target_id: `zumi-app-ui-${Date.now().toString(36)}`, data: { role: 'owner', ui: true, label: 'zumi-app' } });
+  fs.writeFileSync(file, `${out.token}
+`, { mode: 0o600 });
+  return out.token;
+}
+
 /** The v0.2 board files in <root>, for tests and the self-test: { code: [step states] } in file order. */
 export function readLegacyTasks(root) {
   try { return JSON.parse(fs.readFileSync(path.join(root, LEGACY_MARKER), 'utf8')).map((t) => ({ code: t.code, title: t.title, steps: (t.steps || []).map((s) => s.state) })); } catch { return null; }
@@ -115,7 +136,7 @@ export async function openLocalBoard({ laneboardDir, root, sampleFixture, lang =
     if (server.listening) server.close();
     if (onDown) onDown(err || null);
   };
-  let port, origin;
+  let port, origin, pageToken;
   try {
     try { await listen(wantPort); } catch (e) { if (!wantPort || e.code !== 'EADDRINUSE') throw e; await listen(0); } // taken: any free port
     port = server.address().port;
@@ -130,6 +151,9 @@ export async function openLocalBoard({ laneboardDir, root, sampleFixture, lang =
       await seed(origin, ownerToken, { fixture: sampleFixture });
       outcome = 'seeded';
     }
+    // After the seed: the first-run test above is `seq === 1`, and minting a token moves the journal on. The seed itself runs as the
+    // bootstrap owner. Inside the try (T-31-ALPHA11 merge): a mint that throws closes what this open opened, like a failed seed (gate S2).
+    pageToken = appUiToken(board, dataDir);
   } catch (e) {
     // 0.3.7 gate S2: a failed open closes what it opened (the store's journal and mailbox handles, the server); the
     // host's restart loop retries once per backoff step, so each failed try used to leak them.
@@ -141,7 +165,7 @@ export async function openLocalBoard({ laneboardDir, root, sampleFixture, lang =
 
   return {
     outcome, server, board, port, origin, dataDir, root, migration,
-    url: `${origin}/#token=${encodeURIComponent(ownerToken)}${lang ? `&lang=${encodeURIComponent(lang)}` : ''}`,
+    url: `${origin}/#token=${encodeURIComponent(pageToken)}${lang ? `&lang=${encodeURIComponent(lang)}` : ''}`,
     alive() { return !down && !closing && server.listening; },
     close() { closing = true; server.close(); board.close(); },
   };

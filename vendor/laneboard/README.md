@@ -56,6 +56,9 @@ Issue session tokens as described in [AGENTS.md](AGENTS.md#1-get-a-token-credent
 | `BOARD_MODELS` | `opus,sonnet,haiku,deepseek,gpt,gemini` | suggestions in the owner's worker picker; `id=Label` pairs add display names (`sonnet=Sonnet 5.5,opus`) |
 | `BOARD_OWNER_PROXY_SECRET_FILE` | — | owner behind a login proxy, see below |
 | `BOARD_IMAGE_TOOL` | `convert` (none on Windows) | ImageMagick binary for size-reduced WebP copies of images (`?w=480`, `?w=1600`); empty = serve originals |
+| `BOARD_OWNER_2FA` | — | `off` = the owner second factor is switched off: every owner-only act (pin, archive, restore, bulk removal, device revoke, enrolment, step-up) is 503 `owner_2fa_off` ("chưa bật mã 2 lớp"); viewing, node comments and small edits work. Wins over a key file |
+| `BOARD_OWNER_2FA_KEY_FILE` | — | 32-byte key that seals the owner TOTP seed; absent = 2FA off as above |
+| `BOARD_OWNER_2FA_ENROL_UNTIL` | — | ISO time: the first owner enrolment is open until then (a short window at a deploy) |
 
 ### Behind a login proxy (no second sign-in)
 
@@ -103,7 +106,7 @@ authenticated executor. Schemas are published under [`schema/v1/`](schema/v1/) a
 - Writes are journaled to `events.ndjson` (fsync), then applied to an in-memory projection that is saved
   temp-then-rename. On start, journal lines newer than the projection are replayed. A torn last line is
   cut; a projection ahead of the journal refuses to start.
-- Reads (`GET /api/v1/state`) derive the owner-attention and stalled lists, and each task's `current_step`, on every request.
+- Reads (`GET /api/v1/state`) derive the owner-attention and stalled lists, and each task's `current_step`, on every request. The ask/feedback lists are windowed (live records plus the last 7 days; older ones per task from `GET /api/v1/history`), so the state stays small as the board ages ([`src/window.mjs`](src/window.mjs)).
 - Board rules ([`src/rules.mjs`](src/rules.mjs)) run on every write that can change a step state: known states only, and no
   `waiting` step before a later `done` one, and no task status `waiting` (on the owner) unless the owner has something
   to answer on it. Any violation rejects the whole write and the error lists them all.

@@ -11,6 +11,7 @@ import { TURN, buildQuick, noteLaneWrite, mayUseLane, sameLane, laneKey } from '
 import { isReservedLane, RESERVED_LANES } from './mailbox.mjs';
 import { validateArchitecture } from './architecture.mjs';
 import { isMachine, resolveMachines } from './machines.mjs';
+import { isReplan, idleText, parseReceipt } from './guards.mjs';
 
 export class BoardError extends Error {
   constructor(status, code, extra = {}) { super(code); this.status = status; this.code = code; this.extra = extra; }
@@ -96,10 +97,14 @@ function historyDetail(state, records) {
  * Eligible = done, not among the last `keepLast` done steps (done-time order, id tie-break), with no open ask, no unresolved
  * inbox item, not an end of a loop, and (owner zone only) no unanswered owner feedback on it (coordinator receipts and notes are open by design and wait on no one): an answered owner question folds, an open one never. Pure; never reads a clock.
  */
-export function compactPlan(state, taskId, keepLast = COMPACT_DEFAULT_KEEP) {
+export function compactPlan(state, taskId, keepLast = COMPACT_DEFAULT_KEEP, { era = false } = {}) {
   const t = state.tasks[taskId] || fail(404, 'task_not_found', { target_id: taskId });
+  // era (J-05 phase rules R2): the done steps of an older phase plan, whatever their age: a step naming no phase of the
+  // task's current plan. The other eligibility rules (open ask, inbox, owner feedback, loop end) hold as for any fold.
+  const plan = new Set((t.phases || []).map(p => p.id));
+  if (era) keepLast = 0;
   const at = id => state.times?.[`${taskId}/${id}`]?.done_at || state.steps[`${taskId}/${id}`]?.state_at || state.steps[`${taskId}/${id}`]?.attribution?.updated_at || '';
-  const done = t.step_ids.filter(id => id !== HISTORY_STEP && state.steps[`${taskId}/${id}`]?.state === 'done')
+  const done = t.step_ids.filter(id => id !== HISTORY_STEP && state.steps[`${taskId}/${id}`]?.state === 'done' && !(era && plan.has(state.steps[`${taskId}/${id}`].phase)))
     .map(id => ({ id, at: at(id) }))
     .sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id, 'en', { numeric: true }));
   const recent = Math.min(Math.max(0, Number(keepLast) || 0), done.length);
@@ -136,8 +141,51 @@ export function emptyState() {
 export const REQUESTS_THREAD = 'NEW';
 /** feedback.add target meaning the whole board (the owner's sweep request); not a task, so it never marks activity. */
 export const BOARD_TARGET = '*';
-const TASK_FIELDS = ['title', 'lane', 'health', 'status', 'goal', 'now', 'next', 'context', 'order', 'visibility', 'worker', 'loops', 'dossier', 'draft_output', 'draft_outcome', 'architecture'];
-const STEP_FIELDS = ['label', 'sub', 'zone', 'state', 'detail', 'recommend', 'options', 'lane'];
+/** feedback.add target that is the board-wide news thread: only the coordinator's news kinds land there (T-31-MOBILE B2). */
+export const NEWS_THREAD = 'NEWS';
+/** The coordinator's news (a CoS turn report, an event): coordinator-only, no answer, no receipt, never work on the row. */
+export const NEWS_KINDS = ['cos-report', 'cos-event'];
+/** Ids task.create refuses: the board's threads ('*' already fails the taskId pattern). */
+export const RESERVED_TASK_IDS = [REQUESTS_THREAD, NEWS_THREAD];
+const NEWS_REFUSED_FIELDS =['ask_id', 'step_id', 'reply_to', 'resolve_reply_to', 'plan_id', 'goal_version'];
+const TASK_FIELDS = ['title', 'lane', 'health', 'status', 'goal', 'now', 'next', 'context', 'order', 'visibility', 'worker', 'loops', 'dossier', 'draft_output', 'draft_outcome', 'architecture', 'goal_check', 'phases'];
+// What a writer sends for a pause, and what the board stores besides: pause_at is the time of the owner message pause_msg, set by the board.
+const PAUSE_FIELDS = ['paused_by', 'pause_quote', 'pause_msg'];
+const PAUSE_STORED = [...PAUSE_FIELDS, 'pause_at'];
+const STEP_FIELDS = ['label', 'sub', 'zone', 'state', 'detail', 'recommend', 'options', 'lane', 'phase', ...PAUSE_STORED];
+/** G-PAUSE: the three pause fields come together, only on a blocked step, and name an owner message that holds the quote.
+ *  `after` = the step as the write leaves it. All three null (step.update) removes the pause; some null and some set is incomplete.
+ *  Returns what the board adds to the write: pause_at from the message (set), or null (removed). The removal runs every other check
+ *  of the write as usual: it is not a way round them. */
+/** The words that make a quote a pause order (one list; Vietnamese and the English the owner mixes in). */
+export const PAUSE_WORDS = /dừng|tạm|hold|pause|pending|hoãn|để sau|mới tính|stop|khoan/iu;
+/** A pause order is a few words, not a syllable: at least 10 characters and 3 words, with a pause word in them. */
+const ordersPause = q => [...q].length >= 10 && q.split(/\s+/).length >= 3 && PAUSE_WORDS.test(q);
+/** What in an owner record he typed himself: [{ text, whole }] (whole = the quote must be the whole text), null when he did not write it.
+ *  A record the board wrote for him is not his: the answer to an ask copies CoS's ask text (an approve with no text) or CoS's option label
+ *  (a choice) into his record, so there only his typed answer text and the full label he picked count. */
+function ownerTyped(state, m) {
+  const by = m.attribution.created_by;
+  if (by.role !== 'owner') return null;
+  if (by.token_id === 'system' || m.auto || m.info || ['goal-lock', 'rebrief', 'idle', 'nudge'].includes(m.kind)) return [];
+  if (!m.ask_id) return [{ text: String(m.text ?? '') }];
+  const a = state.asks[m.ask_id], label = a?.answer?.choice && (a.options || []).find(o => o.key === a.answer.choice)?.label;
+  return [...(a?.answer?.text ? [{ text: a.answer.text }] : []), ...(label ? [{ text: label, whole: true }] : [])];
+}
+function checkPause(state, taskId, after, writes) {
+  const has = PAUSE_FIELDS.filter(k => after[k] !== undefined && after[k] !== null);
+  if (!has.length) return writes && PAUSE_FIELDS.some(k => after[k] === null) ? { pause_at: null } : {};
+  if (has.length < PAUSE_FIELDS.length) fail(400, 'pause_fields_incomplete', { fields: PAUSE_FIELDS });
+  if (after.state !== 'blocked' && writes) fail(400, 'pause_needs_blocked', { state: after.state });
+  if (!writes) return {};
+  // no quote = no pause: the words must be anh's, on this task, verbatim
+  const m = state.feedback?.[after.pause_msg], q = String(after.pause_quote).normalize('NFC').trim(), typed = m && ownerTyped(state, m);
+  const why = !ordersPause(q) ? 'the quote orders no pause (at least 10 characters, 3 words and a pause word)'
+    : !m ? 'no such message' : !typed ? 'not written by the owner' : m.task_id !== taskId ? 'another task'
+    : !typed.some(t => (t.whole ? t.text.normalize('NFC') === q : t.text.normalize('NFC').includes(q))) ? 'the quote is not in words the owner typed' : '';
+  if (why) fail(400, 'pause_source_invalid', { pause_msg: after.pause_msg, reason: why });
+  return { pause_at: m.attribution.created_at };
+}
 const PING_KEEP = 200;
 const pick = (obj, keys) => Object.fromEntries(keys.filter(k => obj[k] !== undefined).map(k => [k, obj[k]]));
 const attribution = ev => ({ created_by: ev.actor, created_at: ev.at, updated_by: ev.actor, updated_at: ev.at });
@@ -180,6 +228,8 @@ function refreshTaskTime(state, taskId, at) {
   }
   if (!rec.done_at && ids.length && ids.every(id => state.steps[`${taskId}/${id}`]?.state === 'done')) rec.done_at = at;
 }
+/** Closes the task's open status requests (rebrief mode status): its status text just changed. */
+const closeStatusRequests = (state, taskId, ev) => { for (const f of Object.values(state.feedback)) if (f.task_id === taskId && f.kind === 'rebrief' && f.mode === 'status' && f.status === 'open') { f.status = 'resolved'; f.resolved = { at: ev.at, by: ev.actor }; touch(f, ev); } };
 const markActivity = (state, taskId, at) => { if (taskId !== BOARD_TARGET) state.activity[taskId] = at; };
 /** The owner's open sweep ("Cập nhật" button), if any: at most one exists, the server refuses a second. */
 export const openSweep = state => Object.values(state.feedback).find(f => f.kind === 'sweep' && f.status === 'open');
@@ -206,6 +256,7 @@ const ETA_LINE = /^[ \t>*_#-]*ETA[ \t*_]*[:：][ \t*_]*(.+?)[ \t*_]*$/im;
  *  open and is marked as asked back; a reply, a new-task request or a receipt answers nothing. */
 export const ANSWER_KINDS = new Set(['note', 'approve', 'reject', 'choice', 'redirect']);
 const OWNER_ONLY_KINDS = ['approve', 'reject', 'newtask', 'choice', 'goal-lock', 'redirect', 'askback'];
+const COORDINATOR_ONLY_KINDS = ['receipt', 'cos-report'];
 /** Kinds that answer by where they are sent: a verdict or a choice on a step or the task answers the asks there. A note or a
  *  redirect answers an ask only when the owner named it (ask_id): it can be about anything (J-05 15-10, fb-2707 / fb-2709). */
 const VERDICT_KINDS = new Set(['approve', 'reject', 'choice']);
@@ -216,13 +267,6 @@ function asksAnsweredBy(state, taskId, stepId, askId, kind) {
   if (askId) return state.asks[askId]?.status === 'open' ? [askId] : [];
   if (!VERDICT_KINDS.has(kind)) return [];
   return Object.values(state.asks).filter(a => a.task_id === taskId && a.status === 'open' && (!a.step_id || (stepId && a.step_id === stepId))).map(a => a.id);
-}
-/** A coordinator receipt ("Nhận") answers an owner message with three lines: what changed, the schedule, the next step. */
-const RECEIPT_LINES = { change: /^[ \t*_-]*Đổi[ \t*_]*:[ \t]*(.+)$/im, schedule: /^[ \t*_-]*Lịch[ \t*_]*:[ \t]*(.+)$/im, next: /^[ \t*_-]*Bước tiếp[ \t*_]*:[ \t]*(.+)$/im };
-export function parseReceipt(text) {
-  const out = {};
-  for (const [k, re] of Object.entries(RECEIPT_LINES)) { const m = re.exec(String(text || '').normalize('NFC')); if (m && m[1].trim()) out[k] = m[1].trim().slice(0, 500); }
-  return Object.keys(out).length === 3 ? out : null;
 }
 /** The owner set this task's status last — paused or closed — and has not written on the task since: then only the
  *  owner changes it (a coordinator or lane write is refused 'owner_set_status'). A newer owner message on the task
@@ -283,6 +327,7 @@ export const MAGIC = {
   'application/pdf': b => b.subarray(0, 5).toString('latin1') === '%PDF-',
   'audio/mpeg': b => b.subarray(0, 3).toString('latin1') === 'ID3' || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0), // ID3 tag or MPEG frame sync
   'video/mp4': b => b.subarray(4, 8).toString('latin1') === 'ftyp',
+  'video/webm': b => b.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3])), // EBML header (Matroska/WebM)
   'text/plain': b => !b.includes(0) && Buffer.from(b.toString('utf8'), 'utf8').equals(b),
   'text/markdown': b => !b.includes(0) && Buffer.from(b.toString('utf8'), 'utf8').equals(b)
 };
@@ -333,12 +378,19 @@ function boardDoc(name, field) {
 export const OPS = {
   'task.create': {
     check({ state, req, actor }) {
+      // The board's own threads are feedback targets, never tasks: a task with one of these ids would take over its thread. A task
+      // created before the reservation still replays (this check runs at write time only) and keeps working as a task.
+      if (RESERVED_TASK_IDS.includes(req.target_id)) fail(400, 'reserved_task_id', { target_id: req.target_id, reserved: RESERVED_TASK_IDS });
       if (state.tasks[req.target_id]) fail(409, 'exists', { current_revision: state.tasks[req.target_id].rev });
       if (req.data.worker) needGeminiEffort(req.data.worker.model, req.data.worker.effort);
       needArchitecture(req.data.architecture);
       const ids = (req.data.steps || []).map(s => s.id);
       if (new Set(ids).size !== ids.length) fail(400, 'duplicate_step_id');
       for (const l of req.data.loops || []) if (!ids.includes(l.from) || !ids.includes(l.to)) fail(400, 'loop_step_not_found');
+      // Goal QC open questions become asks of this event: a named step must be one this task creates, and one ask per step.
+      const asked = (req.data.open_questions || []).map(q => q.step_id).filter(Boolean);
+      for (const sid of asked) if (!ids.includes(sid)) fail(404, 'step_not_found', { target_id: `${req.target_id}/${sid}` });
+      if (new Set(asked).size !== asked.length) fail(400, 'duplicate_question_step');
       const own = req.data.lane ?? actor.lane ?? '';
       const steps = (req.data.steps || []).map(s => (s.lane === undefined ? s : { ...s, lane: resolveLane(state, s.lane, [own]) }));
       return { data: steps.some((s, i) => s !== req.data.steps[i]) ? { ...req.data, steps } : req.data, result: { id: req.target_id, revision: 1 } };
@@ -348,7 +400,7 @@ export const OPS = {
       state.tasks[id] = {
         id, rev: 1, visibility: d.visibility || 'internal', attribution: attribution(ev),
         title: d.title, lane: d.lane ?? (ev.actor.lane || ''), health: d.health || 'green', status: d.status || 'doing', text_at: ev.at,
-        ...pick(d, ['goal', 'now', 'next', 'context', 'order', 'dossier', 'draft_output', 'draft_outcome', 'architecture']), worker: d.worker ?? null, loops: d.loops || [],
+        ...pick(d, ['goal', 'now', 'next', 'context', 'order', 'dossier', 'draft_output', 'draft_outcome', 'architecture', 'goal_check', 'phases']), ...(d.phases?.length ? { phases_at: ev.at } : {}), worker: d.worker ?? null, loops: d.loops || [],
         step_ids: (d.steps || []).map(s => s.id)
       };
       if (state.tasks[id].architecture == null) delete state.tasks[id].architecture; // a create that sends null has none
@@ -358,6 +410,11 @@ export const OPS = {
         // A task re-created after task.delete continues its kept timing history instead of restarting it.
         if (state.times[key]) transitionTime(state, key, s.state, ev.at); else initTime(state, key, s.state, ev.at);
       }
+      // Goal QC: each open question is an ordinary open ask of the task's lane, raised by this event (ids ask-<seq>-<n>).
+      (d.open_questions || []).forEach((q, i) => {
+        const askId = `ask-${ev.seq}-${i + 1}`;
+        state.asks[askId] = { id: askId, task_id: id, rev: 1, attribution: attribution(ev), ...pick(q, ['step_id', 'text', 'options']), status: 'open' };
+      });
       refreshTaskTime(state, id, ev.at);
       markActivity(state, id, ev.at);
     }
@@ -374,6 +431,9 @@ export const OPS = {
       if (req.data.lane !== undefined && req.data.lane !== t.lane) fail(409, 'lane_immutable', { task: t.id, lane: t.lane, requested: req.data.lane });
       for (const l of req.data.loops || []) if (!t.step_ids.includes(l.from) || !t.step_ids.includes(l.to)) fail(400, 'loop_step_not_found');
       reorderedSteps(t, req.data.step_order);
+      if (req.data.phases !== undefined && isReplan(t.phases, req.data.phases) && !String(req.data.replan_reason ?? '').trim()) {
+        fail(400, 'replan_reason_required', { task: t.id, message: 'the phases were fixed at goal QC: changing their ids, labels or order is a replan, send replan_reason (it is logged on the task)' });
+      }
       return { data: req.data, result: { id: t.id, revision: t.rev + 1 } };
     },
     apply(state, ev) {
@@ -384,7 +444,15 @@ export const OPS = {
       // owner's open "status update" requests on the task.
       if (['now', 'next'].some(k => ev.data[k] !== undefined && ev.data[k] !== t[k])) {
         t.text_at = ev.at;
-        for (const f of Object.values(state.feedback)) if (f.task_id === t.id && f.kind === 'rebrief' && f.mode === 'status' && f.status === 'open') { f.status = 'resolved'; f.resolved = { at: ev.at, by: ev.actor }; touch(f, ev); }
+        closeStatusRequests(state, t.id, ev);
+      }
+      // When the phases last changed (plan or a phase's state): the Now/Next text of a task with phases is behind only when
+      // its phases moved after it (views.mjs staleText); a step moving inside a phase does not make the text wrong.
+      if (ev.data.phases !== undefined && JSON.stringify(ev.data.phases) !== JSON.stringify(t.phases ?? null)) t.phases_at = ev.at;
+      if (ev.data.phases !== undefined && isReplan(t.phases, ev.data.phases)) {
+        const was = new Map(t.phases.map(p => [p.id, p.label]));
+        const relabeled = ev.data.phases.filter(p => was.has(p.id) && was.get(p.id) !== p.label).map(p => ({ id: p.id, from: was.get(p.id), to: p.label }));
+        (t.replans ??= []).push({ at: ev.at, by: ev.actor.name, reason: ev.data.replan_reason, from: t.phases.map(p => p.id), to: ev.data.phases.map(p => p.id), ...(relabeled.length ? { relabeled } : {}) });
       }
       Object.assign(t, pick(ev.data, TASK_FIELDS));
       if (t.architecture === null) delete t.architecture; // null clears the diagram: the key is absent, as on a task that never had one
@@ -411,6 +479,7 @@ export const OPS = {
       delete state.route_override?.[t.id]; // a re-created id must not inherit the deleted task's CoS allowance
       delete state.machines?.[t.id]; // nor its machine pick
       delete state.pins?.[t.id]; // nor its owner pin
+      delete state.idle?.[t.id]; // nor an open idle episode
       markActivity(state, t.id, ev.at);
     }
   },
@@ -439,7 +508,7 @@ export const OPS = {
       if (state.archive?.[taskId]?.steps?.[stepId]) fail(409, 'archived', { task: taskId, step: stepId });
       if (state.tasks[taskId].step_ids.length >= STEP_CAP) fail(400, 'too_many_steps');
       const data = req.data.lane === undefined ? req.data : { ...req.data, lane: resolveLane(state, req.data.lane) };
-      return { data, result: { id: req.target_id, revision: 1 } };
+      return { data: { ...data, ...checkPause(state, taskId, data, true) }, result: { id: req.target_id, revision: 1 } };
     },
     apply(state, ev) {
       const [taskId, stepId] = splitStep(ev.target_id);
@@ -461,12 +530,17 @@ export const OPS = {
         if (s.lane && s.lane !== lane) fail(409, 'lane_immutable', { step: s.id, lane: s.lane, requested: lane });
         data = { ...data, lane };
       }
+      // G-PAUSE: judged on the step as the write leaves it; a write that only moves the state off blocked is fine (apply drops the fields)
+      const writesPause = PAUSE_FIELDS.some(k => data[k] !== undefined);
+      data = { ...data, ...checkPause(state, taskId, { ...s, ...data }, writesPause) };
       return { data, result: { id: s.id, revision: s.rev + 1 } };
     },
     apply(state, ev) {
       const s = state.steps[ev.target_id];
       if (ev.data.state && ev.data.state !== s.state) { transitionTime(state, s.id, ev.data.state, ev.at); s.state_at = ev.at; }
-      Object.assign(s, pick(ev.data, STEP_FIELDS)); touch(s, ev); refreshTaskTime(state, s.task_id, ev.at); markActivity(state, s.task_id, ev.at);
+      Object.assign(s, pick(ev.data, STEP_FIELDS));
+      for (const k of PAUSE_STORED) if (s[k] === null || s.state !== 'blocked') delete s[k]; // null removes the pause; a pause also ends when the step leaves blocked
+      touch(s, ev); refreshTaskTime(state, s.task_id, ev.at); markActivity(state, s.task_id, ev.at);
     }
   },
   // Folds a task's older done steps into one history step (`lich-su`) and moves their records into state.archive.
@@ -476,10 +550,10 @@ export const OPS = {
     check({ state, req }) {
       const t = needTask(state, req.target_id);
       needRevision(t, req.expected_revision);
-      const keepLast = req.data.keep_last ?? COMPACT_DEFAULT_KEEP;
-      const plan = compactPlan(state, t.id, keepLast);
+      const keepLast = req.data.keep_last ?? COMPACT_DEFAULT_KEEP, era = req.data.era === true;
+      const plan = compactPlan(state, t.id, keepLast, { era });
       return {
-        data: { keep_last: keepLast, moved: plan.moved },
+        data: { keep_last: keepLast, ...(era ? { era } : {}), moved: plan.moved },
         result: { id: t.id, revision: plan.moved.length ? t.rev + 1 : t.rev },
         ...(plan.moved.length ? { reveal: { moved: plan.moved, history: plan.history } } : {})
       };
@@ -555,11 +629,18 @@ export const OPS = {
       const a = state.asks[req.target_id];
       if (a.status !== 'open') fail(409, 'ask_not_open', { status: a.status });
       needRevision(a, req.expected_revision);
-      return { data: req.data, result: { id: a.id, revision: a.rev + 1 } };
+      // One rule for every way an ask is withdrawn (the page's "Rút lại", the admin clear routes, the Zumi bridge): a waiting owner step with no other
+      // open ask ends with it (done, as the CLI `clear` leaves it). Decided here and journaled (done_step), so a replayed older journal moves
+      // no step. keep_step is the caller saying a new ask takes its place (a replace, a row push re-asking), so the step keeps waiting.
+      const key = !req.data.keep_step && a.step_id ? `${a.task_id}/${a.step_id}` : '', s = key && state.steps[key];
+      const follows = s && s.state === 'waiting' && s.zone === 'owner' && !Object.values(state.asks).some(x => x.status === 'open' && x.id !== a.id && x.task_id === a.task_id && x.step_id === a.step_id);
+      return { data: follows ? { ...req.data, done_step: key } : req.data, result: { id: a.id, revision: a.rev + 1 } };
     },
     apply(state, ev) {
       const a = state.asks[ev.target_id];
       a.status = 'cleared'; a.cleared = { ...pick(ev.data, ['note']), at: ev.at, by: ev.actor }; touch(a, ev); markActivity(state, a.task_id, ev.at);
+      const s = ev.data.done_step && state.steps[ev.data.done_step];
+      if (s && s.state === 'waiting') { transitionTime(state, s.id, 'done', ev.at); s.state = 'done'; s.state_at = ev.at; touch(s, ev); refreshTaskTime(state, s.task_id, ev.at); }
     }
   },
   'ask.answer': {
@@ -624,7 +705,7 @@ export const OPS = {
         if (item.kind === 'report') state.feedback[rid] = { id: rid, task_id: item.task_id, rev: 1, attribution: attr, ...pick(item, ['step_id', 'text']), kind: 'report', status: 'open' };
         if (item.kind === 'step') {
           const s = state.steps[rid];
-          if (s.state !== item.state) transitionTime(state, s.id, item.state, ev.at);
+          if (s.state !== item.state) { transitionTime(state, s.id, item.state, ev.at); s.state_at = ev.at; } // as step.update stamps it
           s.state = item.state; touch(s, ev); refreshTaskTime(state, s.task_id, ev.at);
         }
       }
@@ -633,7 +714,7 @@ export const OPS = {
     }
   },
   'feedback.add': {
-    check({ state, req, seq, actor }) {
+    check({ state, req, seq, actor, config }) {
       const d = req.data;
       // A sweep is the owner's request that the coordinator re-check every task: target * (the whole board), one open at a time.
       if (d.kind === 'sweep') {
@@ -643,14 +724,38 @@ export const OPS = {
         const open = openSweep(state);
         if (open) fail(409, 'sweep_open', { feedback_id: open.id });
       }
+      // News (cos-report / cos-event): the coordinator's own report on a task or on the NEWS thread. Not an answer, not a reply,
+      // not a receipt target: it carries none of their fields, only the related rows (tasks).
+      const news = NEWS_KINDS.includes(d.kind);
+      const newsThread = req.target_id === NEWS_THREAD && !state.tasks[NEWS_THREAD];
+      if (newsThread && !news) fail(400, 'news_kind_only', { target_id: req.target_id });
+      if (d.tasks && !news) fail(400, 'tasks_not_allowed', { kind: d.kind });
+      if (news) {
+        if (actor.role !== 'coordinator') fail(403, 'coordinator_only_kind');
+        // A progress post on a task (J-05 17-11) may name its step (`update --step`), and its reply_to / ask_id / resolve_reply_to
+        // refusal is the cos_report_fields one below; a news item on NEWS, or a cos-event, names none of them.
+        const taskReport = d.kind === 'cos-report' && !newsThread;
+        const extra = NEWS_REFUSED_FIELDS.filter(k => d[k] !== undefined && !(taskReport && ['step_id', 'reply_to', 'ask_id', 'resolve_reply_to'].includes(k)));
+        if (extra.length) fail(400, 'news_fields', { fields: extra });
+        if (!d.text.trim()) fail(400, 'empty_text');
+        if (d.tasks && new Set(d.tasks).size !== d.tasks.length) fail(400, 'duplicate_tasks');
+        for (const id of d.tasks || []) needTask(state, id);
+      }
       if (req.target_id === BOARD_TARGET) { // the whole board takes a sweep, or the coordinator's reply to one
         const parent = d.reply_to && state.feedback[d.reply_to];
         if (d.kind !== 'sweep' && !(actor.role === 'coordinator' && ['reply', 'receipt'].includes(d.kind) && parent?.kind === 'sweep')) fail(400, 'not_a_task', { target_id: req.target_id });
       }
+      else if (newsThread) { /* the news thread: no task needed */ }
       else if (req.target_id !== REQUESTS_THREAD || state.tasks[req.target_id]) needTask(state, req.target_id);
       else if (d.step_id || d.plan_id) fail(400, 'not_a_task', { target_id: req.target_id });
       if (OWNER_ONLY_KINDS.includes(d.kind) && actor.role !== 'owner') fail(403, 'owner_only_kind');
-      if (d.kind === 'receipt' && actor.role !== 'coordinator') fail(403, 'coordinator_only_kind');
+      if (COORDINATOR_ONLY_KINDS.includes(d.kind) && actor.role !== 'coordinator') fail(403, 'coordinator_only_kind');
+      // Cập nhật tiến độ (J-05 17-11): CoS's progress post on one task, or (B2) a news item on the NEWS thread. It is about the task, not an answer to anything, so it
+      // names no message and no ask (a reply / receipt / say --reply-to does that).
+      if (d.kind === 'cos-report') {
+        if (!state.tasks[req.target_id] && !newsThread) fail(400, 'not_a_task', { target_id: req.target_id });
+        if (d.reply_to || d.ask_id || d.resolve_reply_to) fail(400, 'cos_report_fields');
+      }
       if (d.kind === 'goal-lock' && !d.goal_version) fail(400, 'goal_version_required');
       if (d.step_id) needStep(state, req.target_id, d.step_id);
       if (d.plan_id && !(state.plans?.[req.target_id] || []).some(p => p.id === d.plan_id)) fail(404, 'plan_not_found', { plan_id: d.plan_id });
@@ -660,15 +765,21 @@ export const OPS = {
         if (!a || a.task_id !== req.target_id) fail(404, 'ask_not_found', { target_id: d.ask_id });
         if (d.step_id && a.step_id && a.step_id !== d.step_id) fail(400, 'ask_not_on_step', { ask_id: a.id, step_id: d.step_id });
       }
-      for (const id of d.attachments || []) { // pasted images: attachments of this task, images only
+      for (const id of d.attachments || []) { // pasted images, or a CoS message's picture/clip (say --img): attachments of this task
         const a = state.attachments[id];
         if (!a || a.task_id !== req.target_id) fail(404, 'attachment_not_found', { target_id: id });
-        if (!/^image\//.test(a.mime)) fail(400, 'attachment_not_image', { target_id: id });
+        // (the code keeps its name for callers that match on it; a playable video is allowed since J-05 10-11)
+        if (!/^image\//.test(a.mime) && !/^video\/(?:mp4|webm)$/.test(a.mime)) fail(400, 'attachment_not_image', { target_id: id });
       }
       let receipt;
       if (d.kind === 'receipt') {
         const parent = d.reply_to && state.feedback[d.reply_to];
-        if (!parent || parent.task_id !== req.target_id || parent.attribution.created_by.role !== 'owner') fail(400, 'receipt_needs_owner_message', { reply_to: d.reply_to || null });
+        // J-05 supervisor: a lane also receipts the board's own nudges and idle notices (kind nudge / idle), never a digest notice.
+        // Only while the supervisor runs (off = inert: an idle notice keeps today's rule, guard B4 is never silenced by a receipt).
+        const boardNotice = !!config?.supervisorOn && ['nudge', 'idle'].includes(parent?.kind) && !parent.info;
+        // An owner-level nudge is the owner's: it closes when the owner answers (the sweep clears it), never by a coordinator token.
+        if (boardNotice && parent.kind === 'nudge' && parent.level >= 3 && actor.role !== 'owner') fail(403, 'owner_level_nudge', { reply_to: parent.id });
+        if (!parent || parent.task_id !== req.target_id || (parent.attribution.created_by.role !== 'owner' && !boardNotice)) fail(400, 'receipt_needs_owner_message', { reply_to: d.reply_to || null });
         receipt = parseReceipt(d.text) || fail(400, 'receipt_lines_required', { lines: ['Đổi:', 'Lịch:', 'Bước tiếp:'] });
       }
       // The owner wrote on a task, step or ask that is waiting on them: that answers the open ask(s) there (the card
@@ -682,7 +793,7 @@ export const OPS = {
     },
     apply(state, ev) {
       const d = ev.data;
-      state.feedback[ev.result.id] = { id: ev.result.id, task_id: ev.target_id, rev: 1, attribution: attribution(ev), ...pick(d, ['step_id', 'kind', 'text', 'reply_to', 'plan_id', 'goal_version', 'receipt', 'attachments']), ...(d.ask_id ? { scope_ask_id: d.ask_id } : {}), status: 'open' };
+      state.feedback[ev.result.id] = { id: ev.result.id, task_id: ev.target_id, rev: 1, attribution: attribution(ev), ...pick(d, ['step_id', 'kind', 'text', 'reply_to', 'plan_id', 'goal_version', 'receipt', 'attachments', 'tasks']), ...(d.ask_id ? { scope_ask_id: d.ask_id } : {}), status: 'open' };
       // Still open feedback for the coordinator (its feed and the compat state show it as new owner feedback).
       const answered = (d.answers_asks || []).filter(id => state.asks[id]?.status === 'open');
       for (const id of answered) {
@@ -696,20 +807,39 @@ export const OPS = {
       if (d.kind === 'receipt') { const m = state.feedback[d.reply_to]; if (m && !m.info) { m.received = { at: ev.at, by: ev.actor, receipt_id: ev.result.id }; touch(m, ev); } }
       const parent = d.reply_to && (d.resolve_reply_to || d.kind === 'receipt') ? state.feedback[d.reply_to] : null;
       if (parent && !parent.info && parent.status === 'open') { parent.status = 'resolved'; parent.resolved = { at: ev.at, by: ev.actor }; touch(parent, ev); }
-      markActivity(state, ev.target_id, ev.at);
+      // J-05 supervisor (CoS J = BLOCK): a receipt on a board notice closes that level only (above, like any receipt); a level
+      // above it stays open and keeps escalating. It is bookkeeping, not work: it never moves the task's activity clock (else
+      // R1/R5 would read the receipt as progress, and R5 would refire on its own receipt).
+      const notice = d.kind === 'receipt' && parent && ['nudge', 'idle'].includes(parent.kind);
+      // News (cos-report / cos-event) is a report about the row, not work on it (gate S1 17-11, B2): it never moves the activity
+      // clock, else one report per task per turn would keep the stall clock and R1/R5 quiet on a task nobody works on.
+      if (!notice && !NEWS_KINDS.includes(d.kind)) markActivity(state, ev.target_id, ev.at);
+      // A progress post on a task is the task's status in CoS's words (ADR 2026-11-17): it stamps the status text, as a changed
+      // Now/Next does (task.update), and closes the open status request, so the freshness sweep does not ask a task CoS just
+      // reported on. A cos-report on the NEWS thread has no task: nothing to stamp.
+      if (d.kind === 'cos-report') {
+        const t = state.tasks[ev.target_id];
+        if (t) { t.text_at = ev.at; closeStatusRequests(state, ev.target_id, ev); }
+      }
     }
   },
   'feedback.resolve': {
-    check({ state, req }) {
+    check({ state, req, actor }) {
       const f = state.feedback[req.target_id];
       if (f.info) fail(409, 'informational_note'); // a notice reports a change; there is nothing to handle
+      if (f.kind === 'nudge' && f.level >= 3 && actor.role !== 'owner') fail(403, 'owner_level_nudge', { target_id: f.id });
       if (f.status !== 'open') fail(409, 'already_resolved');
       needRevision(f, req.expected_revision);
       return { data: req.data, result: { id: f.id, revision: f.rev + 1 } };
     },
     apply(state, ev) {
       const f = state.feedback[ev.target_id];
-      f.status = 'resolved'; f.resolved = { at: ev.at, by: ev.actor }; touch(f, ev); markActivity(state, f.task_id, ev.at);
+      f.status = 'resolved'; f.resolved = { at: ev.at, by: ev.actor }; touch(f, ev);
+      // Closing a board notice (the owner's L3 "Đã nhận", a nudge or idle notice) is bookkeeping, not work, like a receipt on
+      // one (feedback.add above): it never moves the task's activity clock, else the next sweep would read it as progress and
+      // close the open lower levels of the chain as condition_cleared (J = BLOCK).
+      // Closing a news item is not work on its row either (feedback.add: news never marks activity).
+      if (!['nudge', 'idle', ...NEWS_KINDS].includes(f.kind)) markActivity(state, f.task_id, ev.at);
     }
   },
   'times.import': {
@@ -855,7 +985,7 @@ export const OPS = {
     check({ state, req, actor }) {
       const t = needTask(state, req.target_id);
       // Same CoS-only rule as roles.override (J-05 round 2): a lane that is not CoS must not write a gate failure
-      // (the incident: Pi's lane escalated T-31 with "--dry-run" as the reason). The coordinator token carries no
+      // (the incident: Workera's lane escalated ACME-01 with "--dry-run" as the reason). The coordinator token carries no
       // lane, so it says which lane it speaks for (data.lane); a token with a lane is checked on actor.lane.
       if (!(actor.role === 'owner' || sameLane(actor.lane, 'CoS') || sameLane(req.data.lane, 'CoS'))) {
         fail(403, 'cos_only', { lane: req.data.lane || null, message: 'roles.escalate is CoS-only: call it with lane "CoS" (or as the owner)' });
@@ -957,6 +1087,60 @@ export const OPS = {
       addPing(state, ev, { kind: 'rebrief', task_id: ev.target_id, detail: { mode, ...(auto ? { auto } : {}) } });
       if (!auto) markActivity(state, ev.target_id, ev.at);
     }
+  },
+  // Guard B4 (J-05 W-42): an idle episode opens or closes. Written only by the board's own detector (board.checkIdle); the op
+  // schema allows no role, so no client can send it. Opening files ONE feedback to the task (its lane's waiter wakes on it) and a
+  // ping; closing resolves that feedback. Bookkeeping, not work: it never moves the task's activity clock.
+  'idle.mark': {
+    check({ state, req }) { const t = needTask(state, req.target_id); return { data: req.data, result: { id: t.id, revision: t.rev } }; },
+    apply(state, ev) {
+      state.idle ??= {}; // projections written before the idle detector existed
+      const id = ev.target_id, open = state.idle[id];
+      if (ev.data.idle) {
+        const feedbackId = addFeedback(state, ev, id, { kind: 'idle', auto: true, text: idleText(ev.data.steps) });
+        state.idle[id] = { since: ev.at, steps: ev.data.steps, feedback_id: feedbackId };
+        addPing(state, ev, { kind: 'idle', task_id: id, note: `${id}: đứng yên (${ev.data.steps.join(', ')})` });
+      } else if (open) {
+        const f = state.feedback[open.feedback_id];
+        if (f?.status === 'open') { f.status = 'resolved'; f.resolved = { at: ev.at, by: ev.actor }; touch(f, ev); }
+        delete state.idle[id];
+      }
+    }
+  },
+  // J-05 supervisor (src/supervisor.mjs): the board files one nudge, a feedback record of kind nudge, to the owning lane, CoS or the
+  // owner; an escalation names the nudge (or idle notice) it escalates, which records escalated_to. Written only by the board's
+  // own sweep (board.sweepSupervisor): the op schema allows no role. Bookkeeping, not work: it never moves the task's activity
+  // clock (else a nudge would hide the very silence it reports). Level 3 also pings, so the owner's watcher sees it.
+  'nudge.raise': {
+    check({ state, req, seq }) {
+      if (req.target_id !== BOARD_TARGET) needTask(state, req.target_id);
+      if (state.supervisor?.keys?.[req.data.key]) fail(409, 'nudge_key_used', { key: req.data.key });
+      return { data: req.data, result: { id: `fb-${seq}`, revision: 1 } };
+    },
+    apply(state, ev) {
+      const d = ev.data;
+      const id = addFeedback(state, ev, ev.target_id, { kind: 'nudge', auto: true, ...pick(d, ['rule', 'level', 'lane', 'text', 'step_id', 'ask_id', 'ask_ids', 'escalated_from', 'info']) });
+      state.supervisor ??= { keys: {} };
+      for (const k of [d.key, ...(d.also_keys || [])]) state.supervisor.keys[k] = id;
+      const from = d.escalated_from && state.feedback[d.escalated_from];
+      if (from) { from.escalated_to = id; touch(from, ev); }
+      if (d.level === 3 && !d.info) addPing(state, ev, { kind: 'nudge', task_id: ev.target_id === BOARD_TARGET ? '' : ev.target_id, note: d.text.slice(0, 200) });
+    }
+  },
+  // J-05 supervisor: the sweep closes a chain whose condition no longer holds (system-only, like nudge.raise; no activity).
+  'nudge.clear': {
+    check({ state, req }) {
+      for (const id of req.data.ids) if (state.feedback[id]?.kind !== 'nudge') fail(404, 'nudge_not_found', { target_id: id });
+      return { data: req.data, result: { id: req.target_id, revision: 1 } };
+    },
+    apply(state, ev) {
+      for (const id of ev.data.ids) { const f = state.feedback[id]; if (f?.status === 'open') { f.status = 'resolved'; f.resolved = { at: ev.at, by: ev.actor }; f.cleared = ev.data.reason; touch(f, ev); } }
+    }
+  },
+  // J-05 dossier gate: when the task's dossier was last brought up to date (the CLI's STATUS run stamp). Bookkeeping: no activity.
+  'dossier.mark': {
+    check({ state, req }) { const t = needTask(state, req.target_id); return { data: req.data, result: { id: t.id, revision: t.rev } }; },
+    apply(state, ev) { state.tasks[ev.target_id].dossier_at = ev.data.dossier_at; }
   },
   'plan.add': {
     check({ state, req, seq }) {
@@ -1102,20 +1286,25 @@ export const OPS = {
         if (current && !d.replace_coordinator) fail(409, 'coordinator_exists', { coordinator: current.name });
         replaces = current?.id;
       }
+      // W-42 5A (contract 3.5 check 4, rev 3): a device or ui token is an owner UI credential, so only the owner web login mints one;
+      // a plain owner bearer, wherever it leaked, can never mint itself a UI credential.
+      if (d.ui && d.device) fail(400, 'ui_and_device', { message: 'BLOCKED token.issue / WHY a token is either a phone (device) or an app UI (ui) / DO send one of them' });
+      if (d.ui && d.role !== 'owner') fail(400, 'ui_needs_owner');
+      if ((d.ui || d.device) && actor?.via !== 'proxy') fail(403, 'owner_ui_only', { message: 'BLOCKED token.issue / WHY phone and app tokens are minted only from the owner web login / DO mint it from the board page' });
       const secret = 'lb_' + crypto.randomBytes(32).toString('base64url');
       const sha256 = crypto.createHash('sha256').update(secret).digest('hex');
-      const { replace_coordinator, device, ...meta } = d;
+      const { replace_coordinator, device, ui, ...meta } = d;
       // The minting token (J-05 D3), so its revoke cascades to what it minted. Only a bearer/app token is a parent: the
       // owner login (proxy) is the htpasswd credential, not tok-1, and must not tie every desktop-minted token to tok-1.
       const parent = actor && !actor.via && state.tokens[actor.token_id] ? actor.token_id : undefined;
-      return { data: { ...meta, ...(device ? { device: true } : {}), token_sha256: sha256, ...(replaces ? { replaces } : {}), ...(parent ? { parent } : {}) }, result: { id: `tok-${seq}`, revision: 1 }, reveal: { token: secret } };
+      return { data: { ...meta, ...(device ? { device: true } : {}), ...(ui ? { ui: true } : {}), token_sha256: sha256, ...(replaces ? { replaces } : {}), ...(parent ? { parent } : {}) }, result: { id: `tok-${seq}`, revision: 1 }, reveal: { token: secret } };
     },
     apply(state, ev) {
       const d = ev.data;
       if (d.replaces && state.tokens[d.replaces]) state.tokens[d.replaces].revoked_at = ev.at;
       state.tokens[ev.result.id] = {
         id: ev.result.id, name: ev.target_id, role: d.role, sha256: d.token_sha256, issued_at: ev.at, issued_by: ev.actor.name,
-        ...pick(d, ['label', 'lane', 'model', 'device', 'parent']), scope_tasks: d.scope_tasks || ['*']
+        ...pick(d, ['label', 'lane', 'model', 'device', 'ui', 'parent']), scope_tasks: d.scope_tasks || ['*']
       };
     }
   },

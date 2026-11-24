@@ -152,9 +152,16 @@ try {
       const wrongHost = await request(bp, 'GET', '/api/v1/state', { headers: { host: 'evil.example' } });
       check('wrong Host with a valid token -> 403 forbidden_host', wrongHost.status === 403 && wrongHost.json?.error === 'forbidden_host');
       // listed routes: every route the page fetches
-      const listed = ['/healthz', '/api/v1/state?v=2', '/api/v1/whoami', '/api/v1/turns?lane=a&limit=20', '/api/v1/events?after=0&limit=100', '/api/v1/quota', '/api/v1/tokens', '/api/v1/media/att-1', '/api/v1/media/att-1/link', '/api/v1/media/abc_1?w=200', '/api/stats'];
+      const listed = ['/healthz', '/api/v1/state?v=2', '/api/v1/whoami', '/api/v1/turns?lane=a&limit=20', '/api/v1/events?after=0&limit=100', '/api/v1/quota', '/api/v1/tokens', '/api/v1/media/att-1', '/api/v1/media/att-1/link', '/api/v1/media/abc_1?w=200', '/api/stats', '/api/v1/supervisor', '/api/v1/history?task=T-1&limit=500', '/api/v1/history?task=T-1&limit=500&before=2026-11-01T00%3A00%3A00.000Z%7Cfb-1'];
       const rs = []; for (const route of listed) rs.push((await request(bp, 'GET', route)).status);
       check('every route the page fetches (incl. /api/stats) is proxied with a valid token', rs.every((s) => s === 200), rs);
+      // T-31 supervisor port: the Board tab's "Giám sát" strip, task chip and L3 button read GET /api/v1/supervisor (public/app.js ensureSupervisor)
+      const sv = await request(bp, 'GET', '/api/v1/supervisor');
+      check('GET /api/v1/supervisor is forwarded upstream as GET /api/v1/supervisor (the real board answer: check:board-supervisor §2)', sv.status === 200 && seen.some((x) => x.method === 'GET' && x.url === '/api/v1/supervisor'), { status: sv.status });
+      // Opus gate must-fix 2: the page's "load older" (public/app.js loadHistory) reads GET /api/v1/history?task=&limit=&before=
+      check('GET /api/v1/history is forwarded upstream with its query (task, limit, before)', seen.some((x) => x.method === 'GET' && x.url === '/api/v1/history?task=T-1&limit=500&before=2026-11-01T00%3A00%3A00.000Z%7Cfb-1'));
+      const svPost = await request(bp, 'POST', '/api/v1/supervisor', { body: {} });
+      check('/api/v1/supervisor is a read: POST refused (405), nothing forwarded', svPost.status === 405 && !seen.some((x) => x.method === 'POST' && x.url === '/api/v1/supervisor'), svPost.status);
       const nS = seen.length;
       const stPost = await request(bp, 'POST', '/api/stats', { body: {} }); const stHead = await request(bp, 'HEAD', '/api/stats');
       check('/api/stats: GET only (same rule as Electron 0.2.10) -- POST and HEAD refused, nothing forwarded', stPost.status === 405 && stHead.status === 405 && seen.length === nS, seen.slice(nS));

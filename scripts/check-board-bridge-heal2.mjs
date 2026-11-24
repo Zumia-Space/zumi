@@ -239,7 +239,79 @@ if (w) {
   const open = appJs.slice(appJs.indexOf('const openLiveBoard = '), appJs.indexOf('// Owner words only (PLAN-live-board.md'));
   check('recover: the live guest\'s did-fail-load hands the failure to the recovery, did-finish-load resets it', /liveFailRecovery\.onFail\(/.test(open) && /liveFailRecovery\.onLoaded\(\)/.test(open));
   const recBlock = appJs.slice(appJs.indexOf('const liveFailRecovery = '), appJs.indexOf('let boardStatus = '));
-  check('recover: app.js runs the slow retry only while the failed guest is on screen, and the live watch resumes it', /active: \(\) => liveFailedGuest === webview[^\n]*isBoardTabActive\(\)[^\n]*visibilityState/.test(recBlock) && /liveFailRecovery\.resume\(\)/.test(appJs.slice(appJs.indexOf('async function watchLiveBoard'))));
+  check('recover: app.js runs the retry only while the failed guest is the shown Board tab\'s live guest', /active: \(\) => liveFailedGuest === webview[^\n]*webviewMode === 'live'[^\n]*isBoardTabActive\(\)/.test(recBlock));
+
+  // T-31 alpha.9.6 (9.5 owner smoke: heal-2 did not recover after a 10-min idle; app.js's active() also required the MAIN page's
+  // document.visibilityState === 'visible', so a failure while the main page was hidden parked and nothing resumed it in 30 s).
+  // The real app.js active() predicate is evaluated here against a hidden main page: the failure must still be recovered.
+  const activeSrc = (recBlock.match(/active: (\(\) => [^\n]*?),\n/) || [])[1];
+  check('recover (A96): app.js active() does not read the main page\'s visibility at all', Boolean(activeSrc) && !/visibilityState|document\.hidden/.test(activeSrc), activeSrc);
+  if (activeSrc && typeof w.createFailLoadRecovery === 'function') {
+    const env = { liveFailedGuest: null, webview: null, webviewMode: 'live', tab: true, document: { visibilityState: 'hidden', hidden: true } };
+    const active = () => new Function('liveFailedGuest', 'webview', 'webviewMode', 'isBoardTabActive', 'document', `return (${activeSrc})();`)(env.liveFailedGuest, env.webview, env.webviewMode, () => env.tab, env.document);
+    const timers = [];
+    const setTimer = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
+    let asked = 0;
+    const rebuilt = [];
+    const rec = w.createFailLoadRecovery({ liveOpen: async () => { asked++; return { origin: 'http://127.0.0.1:7010', openUrl: 'http://127.0.0.1:7010/__bridge-session?n=h' }; }, rebuild: (r) => rebuilt.push(r.origin), setTimer, active });
+    const guest = {};
+    env.webview = guest; env.liveFailedGuest = guest;
+    rec.onFail(-103);
+    if (timers.length) await timers.shift().fn();
+    check('recover (A96): a failure while the main page is hidden (Board tab shown, same live guest) is recovered: host asked, guest rebuilt', asked === 1 && rebuilt.join() === 'http://127.0.0.1:7010', { asked, rebuilt });
+    // the Board tab itself hidden (Zumi tab): parked, then run the moment the tab is shown (the tab switch resumes it)
+    env.tab = false;
+    rec.onLoaded();
+    rec.onFail(-103);
+    if (timers.length) await timers.shift().fn();
+    const parkedOk = asked === 1 && timers.length === 0;
+    env.tab = true;
+    rec.resume();
+    if (timers.length) await timers.shift().fn();
+    check('recover (A96): a failure while the Board tab is hidden is queued (no host call) and recovered once the tab is shown', parkedOk && asked === 2 && rebuilt.length === 2, { parkedOk, asked, rebuilt });
+  }
+  const watchSrc = appJs.slice(appJs.indexOf('async function watchLiveBoard'), appJs.indexOf('setInterval(watchLiveBoard'));
+  const resumeAt = watchSrc.indexOf('resumeLiveFailRecovery()');
+  check('recover (A96): the live watch resumes a parked failure BEFORE its main-page-visibility and in-flight guards', resumeAt > 0 && resumeAt < watchSrc.indexOf('visibilityState') && resumeAt < watchSrc.indexOf('liveWatching ||'), { resumeAt, vis: watchSrc.indexOf('visibilityState'), inflight: watchSrc.indexOf('liveWatching ||') });
+  const tabSrc = appJs.slice(appJs.indexOf("$('sidebar').addEventListener('click'"));
+  check('recover (A96): showing the Board tab resumes a parked failure at once (not only on the next 5 s watch tick)', /if \(name === 'board'\) \{[^\n]*resumeLiveFailRecovery\(\)/.test(tabSrc));
+
+  // T-31 alpha.9.7 (GATE-OPUS-ALPHA96 S1): a failure that persists while the window is MINIMISED rebuilt a WebView2 guest every 30 s with
+  // no end (~2,900 a day overnight). While minimised the slow retry now backs off exponentially to a 5 min cap; it stays 30 s while the
+  // window is shown (gate S-b), and showing the window resets the backoff and retries at once.
+  if (typeof w.createFailLoadRecovery === 'function') {
+    let timers = [];
+    const setTimer = (fn, ms) => { const t = { fn, ms }; timers.push(t); return t; };
+    const clearTimer = (t) => { timers = timers.filter((x) => x !== t); };
+    const run = async () => { const t = timers.shift(); await t.fn(); return t.ms; };
+    let minimised = true, asked = 0;
+    const rec = w.createFailLoadRecovery({ liveOpen: async () => { asked++; return { error: 'bridge_down' }; }, rebuild: () => {}, setTimer, clearTimer, minimised: () => minimised });
+    rec.onFail(-103);
+    const delays = [];
+    for (let i = 0; i < 12 && timers.length; i++) delays.push(await run());
+    check('recover (A97): minimised, a persistent failure backs off exponentially to a 5 min cap after the fast tries (30, 60, 120, 240, 300, 300 s)', delays.join() === '1000,2000,4000,8000,8000,8000,30000,60000,120000,240000,300000,300000' && timers.length === 1, { delays, pending: timers.length });
+    minimised = false;
+    rec.resume();
+    const woke = timers.length === 1 && timers[0].ms === 1000;
+    if (timers.length) await run();
+    check('recover (A97): shown again (resume) resets the backoff and retries at once (1 s), not after the remaining cap', woke && asked === 13, { woke, asked, pending: timers.map((t) => t.ms) });
+    check('recover (A97): ...and while shown the slow retry is 30 s again (gate S-b)', timers.length === 1 && timers[0].ms === 30000, timers.map((t) => t.ms));
+    rec.resume();
+    check('recover (A97): resume while shown with a 30 s retry pending changes nothing (the 5 s watch tick calls it)', timers.length === 1 && timers[0].ms === 30000, timers.map((t) => t.ms));
+    minimised = true;
+    rec.resume();
+    check('recover (A97): resume while still minimised does not cut a pending retry short (the 5 s watch tick runs while minimised)', timers.length === 1 && timers[0].ms === 30000, timers.map((t) => t.ms));
+    timers = [];
+    let okAnswers = [...Array(8).fill({ error: 'x' }), { origin: 'http://127.0.0.1:7020' }], okRebuilt = 0;
+    const recOk = w.createFailLoadRecovery({ liveOpen: async () => okAnswers.shift() || { error: 'x' }, rebuild: () => { okRebuilt++; }, setTimer, clearTimer, minimised: () => true });
+    recOk.onFail(-103); for (let i = 0; i < 9 && timers.length; i++) await run(); // 8 failed asks (backoff reaches 120 s), the 9th rebuilds
+    recOk.onLoaded(); // the rebuilt guest loaded
+    recOk.onFail(-103); for (let i = 0; i < 6; i++) await run();
+    check('recover (A97): a load that finished resets the minimised backoff too (the next slow retry is 30 s, not 240 s)', okRebuilt === 1 && timers.length === 1 && timers[0].ms === 30000, { okRebuilt, pending: timers.map((t) => t.ms) });
+    timers = [];
+  }
+  check('recover (A97): app.js gives the recovery the host\'s minimised signal (window:visible), not the page\'s visibility', /minimised: \(\) => !windowVisible/.test(recBlock) && /clearTimer: /.test(recBlock), recBlock.match(/minimised:[^\n]*/)?.[0]);
+  check('recover (A97): the window coming back (window:visible true) resumes the recovery at once', /zumi\.onWindowVisible\(\(v\) => \{[^\n]*if \(v\) resumeLiveFailRecovery\(\)/.test(appJs));
 }
 
 // ---- 5. no pooled bridge socket (bridge-finswallow supersedes heal-2's 330 s keep-alive): even a keep-alive client gets

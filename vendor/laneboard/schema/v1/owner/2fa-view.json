@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "owner/2fa-view.json",
+  "title": "GET /api/v1/owner/2fa response",
+  "description": "Never the seed, a code or a hash.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "enrolled",
+    "enrol_open",
+    "devices"
+  ],
+  "properties": {
+    "twofa": {
+      "enum": ["on", "off"],
+      "description": "off = the 2FA OFF switch (BOARD_OWNER_2FA=off) or no key file: every owner-only act is 503 owner_2fa_off"
+    },
+    "enrolled": {
+      "type": "boolean"
+    },
+    "enrolled_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "enrol_open": {
+      "type": "boolean"
+    },
+    "locked_until": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "key_configured": {
+      "type": "boolean"
+    },
+    "devices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "created_at",
+          "expires_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^dv-[0-9]+$"
+          },
+          "kind": {
+            "enum": [
+              "browser",
+              "token"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "token_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "last_used_at": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "current": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

@@ -49,6 +49,10 @@
     "device": {
       "type": "boolean",
       "description": "A token for one device (a phone): it may not call ops marked x-device false (token.issue, token.revoke, roles.*, notify.set, times.import, goals.import, freshness.set)."
+    },
+    "ui": {
+      "type": "boolean",
+      "description": "W-42 5A rev 2 (M5): an owner token held by the UI process of one owner app (the Zumi desktop host). Only with role owner (400 ui_needs_owner). A token with ui true or device true is issued only from the owner web login (caller via proxy; 403 owner_ui_only otherwise), so a plain owner bearer, wherever it leaked, can never mint itself a UI credential. Only device and ui tokens and the proxy login count as the owner on the diagram route and as diagram evidence; plain owner tokens keep every right they have today. The host never hands a ui token to an agent runtime, an MCP server or the pack. The proxy login resolves to the first owner token that is neither device nor ui. Agent, MCP and lane tokens are coordinator or reporter. Rev 3: ui and device together are 400 ui_and_device."
     }
   }
 }

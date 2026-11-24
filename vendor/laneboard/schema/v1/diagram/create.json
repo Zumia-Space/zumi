@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "diagram/create.json",
+  "title": "data for diagram.create",
+  "description": "Give a task its first diagram, or import one (the MAP cutover). The task must have none (409 diagram_exists; the same request_id and body is deduped). The document's task must equal target_id (400 task_mismatch); its serialized size is at most 524288 bytes (413 diagram_too_large); its stamp must match its content (400 hand_edit: a hand-edited file is never laundered in); it must pass the schema and the hard lint. rev and contentRev are kept as sent, so an imported diagram keeps its numbering (MAP arrives at rev 11). The new diagram is unpinned (an agent draft) whoever creates it. Rev 2 (M2): 'has one' means an attached diagram (contract 2.1); an archived diagram or one created for an earlier task with the same id is not inherited, and create starts a new dg-N. An owner create writes the pointer message. The stored bytes are serialize(document) (JSON, indent 1, trailing newline), so the blob sha equals the sha of the local file it came from.",
+  "x-roles": ["owner", "coordinator"],
+  "x-owner-ui": true,
+  "x-target": "taskId",
+  "x-revision": "create",
+  "x-pinned": "n/a",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["document", "note"],
+  "properties": {
+    "document": { "$ref": "document.json" },
+    "note": { "type": "string", "minLength": 1, "maxLength": 300, "pattern": "^[^<>]*$" }
+  }
+}
