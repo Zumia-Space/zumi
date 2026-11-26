@@ -75,6 +75,10 @@ const gdir = path.join(src, 'reflex', 'gestures');
 for (const f of fs.readdirSync(gdir).filter((x) => x.endsWith('.json'))) fs.copyFileSync(path.join(gdir, f), path.join(out, 'gestures', f));
 const sdir = path.join(src, 'reflex', 'speech');
 for (const f of fs.readdirSync(sdir).filter((x) => x.endsWith('.json'))) fs.copyFileSync(path.join(sdir, f), path.join(out, 'speech', f));
+// R6c D / R7b M4: the v4 avatar presets the bundle asks for (`avatars/v4/<preset>.svg`, src/renderer/avatars.js). check-avatars asserts the built copy.
+const adir = path.join(src, 'avatars', 'v4');
+fs.mkdirSync(path.join(out, 'avatars', 'v4'), { recursive: true });
+for (const f of fs.readdirSync(adir).filter((x) => x.endsWith('.svg'))) fs.copyFileSync(path.join(adir, f), path.join(out, 'avatars', 'v4', f));
 
 const kb = (f) => (fs.statSync(path.join(out, f)).size / 1024).toFixed(0);
 console.log(`renderer built -> ${path.relative(root, out)} (app.js ${kb('app.js')} KB, next UI ${nextUi ? 'ON' : 'off'})`);

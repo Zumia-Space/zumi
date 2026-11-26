@@ -39,6 +39,7 @@ const ALLOW_LINE = [
   { file: 'src/main/chat-brain.js', match: /là chưa có thông tin/, reason: 'continuation of the same BOARD_RULE string literal above' },
   { file: 'src/main/main.js', match: /khách hàng/, reason: 'the VI redaction mask token sent into the LLM board digest (CoS privacy decision 07-10), never rendered as app UI' },
   { file: 'src/main/chat-brain.js', match: /^\s*\['(greet|celebrate|disagree|agree)', \/|^const BOARD_WORDS = /, reason: 'T-31 QC-cuoi fix a: EN/VI DETECTION regexes that pick a speech intent from the reply text (fallback when the model omits its gesture tag), never rendered as app UI' },
+  { file: 'src/renderer/talk/motion-route.js', match: /^const CHEST_WORDS = /, reason: 'T-31-ROOM motion P4 (owner ruling 20-11): EN/VI DETECTION regex that refuses a chest-contact move asked for from the chat before any model call, never rendered as app UI' },
   { file: 'src/main/leda-tts.js', match: /Ây Ai/, reason: 'T-31 voice P1 item 3: "AI" -> "Ây Ai" pronunciation substitution inside the VI TTS audio text, never rendered as app UI' },
 ];
 

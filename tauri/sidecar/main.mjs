@@ -52,7 +52,10 @@ import { createShotsFixtures } from './shots-fixtures.mjs';
 import { adoptDefaultOnBoot, createRestoreDefault } from './default-model-boot.mjs';
 import { providerFetch, guardedFetch, PROVIDER_ORIGINS, cloudFetch, mirrorFetch, jevFetch, ttsFetch, marketFetch, selfTestFetch, isSelfTestRun } from './egress.mjs';
 import { createMarketHost } from './market-host.mjs';
+import { withBoardTab } from './board-tab.mjs';
+import { roomEvHandlers } from './room-ev.mjs';
 import { STORE_KEYS, storeSource } from './market-keys.mjs';
+import { createContentHost } from './content-host.mjs';
 import { readOwnerVoiceFlag, voiceProviderPrefs } from '../../src/main/tts-select.js';
 import { phoneAiAndRedact } from './phone-extras.mjs';
 import {
@@ -486,10 +489,22 @@ function buildHandlers(ctx) {
     model: voice.kokoroModel,
     log: (m) => process.stderr.write(`[sidecar] ${m}\n`),
   });
+  // 0.3.5-alpha.9.10 (OSS-02 step 2, owner 17-11): the Marketplace card "Laneboard" switches the Board tab (board-tab.mjs). A signed-in
+  // live board counts as a board this install already uses, so its tab stays on after the update.
+  const marketTab = withBoardTab(market.handlers, {
+    dataDir: ctx.dataDir, settings, saveSettings: (patch) => saveSettings(ctx.dataDir, patch),
+    liveConfigured: () => boardHost.handlers['board.status']().configured === true,
+  });
+  // 0.3.5-alpha.9.11 (T-31-ROOM 9.11 light round 2): Settings > Room > Brightness, EV per room (room-ev.mjs). Tauri only; the 3D room guest reads it from the host.
+  const roomEv = roomEvHandlers({ settings, saveSettings: (patch) => saveSettings(ctx.dataDir, patch) });
   // Step 9-1: the talk-camera HUD. hud-host.mjs / hud-answer.mjs / board-open.mjs run UNCHANGED; this host supplies the
   // board reader chat already owns (one connection), the cached idle, the 8a scheduler seams and the `hud:feed` push.
   // Electron's test-only fast poll (ZUMI_TEST_HUD_POLL_MS) is honoured in a test flavour only, like ZUMI_BOARD_UPSTREAM.
   const ownerAdmin = ctx.flavour.values.ownerAdmin === true;
+  // CT-01 the Content tab: OWNER FLAVOUR ONLY (ADR 2026-11-11-content-plan-local-first). A public build creates no host and
+  // registers no content.* name, so every content call answers not_implemented there. The store is <data dir>/content-plan.
+  const content = ownerAdmin ? createContentHost({ dataDir: path.join(ctx.dataDir, 'content-plan'), log: (m) => process.stderr.write(`[sidecar] ${m}
+`) }) : null;
   const hud = createHudHost({
     getState: (o) => chatHost.boardReader.getState(o),
     idleSeconds: () => signals.idleSeconds(),
@@ -527,14 +542,27 @@ function buildHandlers(ctx) {
 `);
       return true;
     },
+    // T-31 alpha.9.6: HOST ONLY, like guestLoadFailed: each guest visibility CHANGE the host applied (guest.rs guest_bounds), with the
+    // shim's reason, so a Board guest hidden while its tab is shown names its cause in sidecar.log.
+    '__host.guestVisibility': (info) => {
+      const o = info && typeof info === 'object' ? info : {};
+      const word = (v) => String(v == null ? '-' : v).replace(/[^\w.:-]/g, '').slice(0, 64);
+      process.stderr.write(`[guest] visibility ${word(o.label)} ${o.visible === true ? 'shown' : 'hidden'} reason ${word(o.reason)}
+`);
+      return true;
+    },
     ...voice.handlers,
     // launch-scope memory (memory-notes.mjs): the user's notes. Recall is not an rpc: chat-host.mjs reads it per turn.
     'memory.status': () => memory.handlers['memory.status'](),
     'memory.setEnabled': (on) => memory.handlers['memory.setEnabled'](on),
     'memory.list': (q) => memory.handlers['memory.list'](q),
-    'memory.add': (text) => memory.handlers['memory.add'](text),
+    'memory.add': (text, who) => memory.handlers['memory.add'](text, who),
+    '__host.memoryAddTurn': (turnId, text, reply) => memory.handlers['memory.addTurn'](turnId, text, reply), // R6e: host-only (the Rust agent loop's turn log), not an rpc the page can call
     'memory.delete': (id) => memory.handlers['memory.delete'](id),
-    'memory.deleteAll': () => memory.handlers['memory.deleteAll'](),
+    'memory.update': (id, text) => memory.handlers['memory.update'](id, text),
+    '__host.memoryCorrect': (match, text) => memory.handlers['memory.correct'](match, text), // R6e: host-only (the Rust agent loop's note.correct)
+    'memory.journal': (q) => memory.handlers['memory.journal'](q),
+    'memory.undo': (rowId) => memory.handlers['memory.undo'](rowId),
     'memory.exportFile': () => memory.handlers['memory.exportFile'](),
     // App version + preview flags. `packaged: true` so the renderer hides dev-only chrome, matching
     // an installed Electron build; nothing here is a measurement claim.
@@ -617,6 +645,7 @@ function buildHandlers(ctx) {
     'talk.status': () => chatHost.handlers['talk.status'](), // talk:status, :960 (chat brain first)
     'talk.turn': (p) => chatHost.handlers['talk.turn'](p), // talk:turn, :965 (stream + replyMore/replyDone/checkDone)
     'talk.gesture': (p) => chatHost.handlers['talk.gesture'](p), // talk:gesture, :1027
+    'talk.composeMotion': (brief) => chatHost.handlers['talk.composeMotion'](brief), // Tauri only (T-31-ROOM motion P5b)
     'talk.brainInfo': () => chatHost.handlers['talk.brainInfo'](), // talk:brain-info, :1000
     'brainKey.save': (raw, confirm) => chatHost.handlers['brainKey.save'](raw, confirm), // brainKey:save, :1036
     'brainKey.test': () => chatHost.handlers['brainKey.test'](), // brainKey:test, :1038
@@ -671,9 +700,29 @@ function buildHandlers(ctx) {
     // ---- step 8b part 1 voice providers (voice-host.mjs) ----
     // Listed explicitly (not only through the spread above) so the coverage meter parses them.
     // ---- Marketplace (market-host.mjs): Tauri only, Electron has no such method ----
-    'market.list': () => market.handlers['market.list'](),
-    'market.install': (id) => market.handlers['market.install'](id),
-    'market.remove': (id) => market.handlers['market.remove'](id),
+    'market.list': () => marketTab['market.list'](),
+    'market.install': (id) => marketTab['market.install'](id),
+    'market.remove': (id) => marketTab['market.remove'](id),
+    // ---- CT-01 Content tab (content-host.mjs): Tauri only, owner flavour only (the spread is empty in a public build) ----
+    ...(content ? {
+      'content.week': (week) => content.handlers['content.week'](week),
+      'content.list': (filter) => content.handlers['content.list'](filter),
+      'content.approve': (id, hash) => content.handlers['content.approve'](id, hash),
+      'content.approveMany': (items) => content.handlers['content.approveMany'](items),
+      'content.reject': (id, reason) => content.handlers['content.reject'](id, reason),
+      'content.media': (sha256) => content.handlers['content.media'](sha256),
+      'content.today': (date) => content.handlers['content.today'](date),
+      'content.markPosted': (id, url) => content.handlers['content.markPosted'](id, url),
+      'content.markFailed': (id, reason) => content.handlers['content.markFailed'](id, reason),
+      // Rust intercepts content.openCompose (lib.rs app_open_target) and asks __host.contentComposeVerdict; a call that got here opened nothing.
+      'content.openCompose': () => false,
+      // Host-only (not in the inventory): the page names a channel id, the URL is the channel's fixed compose link.
+      '__host.contentComposeVerdict': (id) => {
+        const d = content.composeVerdict(id);
+        if (d.action !== 'openExternal') logRefusal({ reason: d.reason || 'unknown_channel', origin: d.origin });
+        return d;
+      },
+    } : {}),
     'talk.getVoicePrefs': () => voice.handlers['talk.getVoicePrefs'](), // talk:getVoicePrefs, :1220 (behaviour change: owner flag + config)
     'talk.setVoicePrefs': (p) => voice.handlers['talk.setVoicePrefs'](p), // talk:setVoicePrefs, :1231
     'talk.voiceProviders': () => voice.handlers['talk.voiceProviders'](), // talk:voiceProviders, :1394
@@ -682,13 +731,19 @@ function buildHandlers(ctx) {
     'talk.checkProviderKey': (id, raw) => voice.handlers['talk.checkProviderKey'](id, raw), // Tauri only: free key check before saving
     'talk.testVoice': (p) => voice.handlers['talk.testVoice'](p), // talk:testVoice, :1408
     'talk.tts': (p) => voice.handlers['talk.tts'](p), // talk:tts, :1317 (Kokoro / Windows / cloud, by the core's route)
-    'talk.ttsAbandon': (p) => voice.handlers['talk.ttsAbandon'](p), // talk:ttsAbandon, :1301 (barge-in: stop later Kokoro chunks)
+    'talk.ttsAbandon': (p) => { // talk:ttsAbandon, :1301 (barge-in: stop later Kokoro chunks, and cut the turn's LLM stream)
+      const turnId = typeof p === 'string' ? p : (p && typeof p === 'object' ? p.turnId : null);
+      if (typeof turnId === 'string' && turnId) chatHost.abortTurn(turnId);
+      return voice.handlers['talk.ttsAbandon'](p);
+    },
     'talk.voiceInfo': () => voice.handlers['talk.voiceInfo'](), // talk:voiceInfo, :1375
     'talk.voiceWarm': () => voice.handlers['talk.voiceWarm'](),
     'talk.voiceState': () => voice.handlers['talk.voiceState'](), // talk:voiceState, :1361
     'talk.openGuide': () => voice.handlers['talk.openGuide'](), // talk:openGuide, :1437 (Rust intercepts; opens from the fixed table)
     'ui.getSendClientNames': () => boot.getSendClientNames(), // :844
     'ui.setSendClientNames': (on) => boot.setSendClientNames(on), // :848
+    'ui.getRoomEv': (roomId) => roomEv['ui.getRoomEv'](roomId), // Tauri only (9.11 light)
+    'ui.setRoomEv': (roomId, v) => roomEv['ui.setRoomEv'](roomId, v), // Tauri only (9.11 light)
     'ui.getLookTuning': () => boot.getLookTuning(), // :859
     'ui.setLookTuning': (overrides) => boot.setLookTuning(overrides), // :863
     'gcache.load': () => boot.gcacheLoad(), // :1522
@@ -829,9 +884,14 @@ function buildHandlers(ctx) {
     '__host.resolveAsset': (rel) => boot.resolveAsset(rel),
     // The renderer's `gesture:result` reply, mapped here by the Rust rpc command (lib.rs reply_target).
     '__host.gestureResult': (reqId, result) => lib.gestureResult(reqId, result),
+    // T-31-MAUS A2: a due reminder from the Rust routines runner (routines_host.rs). Host-only: not in the inventory.
+    '__host.reminderSay': (text, key) => speech.handlers['reminder.say'](text, key),
     // Step 6: the verdicts for the two app-page opens Rust runs (guest.rs open_for_app_page). Host-only like the others.
     '__host.aiKeyPageVerdict': () => aiCore.keyPageVerdict(),
     '__host.citedUrlVerdict': (url) => aiCore.citedUrlVerdict(url),
+    // T-31-MAUS P3: the Rust agent loop's model call. Host-only like the others; it executes no tool.
+    '__host.modelTurn': (req) => chatHost.handlers['__host.modelTurn'](req),
+    '__host.modelTurnCancel': (id) => chatHost.handlers['__host.modelTurnCancel'](id),
     '__host.logRefusal': (reason, origin) => {
       logRefusal({ reason: typeof reason === 'string' ? reason : '', origin: typeof origin === 'string' ? origin : undefined });
       return true;

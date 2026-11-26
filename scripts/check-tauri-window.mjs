@@ -130,7 +130,9 @@ ok(before(setup, 'guard_pending.store(true', 'start_sidecar_provisioning_node(')
 ok(before(setup, 'open_guarded_main(', 'guard_pending.store(false'), 'guard_pending is lowered only after open_guarded_main returned Ok');
 ok(/fn serving_with\(&self, pending: &Pending\) -> bool \{\s*pending\.ready && !self\.0\.guard_pending\.load\(Ordering::SeqCst\)\s*\}/.test(lib),
   'one predicate: serving = handshake passed AND main guard up');
-const callBody = fnBody(lib, 'call');
+// `call` is a thin wrapper: the refusal lives in `call_cancellable` (GATE-OPUS-R2 should-fix 3), so the guard is read there and the wrapper must go through it.
+const callBody = fnBody(lib, 'call_cancellable');
+ok(/self\.call_cancellable\(/.test(fnBody(lib, 'call')), 'Rpc::call is only a wrapper over call_cancellable, so every webview -> sidecar call passes the guard');
 ok(before(callBody, 'serving_with(&pending)', 'waiters.insert') && /serving_with\(&pending\) \{[^}]*sidecar_not_ready/.test(callBody),
   'Rpc::call (webview -> sidecar) refuses with sidecar_not_ready while not serving, before anything is queued or written');
 ok(/\bif !rpc\.serving\(\) \{\s*rpc\.respond\(&id, Err\("sidecar_not_ready"\.to_string\(\)\)\);\s*return;\s*\}[\s\S]*run\(method/.test(fnBody(lib, 'answer_sidecar_request')),

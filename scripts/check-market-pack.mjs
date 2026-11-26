@@ -63,6 +63,14 @@ for (const kind of PACK_KINDS) {
   ok(v.ok && v.destLeft, `good ${kind} package passes`, JSON.stringify(v.errors));
 }
 
+// Room live B: an api-2 plugin with stage, net [] and no links is a good package (the host's id allow-list decides who may RECEIVE it).
+{
+  const [m, f] = GOOD.plugin();
+  m.plugin.api = 2; m.plugin.permissions = { avatar: 'read', stage: 'performance', net: [] };
+  const v = await verdict(packZip(m, f), { kind: 'plugin', expectId: m.id });
+  ok(v.ok, 'good plugin: api 2 with stage, net [] and no links passes', JSON.stringify(v.errors));
+}
+
 // ---------- faults: [title, kind, mutate(manifest, files) -> extra options, expected code] ----------
 const FAULTS = [
   ['common: wrong format', 'skill', (m) => { m.format = 'zip/1'; }, 'manifest_format'],
@@ -111,7 +119,11 @@ const FAULTS = [
   ['plugin: a link that is not https', 'plugin', (m) => { m.plugin.permissions.links = { docs: 'http://zumia.space/' }; }, 'plugin_link'],
   ['plugin: an avatar permission other than read', 'plugin', (m) => { m.plugin.permissions.avatar = 'write'; }, 'plugin_permission_unknown'],
   ['plugin: no api', 'plugin', (m) => { delete m.plugin.api; }, 'manifest_api'],
-  ['api: a pack the host is too old for', 'plugin', (m) => { m.plugin.api = 2; }, 'pack_needs_newer_host'],
+  ['api: a pack the host is too old for', 'plugin', (m) => { m.plugin.api = 3; }, 'pack_needs_newer_host'],
+  ['stage: api 1 may not declare stage (ADR room-live-b D4)', 'plugin', (m) => { m.plugin.permissions.stage = 'performance'; }, 'stage_needs_api2'],
+  ['stage: only the value "performance"', 'plugin', (m) => { m.plugin.api = 2; m.plugin.permissions.stage = 'full'; }, 'plugin_permission_unknown'],
+  ['stage: with a link (links.open is closed while stage is granted)', 'plugin', (m) => { m.plugin.api = 2; m.plugin.permissions.stage = 'performance'; m.plugin.permissions.links = { docs: 'https://zumia.space/' }; }, 'stage_links_conflict'],
+  ['stage: with a network origin', 'plugin', (m) => { m.plugin.api = 2; m.plugin.permissions.stage = 'performance'; m.plugin.permissions.net = ['https://x.com']; }, 'plugin_net'],
   ['api: a pack on a retired api', 'scene', (m) => { m.scene.api = 0; }, 'pack_api_retired'],
   ['scene: not a glb', 'scene', (m, f) => { f['scene.glb'] = 'nope'; }, 'scene_glb'],
   ['scene: an external URI', 'scene', (m, f) => { f['scene.glb'] = sceneGlb({ mutate: (j) => { j.images[0] = { uri: 'https://evil.example/t.png' }; } }); }, 'scene_uri'],
@@ -262,7 +274,7 @@ if (vrmFile) {
   const zipBuf = packZip(pm, pf);
   const zipFile = path.join(tmp, 'plugin.sample-1.0.0.zip'); fs.writeFileSync(zipFile, zipBuf);
   const ver = (version, api, extra = {}) => ({ version, api, url: `plugin.sample-${version}.zip`, sha256: sha256(zipBuf), bytes: zipBuf.length, manifestSha256: 'a'.repeat(64), ...extra });
-  const index = (serial, withdrawn = []) => ({ format: 'zumi-market/1', serial, published: '2026-11-11T00:00:00Z', packs: [{ id: 'plugin.sample', kind: 'plugin', name: { en: 'Sample' }, versions: [ver('1.2.0', 2), ver('1.1.0', 1), ver('1.0.0', 1)], withdrawn }] });
+  const index = (serial, withdrawn = []) => ({ format: 'zumi-market/1', serial, published: '2026-11-11T00:00:00Z', packs: [{ id: 'plugin.sample', kind: 'plugin', name: { en: 'Sample' }, versions: [ver('1.2.0', 3), ver('1.1.0', 1), ver('1.0.0', 1)], withdrawn }] });
   const signed = (obj, pair = store) => { const bytes = Buffer.from(JSON.stringify(obj)); return { bytes, sig: signMinisign(bytes, pair) }; };
   const s = signed(index(5));
   let v = verifyIndex(s.bytes, s.sig, { publicKeys: keys, cachedSerial: 4 });
@@ -284,11 +296,11 @@ if (vrmFile) {
   ok(!v.ok && v.code === 'index_format', 'refused: a signed index of an unknown format', JSON.stringify(v));
   const ix = index(5);
   let pick = pickVersion(ix.packs[0], HOST_API);
-  ok(pick.ok && pick.version.version === '1.1.0', 'version pick: the newest version whose api the host supports (1.2.0 needs api 2)', JSON.stringify(pick));
+  ok(pick.ok && pick.version.version === '1.1.0', 'version pick: the newest version whose api the host supports (1.2.0 needs api 3)', JSON.stringify(pick));
   const wd = index(8, ['1.1.0']);
   pick = pickVersion(wd.packs[0], HOST_API);
   ok(pick.ok && pick.version.version === '1.0.0', 'version pick skips a withdrawn version', JSON.stringify(pick));
-  pick = pickVersion({ ...ix.packs[0], versions: [ver('2.0.0', 2)] }, HOST_API);
+  pick = pickVersion({ ...ix.packs[0], versions: [ver('2.0.0', 3)] }, HOST_API);
   ok(!pick.ok && pick.code === 'pack_needs_newer_host', 'refused: a pack whose every version needs a newer host', JSON.stringify(pick));
   let d = await checkDownload(zipFile, ver('1.0.0', 1));
   ok(d.ok, 'a zip that matches its index entry is accepted', JSON.stringify(d));

@@ -12,8 +12,19 @@ const PRICES = require('./usage-prices.json');
 // (usage-prices.json `_webSearch`, see its source). Counted per ledger line that sent it (usage-ledger.js `searches`), success or not.
 const WEB_SEARCH_USD = PRICES._webSearch && typeof PRICES._webSearch.usdPerRequest === 'number' ? PRICES._webSearch.usdPerRequest : 0;
 
+const verified = (p) => p && !p.unverified && typeof p.inputPerMtok === 'number' && typeof p.outputPerMtok === 'number';
+
+// The price entry of a model: the exact id, or for a bare id (OpenCode Go sends `deepseek-v4.1-flash`) the ONE vendor entry whose model
+// part is that id (R6c A; the Rust ledger does the same). Two vendors, an unverified entry or none: no price, never a guess.
+function priceEntry(model) {
+  if (Object.prototype.hasOwnProperty.call(PRICES, model)) return PRICES[model];
+  if (typeof model !== 'string' || !model || model.includes('/')) return undefined;
+  const hits = Object.keys(PRICES).filter((k) => !k.startsWith('_') && k.slice(k.lastIndexOf('/') + 1) === model && k.includes('/') && verified(PRICES[k]));
+  return hits.length === 1 ? PRICES[hits[0]] : undefined;
+}
+
 function estimateCostUsd(model, inTok, outTok) {
-  const p = PRICES[model];
+  const p = priceEntry(model);
   if (!p || p.unverified || typeof p.inputPerMtok !== 'number' || typeof p.outputPerMtok !== 'number') {
     return { usd: 0, priced: false };
   }

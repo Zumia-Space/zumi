@@ -545,9 +545,11 @@ const FAKE_FRAME = Object.freeze({ c: [0, 1, 0], n: [0, 0, 1], r: [1, 0, 0], u: 
   ok(/if \(name === 'cursor' && this\.working\) return null;/.test(engine), 'engine.js: the ONE dispatch gate suppresses the cursor reflex while working');
   ok(/setWorkGaze\(point\) \{/.test(engine) && /this\.primaryGaze = valid \? \{ x: point\.x, y: point\.y \} : this\.viewPrimaryGaze;/.test(engine),
     'engine.js: setWorkGaze writes primaryGaze / restores the view target');
-  ok(/this\.viewPrimaryGaze = list\.find\(\(p\) => p\.primary\) \|\| null;/.test(engine), 'engine.js: setLookTargets remembers the view primary target');
-  ok(/const base = this\.primaryGaze \|\| p;/.test(engine), 'engine.js: gazeLayer actually READS primaryGaze as its baseline (the slot the beat writes)');
-  ok(/!this\.speechMouth && !this\.working;/.test(engine), 'engine.js: idle glances yield while working (they would steal the panel gaze)');
+  // idle life + gaze moved into the avatar core (T-31-ROOM-live-b P1): the same lines, now in life-gaze.js, with the engine passing the context
+  const lifeGaze = read('src/renderer/avatar-core/life-gaze.js');
+  ok(/this\.viewPrimaryGaze = list\.find\(\(p\) => p\.primary\) \|\| null;/.test(lifeGaze), 'life-gaze.js: setLookTargets remembers the view primary target');
+  ok(/const base = this\.primaryGaze \|\| p;/.test(lifeGaze), 'life-gaze.js: gazeLayer actually READS primaryGaze as its baseline (the slot the beat writes)');
+  ok(/!ctx\.speaking && !ctx\.working;/.test(lifeGaze) && /working: this\.working \}/.test(engine), 'life-gaze.js: idle glances yield while working (they would steal the panel gaze); engine.js passes the working flag');
   ok(/if \(this\.working\) \{ this\.lastInputAt = now; this\.nextBoredAt = now \+ IDLE_BORED_MS; return; \}/.test(engine),
     'engine.js: the bored/sleepy ladder yields (and stays fresh) while working');
   ok(/if \(!rising\) return;\n\s+this\.noteActivity\(\);\n\s+if \(this\.states\.has\('sleepy'\)\) this\.exitState\('sleepy'\);/.test(engine),

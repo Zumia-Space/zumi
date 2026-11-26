@@ -6,7 +6,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { DEFAULT_MODEL_FILE, DEFAULT_MODEL_SHA256 } = require('../../src/main/default-model.js');
+const { DEFAULT_MODEL_FILE, DEFAULT_MODEL_SHA256, DEFAULT_MODELS } = require('../../src/main/default-model.js');
 const { ownerValue } = require('../../src/main/owner-values.js');
 
 const PIN_DIR = path.join(__dirname, '..', '..', 'resources-pinned', 'default-model');
@@ -17,6 +17,31 @@ function resolveSource(env = process.env) {
   const p = pin();
   const src = env[p.sourceEnvVar] || ownerValue('defaultAvatarSource', null);
   return src ? path.resolve(src) : null; // null: no source known on this machine (verifySource says how to set one)
+}
+
+// Round 8: the second default model (the new outfit), pinned in PIN-MANIFEST.json `pair`. The Tauri bundle ships both; Electron's
+// afterPack keeps shipping the first pin only (it bundles no model list). [{ file, bytes, sha256, src }], the main pin first.
+function pairPins(p = pin()) { return [p, ...(Array.isArray(p.pair) ? p.pair : [])]; }
+function resolveSources(env = process.env) {
+  return pairPins().map((x, i) => {
+    const src = i === 0 ? resolveSource(env) : (env[x.sourceEnvVar] || ownerValue(x.ownerValue, null));
+    return { file: x.file, bytes: x.bytes, sha256: x.sha256, src: src ? path.resolve(src) : null };
+  });
+}
+function verifyPairSources(env = process.env) {
+  const pins = pairPins();
+  if (pins.length !== DEFAULT_MODELS.length || !DEFAULT_MODELS.every((m) => pins.some((x) => x.file === m.file && x.sha256 === m.sha256 && x.bytes === m.bytes))) {
+    throw new Error('default avatar pair out of sync: PIN-MANIFEST.json (main pin + pair) != src/main/default-model.js DEFAULT_MODELS');
+  }
+  verifySource(env);
+  for (const s of resolveSources(env).slice(1)) {
+    const x = pins.find((q) => q.file === s.file);
+    let st; try { st = s.src ? fs.statSync(s.src) : null; } catch { st = null; }
+    if (!st || !st.isFile()) throw new Error(`default avatar missing: ${s.src || '(no source)'}. Set ${x.sourceEnvVar} to ${s.file} (the file is deliberately not in git).`);
+    if (st.size !== s.bytes) throw new Error(`default avatar size mismatch: ${s.src} is ${st.size} bytes, pin says ${s.bytes}`);
+    if (sha256Of(s.src) !== s.sha256) throw new Error(`default avatar sha256 mismatch: ${s.src}, pin says ${s.sha256}`);
+  }
+  return resolveSources(env);
 }
 
 // Returns the verified source path; throws a self-explanatory Error otherwise.
@@ -58,13 +83,12 @@ function stageIntoResources(appOutDir, env = process.env) {
 // so the same verified file + licence notice go there. Verified BEFORE any write: a refused source leaves the stage dir untouched.
 function stageIntoTauriBundle(stageDir, env = process.env) {
   const p = pin();
-  const src = verifySource(env);
+  const sources = verifyPairSources(env); // both, before any write
   const dir = path.join(stageDir, 'assets', 'models');
   fs.mkdirSync(dir, { recursive: true });
-  const dst = path.join(dir, p.file);
-  fs.copyFileSync(src, dst);
+  for (const x of sources) fs.copyFileSync(x.src, path.join(dir, x.file));
   fs.copyFileSync(path.join(PIN_DIR, p.licenceNoticeFile), path.join(dir, p.licenceNoticeFile));
-  return dst;
+  return path.join(dir, p.file);
 }
 
 // The bundle gate: what a staged or built Tauri dir must contain. Returns a list of problems (empty = ok).
@@ -72,12 +96,14 @@ function stageIntoTauriBundle(stageDir, env = process.env) {
 function verifyStagedDefaultModel(rootDir, p = pin()) {
   const dir = path.join(rootDir, 'assets', 'models');
   const problems = [];
-  const model = path.join(dir, p.file);
-  let st = null;
-  try { st = fs.statSync(model); } catch { /* reported below */ }
-  if (!st || !st.isFile()) problems.push(`default model missing: ${model}`);
-  else if (st.size !== p.bytes) problems.push(`default model size ${st.size} != pinned ${p.bytes}: ${model}`);
-  else if (sha256Of(model) !== p.sha256) problems.push(`default model sha256 differs from the pin: ${model}`);
+  for (const x of pairPins(p)) {
+    const model = path.join(dir, x.file);
+    let st = null;
+    try { st = fs.statSync(model); } catch { /* reported below */ }
+    if (!st || !st.isFile()) problems.push(`default model missing: ${model}`);
+    else if (st.size !== x.bytes) problems.push(`default model size ${st.size} != pinned ${x.bytes}: ${model}`);
+    else if (sha256Of(model) !== x.sha256) problems.push(`default model sha256 differs from the pin: ${model}`);
+  }
   const noticeFile = path.join(dir, p.licenceNoticeFile);
   let text = null;
   try { text = fs.readFileSync(noticeFile, 'utf8'); } catch { /* reported below */ }
@@ -86,4 +112,4 @@ function verifyStagedDefaultModel(rootDir, p = pin()) {
   return problems;
 }
 
-module.exports = { resolveSource, verifySource, stageIntoResources, stagedFiles, stageIntoTauriBundle, verifyStagedDefaultModel };
+module.exports = { resolveSource, resolveSources, verifySource, verifyPairSources, stageIntoResources, stagedFiles, stageIntoTauriBundle, verifyStagedDefaultModel };

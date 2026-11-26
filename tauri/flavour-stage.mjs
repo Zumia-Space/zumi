@@ -93,6 +93,52 @@ const walkRel = (dir, base = dir, out = []) => {
   return out;
 };
 
+/**
+ * Owner / selftest installers carry the Room pack unpacked at `<stage>/packs-seed/plugin.room-preview`; the host loads it as its owner
+ * dev folder (pack_host::bundled_pack_dir), so a clean install and an upgrade show the Phòng tab with no store and no hidden step
+ * (alpha.3 shipped no pack). The source is the folder `packs/room-preview/build-pack.mjs` writes (ZUMI_ROOM_PACK_SEED). Public and
+ * official builds never stage it. No source set = nothing staged (other owner builds stay as they were); a source that is wrong is
+ * refused: another id, a file missing or not matching its listed sha256, an unlisted file.
+ */
+export function stageRoomPackSeed(stageDir, name, { srcDir = undefined, env = process.env } = {}) {
+  if (name !== 'owner' && name !== 'selftest') return { count: 0 };
+  const src = srcDir ?? env.ZUMI_ROOM_PACK_SEED;
+  if (!src) return { count: 0 };
+  const { count, version } = checkRoomPackFolder(src);
+  const dest = path.join(stageDir, 'packs-seed', 'plugin.room-preview');
+  fs.rmSync(dest, { recursive: true, force: true });
+  fs.cpSync(src, dest, { recursive: true });
+  return { count, version, dest };
+}
+
+/** Throws unless `dir` is a whole plugin.room-preview pack: manifest id, every listed file present and equal to its size/sha256, no unlisted file. */
+function checkRoomPackFolder(dir) {
+  const manifestFile = path.join(dir, 'zumi-pack.json');
+  if (!fs.existsSync(manifestFile)) throw new Error(`room pack ${dir}: no zumi-pack.json`);
+  const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+  if (manifest.id !== 'plugin.room-preview') throw new Error(`room pack ${dir}: id ${manifest.id}, expected plugin.room-preview`);
+  const listed = new Set(['zumi-pack.json']);
+  for (const f of manifest.files || []) {
+    listed.add(f.path);
+    const file = path.join(dir, ...f.path.split('/'));
+    if (!fs.existsSync(file)) throw new Error(`room pack: ${f.path} is listed but missing`);
+    const bytes = fs.readFileSync(file);
+    if (bytes.length !== f.bytes || crypto.createHash('sha256').update(bytes).digest('hex') !== f.sha256) throw new Error(`room pack: ${f.path} does not match its listed size/sha256`);
+  }
+  for (const rel of walkRel(dir)) if (!listed.has(rel)) throw new Error(`room pack: unlisted file ${rel}`);
+  return { count: listed.size, version: String(manifest.version || '') };
+}
+
+/**
+ * The gate for owner/selftest bundles (stage, unpacked app and installer payload alike): the Room pack must be there and whole.
+ * An owner installer without it is the alpha.3 bug (no Room tab on a clean install), so a missing pack FAILS the build, never a silent skip.
+ */
+export function verifyStagedRoomPack(dir) {
+  const rel = 'packs-seed/plugin.room-preview';
+  try { checkRoomPackFolder(path.join(dir, ...rel.split('/'))); } catch (e) { return [`${rel} missing or not whole in an owner bundle (the Room tab would not appear): ${e.message}`]; }
+  return [];
+}
+
 /** Write <stageDir>/install-manifest.json: size and sha256 of every staged file. It is generated, not an asset, so the licence gate lists nothing here. */
 export function stageInstallManifest(stageDir) {
   const name = 'install-manifest.json';
@@ -108,8 +154,9 @@ export function stageInstallManifest(stageDir) {
 /**
  * Problems with `dir` (a stage or an unpacked app) for flavour `name`. public: no flavour.json, no room videos and no
  * Zumi-only asset at all (scripts/lib/zumi-only.cjs: the avatar, the default room and its plates; open-core ADR 2026-10-28).
- * official: no flavour.json, the manifest's room videos all present and pinned, and no Zumi-only asset outside its allow-list.
- * owner/selftest: flavour.json byte-equal to the pinned text, and every pinned room video present.
+ * official: no flavour.json, no room videos (since the slim installer, owner 11-11 mkt-q1, they are Marketplace packs) and no
+ * Zumi-only asset outside its allow-list. public and official: no packs-seed (the Room pack ships in owner builds only).
+ * owner/selftest: flavour.json byte-equal to the pinned text, every pinned room video present, and the Room pack whole.
  */
 export function verifyStagedFlavour(dir, name, { manifestPath = ROOMS_MANIFEST } = {}) {
   const manifest = readManifest(manifestPath);
@@ -121,6 +168,7 @@ export function verifyStagedFlavour(dir, name, { manifestPath = ROOMS_MANIFEST }
     if (fs.existsSync(file)) problems.push(`${FLAVOUR_FILE} present in a public bundle`);
     // public and, since the slim installer (owner 11-11 mkt-q1), official: no room video; the 7 rooms are Marketplace packs.
     if (fs.existsSync(videos)) problems.push(`${manifest.packagedDir} present in a ${name} bundle`);
+    if (fs.existsSync(path.join(dir, 'packs-seed'))) problems.push(`packs-seed present in a ${name} bundle (the Room pack ships in owner builds only)`);
     const denied = name === 'official' ? isOfficialDenied : isZumiOnly;
     for (const rel of walkRel(dir)) if (denied(rel)) problems.push(`Zumi-only asset in a ${name} bundle: ${rel}`);
     return problems;
@@ -131,6 +179,7 @@ export function verifyStagedFlavour(dir, name, { manifestPath = ROOMS_MANIFEST }
   else if (have !== want) problems.push(`${FLAVOUR_FILE} differs from the pinned ${name} text`);
   if (!fs.existsSync(videos)) problems.push(`${manifest.packagedDir} missing from a ${name} bundle`);
   else problems.push(...verifyStagedRoomVideos(dir, manifest));
+  problems.push(...verifyStagedRoomPack(dir));
   return problems;
 }
 

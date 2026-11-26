@@ -6,13 +6,24 @@
 // $ZUMI_DEFAULT_MODEL_DIR, <app>/assets/models, <resources>/models. No machine-specific path lives in the code.
 const path = require('node:path');
 const DEFAULT_MODEL_FILE = 'zumi-default-0910.vrm';
-const DEFAULT_MODEL_SHA256 = 'd1183bcf27bac3a587de7e383bcd8f6f4e0068e0a7c56653fa3e731e1460c372'; // of the file bytes, locked 30-10 (alpha.4, owner approved the change): same bytes as the pixiv-credit file except VRM1 meta.commercialUsage personalNonProfit -> corporation (scripts/tools/set-vrm-author.mjs --commercial-usage)
-const DEFAULT_MODEL_BYTES = 9141588; // same file; the cheap pre-check before hashing (PIN-MANIFEST.json agrees, check:default-sample)
+const DEFAULT_MODEL_SHA256 = 'c8b80938584339a78d880c85079696224dcdb9fad9c4ccaf1eae268715c034ff'; // of the file bytes, locked 19-11 (T-31-ROOM 9.11: the round-9 file with the jacket's skin weights smoothed, room/zumi2/reweight-jacket.mjs, then the layers hidden under the sleeves deleted, room/zumi2/hide-under-jacket.mjs)
+const DEFAULT_MODEL_BYTES = 9363180; // same file; the cheap pre-check before hashing (PIN-MANIFEST.json agrees, check:default-sample)
+// T-31-ROOM round 8 (owner 16-11): Zumi has TWO default models, both offered out of the box: the new outfit first, this 0910 look
+// second. The Tauri stage puts the two pinned files into assets/models (scripts/lib/default-vrm.cjs) and the sidecar offers them
+// in the picker (tauri/sidecar/default-pair.mjs): picking one puts its file into the 'user' slot, as "Back to default model"
+// always did, and a fresh profile adopts the first. Electron keeps its one default, the 0910 look above. check:default-pair
+// holds the places together.
+const DEFAULT_MODELS = [
+  { id: 'zumi-look4', file: 'zumi-default-look4.vrm', sha256: 'c4ced5acfe1f10f4771edc5d92a0b888e4ddac2779b737b3957be7c7de240bcc', bytes: 9137164 },
+  { id: 'zumi-look3', file: DEFAULT_MODEL_FILE, sha256: DEFAULT_MODEL_SHA256, bytes: DEFAULT_MODEL_BYTES },
+];
 // Every byte-identity of the VRoid sample that may sit on a user's disk: the shipped file plus the earlier builds
 // (0.2.7 authors "Zumia", locked 09-10; 3K FOREST file before the pixiv meta credit, 24-10; the pixiv-credit file of 0.2.8-0.3.0-alpha.3), which an already-installed
 // copy can still have as its user model. All are the sample; keep every old sha so those copies are still recognised.
 const KNOWN_SAMPLES = [
   { sha256: DEFAULT_MODEL_SHA256, bytes: DEFAULT_MODEL_BYTES },
+  { sha256: 'f9574148bb070b3c8783e50557fa523786aa814110d8f42f572ebdaea1886f0a', bytes: 9363312 }, // the default of 0.3.5-alpha.9.9 and 9.10 (round 9), before the 9.11 jacket rebuild
+  { sha256: 'd1183bcf27bac3a587de7e383bcd8f6f4e0068e0a7c56653fa3e731e1460c372', bytes: 9141588 }, // the default of 0.3.0-alpha.4 to alpha.9, before the outfit shading pass
   { sha256: '310203381f11d5c045af5f3f37ae300d3c400916edf3484ba78c30c6a7eab0f1', bytes: 9141592 },
   { sha256: '7b28695a81cf53cd878ac25d19bd6c56e4310a50453968f4cdbd93234ec3d240', bytes: 9142044 },
   { sha256: 'd01f7273cd8480d28252bfac8f907d070bc10a8731e1b4def224c18387de4e8a', bytes: 9142032 },
@@ -62,8 +73,8 @@ function sha256File(fs, crypto, file) {
 // The ONE resolution of the bundled default: first <dir>/zumi-default-0910.vrm found, re-hashed against the pin. Used by the
 // "Back to default model" channel and by the first-run adoption below, so both accept exactly the same file.
 // Returns { file } or { error: 'missing' | 'unreadable' | 'sha_mismatch' }.
-async function resolveVerifiedDefault({ fs, crypto, dirs, wantSha = DEFAULT_MODEL_SHA256 }) {
-  const file = dirs.map((d) => path.join(d, DEFAULT_MODEL_FILE)).find((f) => { try { return fs.statSync(f).isFile(); } catch { return false; } });
+async function resolveVerifiedDefault({ fs, crypto, dirs, wantSha = DEFAULT_MODEL_SHA256, wantFile = DEFAULT_MODEL_FILE }) {
+  const file = dirs.map((d) => path.join(d, wantFile)).find((f) => { try { return fs.statSync(f).isFile(); } catch { return false; } });
   if (!file) return { error: 'missing' };
   let sha;
   try { sha = await sha256File(fs, crypto, file); } catch { return { error: 'unreadable' }; }
@@ -92,13 +103,16 @@ function registerRestoreDefault(deps) {
 // (a missing saved file keeps today's behaviour: no avatar until the user picks one). A test model (--model) skips it, and a
 // bundled manifest default already gives an avatar, so neither is overridden. A missing/changed default file changes nothing.
 // Returns 'adopted' | 'kept' | { error }.
-async function adoptDefaultIfNoModelKey({ fs, crypto, loadSettings, saveSettings, listModels, dirs, hasTestModel = false, expectedSha256 }) {
+// `first`: { file, sha256 } of the default to adopt instead (round 8, Tauri: the first of the pair); when that file is not there the
+// 0910 look is adopted as before.
+async function adoptDefaultIfNoModelKey({ fs, crypto, loadSettings, saveSettings, listModels, dirs, hasTestModel = false, expectedSha256, first = null }) {
   if (Object.prototype.hasOwnProperty.call(loadSettings(), 'model')) return 'kept';
   if (hasTestModel || listModels().selected) return 'kept';
-  const r = await resolveVerifiedDefault({ fs, crypto, dirs, wantSha: expectedSha256 || DEFAULT_MODEL_SHA256 });
+  let r = first ? await resolveVerifiedDefault({ fs, crypto, dirs, wantSha: first.sha256, wantFile: first.file }) : { error: 'missing' };
+  if (r.error === 'missing') r = await resolveVerifiedDefault({ fs, crypto, dirs, wantSha: expectedSha256 || DEFAULT_MODEL_SHA256 });
   if (r.error) return { error: r.error };
   saveSettings({ userModelPath: r.file, model: 'user' });
   return 'adopted';
 }
 
-module.exports = { DEFAULT_MODEL_FILE, DEFAULT_MODEL_SHA256, DEFAULT_MODEL_BYTES, KNOWN_SAMPLES, defaultModelDirs, registerRestoreDefault, adoptDefaultIfNoModelKey, createDefaultSampleDetector };
+module.exports = { DEFAULT_MODEL_FILE, DEFAULT_MODEL_SHA256, DEFAULT_MODEL_BYTES, DEFAULT_MODELS, KNOWN_SAMPLES, defaultModelDirs, registerRestoreDefault, adoptDefaultIfNoModelKey, createDefaultSampleDetector };

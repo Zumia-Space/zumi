@@ -5,8 +5,13 @@
 // DOM nodes and textContent only.
 import { t, onLocaleChange, getLocale } from './i18n.js';
 
-const KINDS = ['voice', 'room', 'model'];
+const KINDS = ['voice', 'room', 'model', 'tool'];
 const CATEGORIES = ['all', ...KINDS, 'installed'];
+// A kind whose chip shows only while it has a card: 'tool' is the Laneboard card (the Board tab switch, 0.3.5-alpha.9.10), which a
+// host without that switch does not list.
+const CHIP_IF_ANY = new Set(['tool']);
+/** The card that switches the Board tab (tauri/sidecar/board-tab.mjs BOARD_TAB_ID). */
+const BOARD_TAB_ID = 'tool.laneboard';
 const MB = 1024 * 1024;
 const SVG = 'http://www.w3.org/2000/svg';
 // One glyph per kind (24x24, stroked): a waveform, a room with a window, a bust; the Windows voice gets a speaker.
@@ -15,6 +20,7 @@ const GLYPH = {
   room: ['M3 11l9-7 9 7', 'M5 9.5V20h14V9.5', 'M9 20v-6h6v6'],
   model: ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M4 21c1.2-4 4.3-6 8-6s6.8 2 8 6'],
   os: ['M4 9h4l5-4v14l-5-4H4z', 'M17 9a4 4 0 0 1 0 6', 'M19.5 6.5a7.5 7.5 0 0 1 0 11'],
+  tool: ['M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', 'M9 4v16', 'M15 4v16', 'M5 8h2M11 8h2M17 8h2'], // the sidebar's Board glyph
 };
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const mb = (n) => `${Math.round(n / MB)} MB`;
@@ -80,18 +86,19 @@ export function buildRows({ market, rooms, models, tr, lang = 'en' }) {
   for (const m of models || []) {
     // A model he imported from this PC is not ours to credit.
     const ours = m.id !== 'user' && m.id !== 'test';
-    rows.push({ id: `model.${m.id}`, kind: 'model', origin: 'model', source: 'pc', pickId: m.id, state: m.selected ? 'inuse' : 'onpc', needs: ['data-only'], name: m.label, desc: tr('market.model.desc'), note: tr('market.model.note'), author: ours ? 'Zumia' : null, licence: ours ? 'LicenseRef-Zumia' : null });
+    rows.push({ id: `model.${m.id}`, kind: 'model', origin: 'model', source: 'pc', pickId: m.id, state: m.selected ? 'inuse' : 'onpc', needs: ['data-only'], name: m.labelKey ? tr(m.labelKey) : m.label, desc: tr('market.model.desc'), note: tr('market.model.note'), author: ours ? 'Zumia' : null, licence: ours ? 'LicenseRef-Zumia' : null });
   }
   return rows;
 }
 
-const HAVE = new Set(['installed', 'update', 'bundled', 'inuse', 'onpc', 'os', 'restart']);
+const HAVE = new Set(['installed', 'update', 'bundled', 'inuse', 'onpc', 'os', 'restart', 'on']);
 export function rowsFor(rows, category, query) {
   const q = String(query || '').trim().toLowerCase();
   return rows.filter((r) => (category === 'all' || r.kind === category || (category === 'installed' && HAVE.has(r.state))) && (!q || `${r.name} ${r.desc} ${r.author || ''}`.toLowerCase().includes(q)));
 }
 
-export function initMarket({ zumi, openTab, pickers }) {
+/** onBoardTab(on): the Board tab's switch as the host reports it; a host that lists no Laneboard card keeps the tab (on). */
+export function initMarket({ zumi, openTab, pickers, onBoardTab = () => {} }) {
   const tab = document.querySelector('.tab[data-tab="market"]');
   const panel = document.getElementById('tab-market');
   if (!tab || !panel) return null;
@@ -143,6 +150,9 @@ export function initMarket({ zumi, openTab, pickers }) {
     else if (r.state === 'bundled' || r.state === 'os') status('market.status.builtin', 'ok');
     else if (r.state === 'onpc') button('market.use', 'ghost', () => { pickers.use(r.kind, r.pickId); paint(); });
     else if (r.state === 'restart') status('market.status.restart', 'warn');
+    // The Laneboard card switches the Board tab: on and off, nothing downloaded and nothing deleted (board-tab.mjs).
+    else if (r.state === 'off') button('market.turnOn', 'market-go', () => act(r, () => zumi.market.install(r.id)));
+    else if (r.state === 'on') button('market.turnOff', 'ghost', () => act(r, () => zumi.market.remove(r.id)));
     else status('market.status.unavailable'); // unpublished / unpackaged: listed, not installable yet, said in words
     return box;
   }
@@ -225,6 +235,7 @@ export function initMarket({ zumi, openTab, pickers }) {
   function paintCats(all) {
     cats.replaceChildren();
     for (const c of CATEGORIES) {
+      if (CHIP_IF_ANY.has(c) && !rowsFor(all, c, '').length) continue;
       const b = el('button', `stab${c === category ? ' active' : ''}`, t(`market.cat.${c}`));
       b.type = 'button'; b.dataset.cat = c;
       b.setAttribute('aria-pressed', String(c === category));
@@ -280,6 +291,7 @@ export function initMarket({ zumi, openTab, pickers }) {
 
   async function refresh() {
     try { market = await zumi.market.list(); loadFailed = false; } catch { loadFailed = true; }
+    if (!loadFailed) { const lb = (Array.isArray(market && market.items) ? market.items : []).find((x) => x.id === BOARD_TAB_ID); onBoardTab(!lb || lb.state === 'on'); }
     markTab();
     paint();
   }
@@ -293,6 +305,8 @@ export function initMarket({ zumi, openTab, pickers }) {
   search.addEventListener('input', paint);
   tab.addEventListener('click', refresh);
   onLocaleChange(paint);
+  // A list that failed (the sidecar restarting) leaves the Board tab as it was: ask again once the sidecar answers.
+  window.addEventListener('zumi:sidecar-ready', () => { if (loadFailed) refresh(); });
   refresh();
   /** Open on one item, from the Settings voice card or the stage's "no room yet" note. */
   return {

@@ -36,15 +36,16 @@ await attempt('F0 public-build module', async () => {
 await attempt('O3 strings', async () => {
   const i18n = await load('src/renderer/i18n.js');
   i18n.setLocale('vi');
-  ok(i18n.t('settings.provider.google') === 'Google Cloud · khoá của anh', 'O3 owner build keeps its Vietnamese text');
+  // alpha.12: Settings reads "khoá của bạn" in both builds now (one address in the whole Settings page); the Board line still differs.
+  ok(i18n.t('board.mode.live') === 'Bảng thật của anh', 'O3 owner build keeps its Vietnamese text');
   i18n.setPublicBuild(true);
-  ok(i18n.t('settings.provider.google') === 'Google Cloud · khoá của bạn', 'O3 public: "khoá của bạn"', i18n.t('settings.provider.google'));
+  ok(i18n.t('board.mode.live') === 'Bảng thật của bạn', 'O3 public: "Bảng thật của bạn"', i18n.t('board.mode.live'));
   // The address word only: "tiếng Anh" (English) and "Vương quốc Anh" (the UK) are names and stay (R8-F2, i18n.js ANH_WORD).
   const anh = /(?<![\p{L}\p{N}])(?<!(?:[Tt]iếng|quốc) )anh(?![\p{L}\p{N}])/iu;
   const bad = i18n.publicKeys('vi').filter((k) => k !== 'lookTuning.rim' && (anh.test(i18n.publicRaw('vi', k)) || /\bCoS\b/.test(i18n.publicRaw('vi', k))));
   ok(bad.length === 0, 'O3 public Vietnamese: no string says "anh" or "CoS"', bad.slice(0, 8).join(', '));
   i18n.setPublicBuild(false);
-  ok(i18n.t('settings.provider.google') === 'Google Cloud · khoá của anh', 'O3 the override switches off again: the owner table is untouched');
+  ok(i18n.t('board.mode.live') === 'Bảng thật của anh', 'O3 the override switches off again: the owner table is untouched');
   i18n.setLocale('en');
 });
 
@@ -237,7 +238,8 @@ await attempt('E3 E6', async () => {
   const i18n = await load('src/renderer/i18n.js');
   ok(i18n.publicRaw('vi', 'settings.testPlayed') === 'Đã phát.', 'E3 "Played." in Vietnamese');
   ok(i18n.publicRaw('vi', 'roomView.talk') === 'Trò chuyện' && i18n.publicRaw('vi', 'roomView.work') === 'Làm việc' && i18n.publicRaw('vi', 'roomView.room') === 'Cả phòng', 'E6 the stage views in Vietnamese');
-  ok(i18n.TABLES.vi['roomView.talk'] === 'Talk', 'E6 the owner table is untouched');
+  // alpha.12 (Fable final HOLD): the owner's Góc nhìn menu read Talk / Work / Room in VI; his table now carries the same words.
+  ok(i18n.TABLES.vi['roomView.talk'] === 'Trò chuyện' && i18n.TABLES.vi['roomView.work'] === 'Làm việc' && i18n.TABLES.vi['roomView.room'] === 'Cả phòng', 'E6 the owner build reads the stage views in Vietnamese too');
 });
 
 // ---------- updates row ----------

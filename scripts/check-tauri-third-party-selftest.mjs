@@ -10,21 +10,34 @@ import { fileURLToPath } from 'node:url';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const gate = path.join(root, 'scripts', 'check-tauri-third-party.mjs');
 const tmp = fs.mkdtempSync(path.join(process.env.CHECK_TMP || os.tmpdir(), 'tp-selftest-'));
+// Precondition, said out loud: the sha256 pin test below flips a byte in tauri/ui/rooms/default-v2/B-room-plate.png, a file prep-ui.mjs
+// copies in (tauri/ui is gitignored). Without it this used to die on a bare ENOENT after four unrelated FAILs.
+if (!fs.existsSync(path.join(root, 'tauri', 'ui', 'rooms', 'default-v2', 'B-room-plate.png'))) {
+  console.log('FAIL precondition: tauri/ui is not assembled (no rooms/default-v2/B-room-plate.png). Run: node scripts/build-renderer.mjs && node tauri/prep-ui.mjs   (npm run checks:all does both first)');
+  process.exit(1);
+}
 let pass = 0, fail = 0;
 const ok = (c, n, d = '') => { if (c) { pass++; console.log(`PASS ${n}`); } else { fail++; console.log(`FAIL ${n} ${d}`); } };
 const run = (args, env = {}) => { const r = spawnSync(process.execPath, [gate, ...args], { encoding: 'utf8', env: { ...process.env, ...env } }); return { code: r.status, out: (r.stdout || '') + (r.stderr || '') }; };
 
 try {
   const base = run(['--flavour', 'owner']);
-  ok(base.code === 0 && (base.out.match(/^[ 	]+UNVERIFIED[ 	]+\S/gm) || []).length === 7 && (base.out.match(/UNVERIFIED\s+rooms-video\//g) || []).length === 7, 'owner flavour: green, only the 7 room mp4s listed as UNVERIFIED warnings', base.out.slice(-300));
-  const pub = run(['--flavour', 'public']);
-  ok(!/UNVERIFIED\s+\S/.test(pub.out) && (pub.out.match(/"OWNER-ATTESTED":(\d+)/) || [])[1] === '9', 'public flavour: the 9 owner-attested plates/copies pass (no UNVERIFIED left)', pub.out.slice(-300));
+  ok(base.code === 0 && !/UNVERIFIED\s+\S/.test(base.out) && (base.out.match(/"OWNER-ATTESTED":(\d+)/) || [])[1] === '16', 'owner flavour: green, nothing UNVERIFIED, 16 owner-attested (9 plates/copies + the 7 room mp4s)', base.out.slice(-300));
+  // The public flavour is gated on a public-assembled frontendDist (prep-ui --flavour public leaves out every Zumi-only asset); the default tauri/ui is the owner one.
+  const pubUi = path.join(tmp, 'ui-public');
+  const prep = spawnSync(process.execPath, [path.join(root, 'tauri', 'prep-ui.mjs'), '--flavour', 'public', '--out', pubUi], { encoding: 'utf8' });
+  ok(prep.status === 0, 'setup: tauri/prep-ui.mjs --flavour public assembles the public frontendDist', (prep.stdout + prep.stderr).slice(-200));
+  const PUB = { ZUMI_TP_UI_DIR: pubUi };
+  const leak = run(['--flavour', 'public']);
+  ok(leak.code === 1 && /ZUMI-ONLY-LEAK/.test(leak.out), 'public flavour: the owner-assembled frontendDist FAILS with ZUMI-ONLY-LEAK (the control that makes the public green below mean something)', leak.out.slice(-200));
+  const pub = run(['--flavour', 'public'], PUB);
+  ok(pub.code === 0 && !/UNVERIFIED\s+\S/.test(pub.out), 'public flavour (public frontendDist): green, nothing UNVERIFIED', pub.out.slice(-300));
 
   // public: any unverified asset HARD FAILS (inject one through the manifest + extra-file seams)
   const mfU = JSON.parse(fs.readFileSync(path.join(root, 'tauri', 'third-party-manifest.json'), 'utf8'));
   mfU.unverified['assets/chair3d/unknown-art.png'] = 'selftest unverified';
   const unvFile = path.join(tmp, 'unverified.json'); fs.writeFileSync(unvFile, JSON.stringify(mfU));
-  const pubUnv = run(['--flavour', 'public'], { ZUMI_TP_MANIFEST: unvFile, ZUMI_TP_EXTRA_FILES: JSON.stringify(['assets/chair3d/unknown-art.png']) });
+  const pubUnv = run(['--flavour', 'public'], { ...PUB, ZUMI_TP_MANIFEST: unvFile, ZUMI_TP_EXTRA_FILES: JSON.stringify(['assets/chair3d/unknown-art.png']) });
   ok(pubUnv.code === 1 && /UNVERIFIED\s+assets\/chair3d\/unknown-art\.png/.test(pubUnv.out), 'public flavour: an UNVERIFIED asset HARD FAILS', pubUnv.out.slice(-200));
 
   // ---- OWNER-ATTESTED: verified only with source + verbatim quote + event id + note id + date + sha256 pin of the shipped file.
@@ -32,11 +45,13 @@ try {
   const PLATES = ['resources-pinned/room-v2/B-room-plate.png', 'resources-pinned/room-v2/B-talk-plate.png', 'resources-pinned/room-v2/B-work-plate.png', 'assets/chair3d/talk-plate-nochair.png', 'assets/rooms-video/chair-talk.png', 'tauri/ui/chair3d/plate-nochair.png', 'tauri/ui/rooms/default-v2/B-room-plate.png', 'tauri/ui/rooms/default-v2/B-talk-plate.png', 'tauri/ui/rooms/default-v2/B-work-plate.png'];
   const mfA = JSON.parse(fs.readFileSync(path.join(root, 'tauri', 'third-party-manifest.json'), 'utf8'));
   const realAtt = mfA.attested || {};
-  ok(PLATES.every((k) => realAtt[k]) && Object.keys(realAtt).length === 9 && PLATES.every((k) => !(k in (mfA.unverified || {}))), 'OWNER-ATTESTED: exactly the 5 B plates + 4 tauri/ui copies are attested (none left unverified)', Object.keys(realAtt).join(','));
+  ok(PLATES.every((k) => realAtt[k]) && Object.keys(realAtt).length === 16 && PLATES.every((k) => !(k in (mfA.unverified || {}))), 'OWNER-ATTESTED: the 5 B plates + 4 tauri/ui copies + 7 room mp4s are attested (none left unverified)', Object.keys(realAtt).join(','));
   // No generator is named anywhere public.
   const SOURCE = 'AI-generated image (owner-produced)';
   ok(PLATES.every((k) => realAtt[k] && realAtt[k].source === SOURCE && realAtt[k].date === '2026-10-26' && /^[0-9a-f]{64}$/.test(realAtt[k].sha256 || '') && !('quote' in realAtt[k]) && !('eventId' in realAtt[k])), 'OWNER-ATTESTED: every plate has the neutral source, the date and a sha256, and no quote or event id', JSON.stringify(realAtt[PLATES[0]]));
-  ok(!Object.keys(realAtt).some((k) => /\.mp4$/i.test(k)), 'OWNER-ATTESTED: no room mp4 is attested');
+  { const vids = Object.keys(realAtt).filter((k) => /\.mp4$/i.test(k));
+    ok(vids.length === 7 && vids.every((k) => /^rooms-video\/0[1-7]-[\w-]+\.mp4$/.test(k) && realAtt[k].date === '2026-11-03' && /^[0-9a-f]{64}$/.test(realAtt[k].sha256 || '') && !('quote' in realAtt[k]) && !('eventId' in realAtt[k]) && !(k in (mfA.unverified || {}))),
+      'OWNER-ATTESTED: exactly the 7 approved room mp4s are attested (official installer, 2026-11-03), each pinned by sha256, none left unverified', vids.join(',')); }
   { const lic = fs.readFileSync(path.join(root, 'THIRD_PARTY_LICENSES.md'), 'utf8');
     ok(/AI-generated images/.test(lic), 'THIRD_PARTY_LICENSES.md says the room backgrounds are AI-generated images'); }
   { // sha256 pin: a changed byte in the shipped file breaks the attestation (copy of tauri/ui with one byte flipped)
@@ -66,10 +81,10 @@ try {
   }
   { // the real attested entries are reported with their status
     const okAtt = run(['--flavour', 'owner']);
-    ok(okAtt.code === 0 && (okAtt.out.match(/"OWNER-ATTESTED":(\d+)/) || [])[1] === '9', 'OWNER-ATTESTED: the valid entries are verified and reported with their status', okAtt.out.slice(-200));
+    ok(okAtt.code === 0 && (okAtt.out.match(/"OWNER-ATTESTED":(\d+)/) || [])[1] === '16', 'OWNER-ATTESTED: the valid entries are verified and reported with their status', okAtt.out.slice(-200));
   }
   // public bundle must NOT contain the room videos
-  const mp4Pub = run(['--flavour', 'public'], { ZUMI_TP_EXTRA_FILES: JSON.stringify(['rooms-video/01-cozy-study.mp4']) });
+  const mp4Pub = run(['--flavour', 'public'], { ...PUB, ZUMI_TP_EXTRA_FILES: JSON.stringify(['rooms-video/01-cozy-study.mp4']) });
   ok(mp4Pub.code === 1 && /VIDEO-IN-PUBLIC\s+rooms-video\/01-cozy-study\.mp4/.test(mp4Pub.out), 'public: an mp4 present in the public bundle FAILS', mp4Pub.out.slice(-200));
 
   const unknown = run(['--flavour', 'owner'], { ZUMI_TP_EXTRA_FILES: JSON.stringify(['assets/chair3d/surprise.glb']) });

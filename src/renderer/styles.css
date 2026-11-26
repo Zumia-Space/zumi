@@ -53,6 +53,18 @@ main { flex: 1; min-width: 0; position: relative; }
   border-bottom: 1px solid var(--border); background: var(--card);
 }
 .toolbar .title { font-weight: 600; }
+/* T-31-ALPHA12 (Fable dock pass 2): at the 900 px minimum width the VI labels no longer fit one 46 px line ("Mở file VRM…" broke into
+   three clipped lines, the Room picker was pushed off the right edge). The Zumi toolbar wraps to a second row instead; a control never
+   breaks inside. Wide windows keep the single 46 px row (6 + ~30 + 6 < 46). */
+#tab-zumi > .toolbar { height: auto; min-height: 46px; flex-wrap: wrap; row-gap: 6px; padding-block: 6px; }
+#tab-zumi > .toolbar > * { white-space: nowrap; }
+/* Fable final HOLD + Opus gate F1 (alpha.12): the reflex chip shows ~3 s per reaction (cursor moves included). As a content-sized item in this
+   wrapping row it pushed mute / View / Room along and could wrap the row, so the toolbar and the stage moved under the cursor. It now sits
+   in a fixed slot: .reflex-slot grows into the row's free space from a zero base (so it never causes a wrap, and its width never depends on
+   the chip), and the chip ellipsises inside it. Not an overlay on the stage: a 3D room is a native guest webview above the stage that would
+   cover it. */
+#tab-zumi > .toolbar > .reflex-slot { flex: 1 1 0; min-width: 0; display: flex; justify-content: flex-end; }
+#tab-zumi > .toolbar > .reflex-slot > #reflex-chip { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* T-31 "Về model mặc định": the refusal note shares the fixed 46px toolbar line, so it clips instead of wrapping. */
 .toolbar #model-default-note { max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .muted { color: var(--muted-foreground); }
@@ -63,7 +75,7 @@ select {
   background: var(--background); border: 1px solid var(--input); border-radius: 8px; padding: 5px 28px 5px 10px; color: var(--foreground);
 }
 .chip {
-  margin-left: auto; font-size: 12.5px; padding: 5px 12px; border-radius: 999px; background: color-mix(in srgb, var(--focus) 18%, transparent); color: var(--focus);
+  font-size: 12.5px; padding: 5px 12px; border-radius: 999px; background: color-mix(in srgb, var(--focus) 18%, transparent); color: var(--focus);
   border: 1px solid color-mix(in srgb, var(--focus) 30%, transparent); opacity: 0; transform: translateY(-3px); transition: opacity .25s, transform .25s; white-space: nowrap;
 }
 .chip.show { opacity: 1; transform: none; }
@@ -106,6 +118,62 @@ select {
   width: 100%; height: 42px; border-radius: 12px; border: 1px solid var(--input); background: var(--background); padding: 0 14px; outline: none;
 }
 #msg:focus { border-color: var(--ring); }
+/* T-31-ALPHA12 (owner 21-11 "phần thiết button sao lại thế này"): four modules (agent-chat, chat-search, chat-attach, voice-in) each insert
+   their own controls into this footer, so in plain block flow they stacked in insertion order: the task strip, then Search + Attach on a
+   line of their own, the box, then Dictate alone under the box. Lay the footer out as one flex grid instead, by `order`, with no change to
+   the modules: row 1 = every tool button (Do a task, Search, Attach, the run chips, Stop, Activity on the right), then the full-width
+   panels that open on demand (confirm card, search panel, attach chips and note), then the box with Dictate beside it, then the mic status. */
+.composer { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; } /* rows are spaced by margin-top, so the zero-height break below adds no gap */
+footer.composer > * { order: 8; flex: 1 0 100%; margin: 8px 0 0; min-width: 0; } /* default: a full-width panel row, 8 px under the row above */
+.composer::before { content: ''; order: 8; flex: 0 0 100%; height: 0; } /* line break after row 1 even when no panel is open */
+.composer > .agent-strip { display: contents; } /* its buttons join row 1 next to Search and Attach */
+.composer #agent-mode { order: 1; flex: none; }
+.composer > #chat-search-btn { order: 2; flex: none; margin: 0; }
+.composer > #chat-attach-btn { order: 3; flex: none; margin: 0; }
+.composer #agent-chips { order: 4; flex: 1 1 auto; }
+.composer #agent-status { order: 5; }
+.composer #agent-stop { order: 6; }
+.composer #agent-activity-btn { order: 7; flex: none; }
+.composer > #msg { order: 9; flex: 1 1 0; width: auto; }
+.composer > #voice-mic { order: 10; flex: none; height: 42px; padding: 0 14px; } /* the same height as the box beside it; corners from the same rule as the box (theme-a: .ghost, #msg) */
+.composer > #stt-status { order: 11; flex-basis: 100%; margin: 4px 0 0; }
+.composer:not(:has(> .agent-strip, > #chat-search-btn, > #chat-attach-btn)) > #msg { margin-top: 0; } /* no tool row (Electron): the box is the first row */
+.composer > [hidden] { display: none; }
+
+/* ---------- T-31-MAUS R2: tasks from the chat box (agent-chat.js; built only where the host has the agent API) ---------- */
+.agent-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 8px; min-height: 28px; }
+.agent-strip .ghost.slim.on { color: var(--foreground); border-color: var(--focus); background: color-mix(in srgb, var(--focus) 14%, transparent); }
+.agent-strip .primary.slim { padding: 4px 12px; font-size: 12.5px; }
+.agent-strip [hidden], .agent-confirm[hidden], .agent-activity[hidden], .agent-frame[hidden] { display: none; }
+.agent-chips { display: flex; flex-wrap: wrap; gap: 4px 6px; min-width: 0; flex: 1 1 auto; font-size: 12px; }
+.agent-chip { padding: 1px 9px; border-radius: 999px; border: 1px solid var(--border); background: color-mix(in srgb, var(--card) 72%, transparent); color: var(--muted-foreground); white-space: nowrap; cursor: default; }
+.agent-chip.run { color: var(--foreground); border-color: var(--focus); }
+.agent-chip.ok { color: var(--success); border-color: color-mix(in srgb, var(--success) 40%, transparent); }
+.agent-chip.fail { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.agent-status { flex: none; font-size: 12.5px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.agent-confirm { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 10px; border: 1px solid var(--warn); border-radius: 10px; background: color-mix(in srgb, var(--warn) 10%, var(--card)); font-size: 13px; }
+.agent-confirm-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.agent-activity { position: absolute; right: 16px; top: 56px; width: min(360px, 44%); max-height: calc(100% - 72px); overflow: auto; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--card) 94%, transparent); font-size: 12.5px; z-index: 6; }
+.agent-activity h3, .agent-activity h4 { margin: 0 0 6px; font-size: 13px; }
+.agent-activity h4 { margin-top: 12px; color: var(--muted-foreground); font-weight: 600; }
+.agent-activity ol, .agent-activity ul { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 2px; }
+.agent-activity .agent-act-list { list-style: none; padding-left: 0; }
+.agent-activity li.refused { color: var(--warn); }
+.agent-activity li.muted { color: var(--muted-foreground); list-style: none; margin-left: -1.3em; }
+.agent-frame { display: block; width: 100%; max-height: 180px; object-fit: contain; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); }
+/* R6c C: attach an image (chat-attach.js). Chips sit with the composer; the note line is empty until something is refused. */
+.chat-attach-chips { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-bottom: 4px; }
+.chat-attach-chips:empty, .chat-attach-note:empty { display: none; }
+.chat-attach-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 4px 1px 9px; border-radius: 999px; border: 1px solid var(--border); font-size: 12px; color: var(--muted-foreground); }
+.chat-attach-note { margin-bottom: 4px; font-size: 12.5px; color: var(--warn); }
+/* R6c C: search what was said (chat-search.js). The button sits with the composer; the panel opens above the box. */
+.chat-search { margin-bottom: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: color-mix(in srgb, var(--card) 94%, transparent); }
+.chat-search[hidden] { display: none; }
+.chat-search input { width: 100%; box-sizing: border-box; height: 34px; border-radius: 10px; border: 1px solid var(--input); background: var(--background); color: var(--foreground); padding: 0 12px; outline: none; } /* R6e nit: the same look as the chat box */
+.chat-search input:focus { border-color: var(--ring); }
+.chat-search-results { list-style: none; margin: 6px 0 0; padding: 0; max-height: 200px; overflow: auto; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.chat-search-row { overflow-wrap: anywhere; }
+.chat-search-zumi { color: var(--muted-foreground); }
 
 /* ---------- board ---------- */
 #board-host { position: relative; flex: 1; min-height: 0; background: var(--background); }
@@ -113,6 +181,28 @@ select {
 /* MKT: a web-app pack tab (pack-tabs.js). */
 .pack-host { position: relative; flex: 1; min-height: 0; background: #000; }
 .pack-host webview { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* the Room 1 / Room 2 switch in a stage pack's header (pack-tabs.js) */
+.room-switch { margin-left: auto; display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; }
+.room-switch-btn { padding: 2px 12px; border: 0; border-radius: 6px; background: transparent; color: var(--foreground); cursor: pointer; }
+.room-switch-btn.on { background: var(--primary, #2f6fe4); color: var(--primary-foreground, #fff); }
+/* Room live B F1 (Opus gate must-fix 2): a row in the Zumi tab's column (the slot sits between the stage and the message box), not a fixed overlay. */
+#stage-reason-slot { flex: none; }
+.stage-reason { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0; padding: 8px 14px; border-top: 1px solid var(--border); background: var(--card); color: var(--foreground); }
+.stage-reason .stage-retry, .stage-reason .stage-again, .stage-reason .stage-dismiss { padding: 2px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: inherit; cursor: pointer; }
+.stage-reason .stage-dismiss { margin-left: auto; }
+/* the 3D room inside the Zumi tab's stage: the guest row fills it, the caption row sits under it (a native guest covers whatever is under it) */
+.stage3d { position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; background: #000; }
+.stage3d-view { position: relative; flex: 1; min-height: 0; }
+.stage3d-view webview { position: absolute; inset: 0; width: 100%; height: 100%; }
+.stage3d-caption { flex: none; margin: 0; padding: 8px 16px; min-height: 2.6em; color: var(--foreground); background: var(--card); border-top: 1px solid var(--border); }
+/* GATE-OPUS-ALPHA7 should-fix 1: room3d.js moves the tab's own subtitle (#say-line), heard line and talk box (status, Retry voice) into this
+   row while the 3D room is on. It is in the column's flow under the guest, so the guest never covers them and they never cover the composer. */
+.stage3d-host { flex: none; max-height: 40%; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0 16px 6px; background: var(--card); color: var(--foreground); }
+.stage3d-host .say-line, .stage3d-host .heard, .stage3d-host .talk { position: static; transform: none; left: auto; right: auto; bottom: auto; z-index: auto; }
+.stage3d-host .talk { align-self: stretch; padding-bottom: 0; }
+/* the caption row above already shows a good reply; a failed reply (no caption) still shows here */
+.stage3d-host .talk-row:has(> #talk-reply:not(.failed)) { display: none; }
+.pack-caption { margin: 0; padding: 8px 16px; min-height: 2.6em; color: var(--foreground); }
 .pack-note { position: absolute; inset: auto 16px 16px 16px; margin: 0; color: var(--foreground); }
 .ghost { margin-left: auto; background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 5px 12px; cursor: pointer; }
 .ghost:hover { border-color: var(--ring); }
@@ -239,10 +329,10 @@ select:disabled { opacity: .55; }
 .settings .line.grow { flex: 1; min-width: 0; }
 .settings .line input { flex: 1; min-width: 0; }
 /* controls */
-.settings input[type="text"], .settings input[type="password"], .settings input[type="search"], .settings select {
+.settings input[type="text"], .settings input[type="password"], .settings input[type="search"], .settings input[type="time"], .settings select {
   height: 30px; border-radius: 8px; border: 1px solid var(--input); background: var(--background); color: var(--foreground); font-size: var(--s-body); outline: none;
 }
-.settings input[type="text"], .settings input[type="password"], .settings input[type="search"] { padding: 0 10px; }
+.settings input[type="text"], .settings input[type="password"], .settings input[type="search"], .settings input[type="time"] { padding: 0 10px; }
 /* The A2 picker: no native arrow; a small chevron drawn from two token-coloured gradients (no colour literal). */
 .settings select {
   appearance: none; min-width: 180px; max-width: 240px; padding: 0 32px 0 10px; text-overflow: ellipsis; cursor: pointer;
@@ -286,7 +376,9 @@ select:disabled { opacity: .55; }
 /* text lines: the card footer, and a note under the row it belongs to (an empty note takes no room) */
 .settings .foot { margin: 0; padding: 10px var(--s-pad) 12px; border-top: 1px solid var(--border); font-size: var(--s-meta); line-height: 1.45; color: var(--muted-foreground); text-wrap: pretty; }
 .settings .status, .settings .note { margin: 0; font-size: var(--s-meta); line-height: 1.4; color: var(--muted-foreground); text-wrap: pretty; }
-.settings .card > .note { padding: 0 var(--s-pad) 10px; }
+/* alpha.12 Fable final: the voice-provider panels (.vp: #vp-google and the built Gemini / ElevenLabs / custom ones) hold notes and guide
+   buttons too; without this they sat on the card border, 18 px left of the rows. */
+.settings .card > .note, .settings .card .vp > .note { padding: 0 var(--s-pad) 10px; }
 .settings .note:empty { display: none; }
 .settings .note.bad { color: var(--danger); }
 .settings .note.ok { color: var(--success); }
@@ -348,6 +440,9 @@ select:disabled { opacity: .55; }
    "Model · Effort" chips do not fit one row at 520px, so the roles sit in a 2x2 grid (role name + chip per cell).
    Type: 13px body, 12px descriptions/chips/badges (the A2 scale). minmax(0,1fr) cells ellipsize a long model name
    instead of widening the card -- no sideways scroll down to the 900px minimum window. */
+.role-avatar { flex: none; width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+.talk-avatar { float: right; width: 40px; height: 40px; border-radius: 50%; margin: 0 0 4px 8px; object-fit: cover; }
+.talk-avatar[src=""] { display: none; }
 .roles-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 14px; }
 .roles-grid[hidden] { display: none; }
 .role-cell { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -452,6 +547,10 @@ select:disabled { opacity: .55; }
 .settings .rhythm-cell { display: block; height: 9px; border-radius: 2px; background: var(--primary); opacity: calc(0.08 + 0.92 * var(--p, 0)); }
 .settings .rhythm-lines { margin: 6px 0 8px; padding-left: 16px; font-size: var(--s-small, 12px); color: var(--foreground); }
 .settings .rhythm-lines li { margin: 2px 0; }
+/* T-31-MAUS A2: the reminders list (reminders-card.js). */
+.settings .rem-list { flex: 1; min-width: 0; margin: 0; padding: 0; list-style: none; font-size: var(--s-small, 12px); }
+.settings .rem-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.settings .rem-row span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .settings .rhythm-body .lbl { width: 100%; }
 /* T-31-MOBILE M3: the phone pairing QR (Settings > App > Phone). The SVG carries its own white quiet zone (qrcode crate), so it reads on any theme. */
 .settings .phone-qr { display: flex; justify-content: center; }
@@ -537,3 +636,103 @@ select:disabled { opacity: .55; }
   .market-body { flex-direction: column; }
   .market-side { width: auto; flex: 0 0 auto; max-height: 44%; }
 }
+
+/* CT-01 the Content tab (owner build only, src/renderer/content.js). Same card system and tokens as the Marketplace. */
+#tab-content { --s-head: 16px; --s-body: 13px; --s-meta: 12px; }
+.content-toolbar { gap: 10px; }
+.content-sub { font-size: var(--s-meta); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; flex: 1 1 auto; }
+.content-views { flex: none; display: flex; gap: 2px; padding: 2px; background: var(--muted); border-radius: 10px; }
+.content-views .stab { min-height: 28px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted-foreground); font-size: var(--s-body); font-weight: 600; cursor: pointer; }
+.content-views .stab.active { background: var(--card); color: var(--foreground); box-shadow: 0 0 0 1px var(--border); }
+.content-nav { flex: none; display: flex; align-items: center; gap: 6px; }
+.content-week { font-size: var(--s-body); font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#content-reload { flex: none; }
+.content-quota { flex: none; display: flex; gap: 8px; padding: 10px 16px 0; overflow-x: auto; scrollbar-width: thin; }
+.content-quota-item { flex: 1 1 0; min-width: 132px; display: flex; flex-direction: column; gap: 2px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+.content-quota-item .k { font-size: var(--s-meta); color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.content-quota-item .n { font-size: var(--s-body); font-weight: 600; font-variant-numeric: tabular-nums; }
+.content-quota-item .d { font-size: 11px; color: var(--success); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.content-quota-item.short { border-color: color-mix(in srgb, var(--danger) 55%, transparent); }
+.content-quota-item.short .d { color: var(--danger); }
+.content-batchbar { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding: 10px 16px 0; font-size: var(--s-body); }
+.content-batchbar[hidden] { display: none; }
+.content-pickall { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.content-approve:disabled { opacity: .5; cursor: default; }
+.content-hint { font-size: var(--s-meta); min-width: 0; }
+.content-result { font-size: var(--s-meta); font-weight: 600; overflow-wrap: anywhere; }
+.content-body { flex: 1; min-height: 0; display: flex; gap: 14px; padding: 10px 16px 12px; overflow: hidden; }
+.content-main { flex: 1; min-width: 0; min-height: 0; overflow: auto; scrollbar-width: thin; }
+.content-grid { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: 10px; min-height: 100%; align-items: start; }
+.content-col { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.content-col-head { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; gap: 6px; padding: 6px 8px; border-radius: 8px; background: var(--muted); font-size: var(--s-meta); font-weight: 600; }
+.content-col-head .k { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.content-col-list { display: flex; flex-direction: column; gap: 6px; }
+.content-card, .content-row { min-width: 0; display: flex; flex-direction: column; gap: 5px; padding: 8px 9px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
+.content-card:hover, .content-row:hover { border-color: var(--input); }
+.content-card.sel, .content-row.sel { border-color: var(--ring); box-shadow: 0 0 0 1px var(--ring); }
+.content-card:focus-visible, .content-row:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+.content-card-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.content-when { flex: 1; min-width: 0; font-size: 11px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.content-text { font-size: var(--s-meta); line-height: 1.35; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+.content-meta { display: flex; gap: 4px; flex-wrap: wrap; }
+.content-tag { padding: 0 6px; border-radius: 999px; border: 1px solid var(--border); font-size: 10.5px; line-height: 16px; color: var(--muted-foreground); }
+.content-tag.ai { color: var(--ai); border-color: color-mix(in srgb, var(--ai) 40%, transparent); }
+.content-status { flex: none; padding: 0 7px; border-radius: 999px; font-size: 10.5px; line-height: 17px; font-weight: 600; border: 1px solid var(--border); color: var(--muted-foreground); white-space: nowrap; }
+.content-status.s-scheduled { color: var(--focus); border-color: color-mix(in srgb, var(--focus) 45%, transparent); }
+.content-status.s-published { color: var(--success); border-color: color-mix(in srgb, var(--success) 45%, transparent); background: color-mix(in srgb, var(--success) 10%, transparent); }
+.content-status.s-failed { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+.content-status.s-rejected { text-decoration: line-through; }
+.content-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.content-filter { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted-foreground); }
+.content-filter select, .content-filter input { height: 30px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--input); background: var(--background); color: var(--foreground); font-size: var(--s-body); }
+.content-list { display: flex; flex-direction: column; gap: 6px; }
+.content-row { display: grid; grid-template-columns: minmax(150px, 220px) 150px 1fr; align-items: center; gap: 10px; }
+.content-row-ch { font-size: var(--s-meta); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.content-empty, .content-none { margin: 8px 2px; font-size: var(--s-meta); color: var(--muted-foreground); }
+.content-side { flex: none; width: 340px; display: flex; flex-direction: column; min-height: 0; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
+.content-detail { flex: 1; min-height: 0; overflow: auto; padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 8px; scrollbar-width: thin; }
+.content-dhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.content-detail h3 { margin: 0; font-size: var(--s-head); font-weight: 600; line-height: 1.25; }
+.content-detail h4 { margin: 6px 0 0; font-size: 11px; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: .1em; }
+.content-dwhen { margin: 0; font-size: var(--s-meta); color: var(--muted-foreground); }
+.content-dact { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.content-msg { margin: 0; padding: 7px 10px; border-radius: 8px; font-size: var(--s-meta); line-height: 1.4; }
+.content-msg.ok { color: var(--success); background: color-mix(in srgb, var(--success) 10%, transparent); }
+.content-msg.err { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.content-copy { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--muted); font: inherit; font-size: var(--s-body); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.content-media { display: flex; flex-direction: column; gap: 8px; }
+.content-fig { margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.content-fig img { max-width: 100%; border-radius: 8px; border: 1px solid var(--border); }
+.content-sources { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: var(--s-meta); line-height: 1.4; }
+.content-sources .claim { display: block; font-weight: 600; }
+.content-sources .link { display: block; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.content-truth { margin: 0; font-size: var(--s-meta); line-height: 1.4; }
+.content-truth.t-pass { color: var(--success); }
+.content-truth.t-fail { color: var(--danger); }
+.content-facts { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin: 4px 0 0; font-size: var(--s-meta); }
+.content-facts dt { color: var(--muted-foreground); }
+.content-facts dd { margin: 0; overflow-wrap: anywhere; }
+.content-log { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted-foreground); }
+@media (max-width: 1100px) {
+  .content-sub, .content-hint { display: none; }
+  .content-side { width: 290px; }
+  .content-grid { grid-template-columns: repeat(5, minmax(130px, 1fr)); }
+}
+/* CT-01 the Today queue */
+.content-today { display: flex; flex-direction: column; gap: 8px; max-width: 860px; }
+.content-today-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.content-today-head h3 { margin: 0; font-size: var(--s-head); font-weight: 600; }
+.content-today-item { display: flex; flex-direction: column; gap: 7px; padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
+.content-today-item.sel { border-color: var(--ring); box-shadow: 0 0 0 1px var(--ring); }
+.content-today-item .content-text { cursor: pointer; -webkit-line-clamp: 4; font-size: var(--s-body); }
+.content-today-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.content-today-acts .ghost.slim { margin-left: 0; }
+.content-today-acts .primary { padding: 5px 14px; font-size: var(--s-body); }
+.content-url, .content-reason { flex: 1 1 260px; min-width: 0; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--input); background: var(--background); color: var(--foreground); font-size: var(--s-body); }
+.content-url:focus, .content-reason:focus { outline: none; border-color: var(--ring); box-shadow: 0 0 0 3px var(--ring); }
+.content-done { margin: 0; font-size: var(--s-meta); color: var(--success); overflow-wrap: anywhere; }
+/* T-31-MAUS R4b voice in: the mic button and its status line beside the chat box */
+.voice-mic { margin-left: 6px; }
+.voice-mic.on { background: var(--primary); color: var(--primary-foreground); }
+.voice-status { margin-left: 8px; font-size: 12px; opacity: 0.85; }
+.voice-status[hidden] { display: none; }

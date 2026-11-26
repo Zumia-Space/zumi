@@ -189,7 +189,7 @@ function checkSoul(m, ctx) {
 
 // Files a web-app pack may never hold: they would run outside its webview. They stay in `ext` so the refusal names this rule.
 const PLUGIN_NATIVE = ['.mjs', '.cjs', '.node', '.dll', '.exe', '.pyd', '.py', '.wasm'];
-const PLUGIN_PERMS = ['storage', 'links', 'avatar', 'net'];
+const PLUGIN_PERMS = ['storage', 'links', 'avatar', 'net', 'stage'];
 const LINK_KEY = /^[a-z][a-z0-9-]{0,31}$/;
 
 function checkPlugin(m, ctx) {
@@ -205,6 +205,13 @@ function checkPlugin(m, ctx) {
   for (const k of Object.keys(perms)) if (!PLUGIN_PERMS.includes(k)) ctx.bad('plugin_permission_unknown', `plugin.permissions.${k} is not a permission (${PLUGIN_PERMS.join(', ')})`);
   if (perms.storage !== undefined && typeof perms.storage !== 'boolean') ctx.bad('plugin_permissions', 'plugin.permissions.storage must be true or false');
   if (perms.avatar !== undefined && perms.avatar !== 'read') ctx.bad('plugin_permission_unknown', 'plugin.permissions.avatar can only be "read"');
+  // Room live B (ADR D4): `stage` = the performance stream, api 2 only, never with links; net stays empty (checked just below). The host's
+  // own id allow-list decides which packs may RECEIVE it; this only keeps a malformed declaration out of the store.
+  if (perms.stage !== undefined) {
+    if (perms.stage !== 'performance') ctx.bad('plugin_permission_unknown', 'plugin.permissions.stage can only be "performance"');
+    else if (!(p.api >= 2)) ctx.bad('stage_needs_api2', 'plugin.permissions.stage needs plugin.api 2');
+    if (perms.links !== undefined && !(isObj(perms.links) && Object.keys(perms.links).length === 0)) ctx.bad('stage_links_conflict', 'a pack with stage declares no links: links.open is closed while stage is granted');
+  }
   if (perms.net !== undefined && (!Array.isArray(perms.net) || perms.net.length)) ctx.bad('plugin_net', 'plugin.permissions.net must be empty: a web-app pack has no network in v1');
   if (perms.links !== undefined) {
     if (!isObj(perms.links)) ctx.bad('plugin_link', 'plugin.permissions.links maps a key to an https link');

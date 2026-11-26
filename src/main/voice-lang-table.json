@@ -1,0 +1,52 @@
+{
+  "_note": "Language table for src/main/voice-lang.mjs (T-31-YOKI step 3.1). Our own word lists, written for this app. 'voice' is today's speech route: own = the app has a voice for it, english-voice = read by the English voice (known limit), off = no audio (voice-off-lang). 'words' are lower-case stop/greeting words; 'wordsPlain' are Vietnamese words written without tone marks. Short words shared by several languages are fine: a tie tells nothing and the text stays 'latin'.",
+  "scriptLangs": {
+    "ja": { "name": "Japanese", "voice": "off" },
+    "zh": { "name": "Chinese", "voice": "off" },
+    "ko": { "name": "Korean", "voice": "off" },
+    "ru": { "name": "Russian", "voice": "off" },
+    "th": { "name": "Thai", "voice": "off" },
+    "ar": { "name": "Arabic", "voice": "off" },
+    "hi": { "name": "Hindi", "voice": "off" }
+  },
+  "latinLangs": {
+    "en": {
+      "name": "English",
+      "voice": "own",
+      "words": ["the", "and", "is", "are", "was", "were", "be", "you", "your", "yours", "it", "its", "to", "of", "in", "on", "at", "that", "this", "these", "those", "what", "how", "why", "when", "where", "who", "which", "can", "could", "would", "should", "will", "do", "does", "did", "don", "doesn", "didn", "isn", "not", "for", "with", "have", "has", "had", "my", "me", "we", "our", "they", "them", "he", "she", "his", "her", "hello", "hi", "hey", "thanks", "thank", "please", "yes", "yeah", "okay", "sure", "good", "morning", "evening", "night", "bye", "great", "just", "but", "so", "if", "there", "here", "about", "want", "need", "tell", "know", "let", "help", "see", "any", "some", "more", "very", "really", "much", "from", "out", "up", "like", "get", "got", "think", "going", "today", "tomorrow", "again", "welcome", "glad", "sorry", "lol", "as", "soon", "possible", "before", "after", "same", "well", "also", "because"]
+    },
+    "vi": {
+      "name": "Vietnamese",
+      "voice": "own",
+      "words": ["không", "của", "được", "là", "và", "cho", "tôi", "anh", "chị", "bạn", "mình", "em", "dạ", "vâng", "ạ", "nhé", "nhỉ", "nha", "xin", "chào", "cảm", "ơn", "nhiều", "gì", "sao", "nào", "đang", "rồi", "cũng", "giúp", "muốn", "biết", "nhưng", "với", "một", "như", "hôm", "nay", "mai", "thôi", "hãy", "quá", "tất", "chúc", "mừng", "vui", "buồn", "người", "làm", "giờ", "bao"],
+      "wordsPlain": ["toi", "khong", "cua", "duoc", "nhe", "nha", "vang", "xin", "chao", "cam", "on", "nhieu", "gi", "sao", "nao", "dang", "roi", "cung", "giup", "muon", "biet", "nhung", "voi", "nhu", "minh", "ban", "anh", "thoi", "qua", "chuc", "mung", "vui", "buon", "nguoi", "hom", "nay", "lam", "gio", "bao"]
+    },
+    "es": {
+      "name": "Spanish",
+      "voice": "english-voice",
+      "words": ["el", "la", "los", "las", "un", "una", "unos", "unas", "es", "son", "yo", "tú", "tu", "usted", "nosotros", "que", "qué", "de", "en", "por", "para", "con", "pero", "como", "cómo", "gracias", "hola", "buenos", "buenas", "días", "dias", "tardes", "noches", "adiós", "adios", "sí", "muy", "bien", "estoy", "estás", "está", "quiero", "puedes", "puedo", "ayuda", "favor", "mi", "mis", "se", "lo", "le", "me", "te", "también", "cuando", "cuándo", "dónde", "donde", "hay", "tengo", "tiene", "cuál", "vale", "claro", "mañana", "hoy", "ahora", "nada", "todo", "algo", "así"]
+    },
+    "fr": {
+      "name": "French",
+      "voice": "english-voice",
+      "words": ["le", "la", "les", "un", "une", "des", "et", "est", "sont", "je", "tu", "il", "elle", "nous", "vous", "ils", "elles", "ne", "pas", "que", "qui", "quoi", "pour", "avec", "dans", "sur", "mais", "ou", "où", "merci", "bonjour", "bonsoir", "salut", "oui", "non", "plaisir", "comment", "pourquoi", "quand", "peux", "veux", "suis", "ai", "ce", "cette", "ça", "cela", "mon", "ma", "mes", "votre", "ton", "au", "du", "de", "en", "très", "bien", "aussi", "demain", "aujourd", "hui", "rien", "tout", "quelque", "voudrais", "besoin", "aide", "moi", "toi", "pardon", "désolé"]
+    },
+    "pt": {
+      "name": "Portuguese",
+      "voice": "english-voice",
+      "words": ["os", "as", "um", "uma", "uns", "umas", "é", "são", "eu", "você", "voce", "tu", "nós", "ele", "ela", "que", "de", "em", "por", "para", "com", "mas", "como", "obrigado", "obrigada", "olá", "ola", "oi", "bom", "boa", "dia", "tarde", "noite", "tchau", "sim", "não", "nao", "muito", "bem", "estou", "está", "quero", "posso", "ajuda", "favor", "meu", "minha", "se", "também", "quando", "onde", "tenho", "tem", "né", "tudo", "valeu", "legal", "isso", "isto", "nada", "mais", "já", "pra", "pro", "vocês", "aqui", "amanhã", "hoje", "agora", "desculpa", "precisa", "preciso"]
+    }
+  },
+  "sharedWithEnVi": ["com", "um", "pro", "oi", "os", "ai", "con", "son"],
+  "ambiguousHan": ["了解", "大丈夫", "勉強", "結構", "本当", "無理", "残念", "確認", "準備", "完了", "注意", "連絡", "電話", "問題"],
+  "markers": {
+    "_note": "Letters that point to one Latin language. Each hit adds 'score' to every listed language. Vietnamese-only letters are handled in voice-lang.mjs by share of words, not here.",
+    "list": [
+      { "chars": "ñ¿¡", "langs": ["es"], "score": 3 },
+      { "chars": "ãõ", "langs": ["pt"], "score": 3 },
+      { "chars": "œëïûùè", "langs": ["fr"], "score": 2 },
+      { "chars": "ç", "langs": ["fr", "pt"], "score": 1 },
+      { "chars": "áíóú", "langs": ["es", "pt"], "score": 1 }
+    ]
+  }
+}

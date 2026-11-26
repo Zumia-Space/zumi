@@ -81,7 +81,11 @@ async function transportFor(url) {
 function download(url, destTmp, onProgress) {
   return new Promise((resolve, reject) => {
     try { checkHop(url); } catch (e) { return reject(e); }
-    const file = fs.createWriteStream(destTmp);
+    // The .part is opened only once a hop answers 200 (T-31-ALPHA11, the kokoro-egress EPERM flake): it used to be opened per hop, and a
+    // redirect closed it and unlinked it asynchronously while the next hop opened the same path at once; on Windows that open can land
+    // while the delete is still pending and fails with EPERM (1 in 300 in isolation on main). huggingface.co redirects every model file.
+    let file = null;
+    const drop = () => { if (file) { file.close(); fs.unlink(destTmp, () => {}); } };
     // Picked from the URL actually being requested (not hardcoded to https) so a resolved redirect is followed
     // on its own scheme -- matters once a relative Location is resolved via `new URL(location, url)` below,
     // which is scheme-agnostic by design, and lets check-kokoro-download-redirect.mjs exercise this against a
@@ -93,7 +97,6 @@ function download(url, destTmp, onProgress) {
     transportFor(url).then((mod) => {
     const req = mod.get(url, { headers: { 'user-agent': 'zumi-desktop/0.2.0' } }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        file.close(); fs.unlink(destTmp, () => {});
         // ROOT CAUSE (T-31 voice P1 packaged-app bug): huggingface.co's /resolve/main/<file> redirects
         // differently per file. LFS-tracked files (onnx/model_fp16.onnx) 307 to an ABSOLUTE CDN URL; small
         // git-blob files (config.json, tokenizer*.json) 307 to a RELATIVE Location (e.g.
@@ -108,15 +111,17 @@ function download(url, destTmp, onProgress) {
         catch (e) { return reject(Object.assign(new Error(`invalid redirect Location "${res.headers.location}" from ${url}: ${(e && e.message) || e}`), { cause: e, url })); }
         return download(nextUrl, destTmp, onProgress).then(resolve, reject);
       }
-      if (res.statusCode !== 200) { file.close(); fs.unlink(destTmp, () => {}); return reject(Object.assign(new Error(`http_${res.statusCode} url=${url}`), { url })); }
+      if (res.statusCode !== 200) return reject(Object.assign(new Error(`http_${res.statusCode} url=${url}`), { url }));
+      file = fs.createWriteStream(destTmp);
+      file.on('error', (e) => { res.destroy(); reject(Object.assign(e, { url })); });
       const total = Number(res.headers['content-length']) || 0;
       let loaded = 0;
       res.on('data', (chunk) => { loaded += chunk.length; onProgress && onProgress({ loaded, total }); });
       res.pipe(file);
       file.on('finish', () => file.close(() => resolve()));
     });
-    req.on('error', (e) => { file.close(); fs.unlink(destTmp, () => {}); reject(Object.assign(e, { url })); });
-    }).catch((e) => { file.close(); fs.unlink(destTmp, () => {}); reject(e); });
+    req.on('error', (e) => { drop(); reject(Object.assign(e, { url })); });
+    }).catch((e) => { drop(); reject(e); });
   });
 }
 

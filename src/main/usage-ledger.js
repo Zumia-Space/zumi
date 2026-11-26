@@ -4,8 +4,7 @@
 // jev.js's callJev), success AND failure, appended by the caller's own onUsage hook -- this module never calls out
 // to those modules itself (deep module: it only knows how to persist and summarise a {model, kind, in, out, total,
 // ms, ok} record, nothing about chat or Jev).
-//   File: <dir>/usage/YYYY-MM-DD.jsonl, keyed by the OWNER's local calendar date (his wall clock, not UTC --
-//   unlike chat-brain's own chat-turn-cap.json, which this module does not touch or share a file with).
+//   File: <dir>/usage/YYYY-MM-DD.jsonl, keyed by the OWNER's local calendar date (his wall clock, not UTC).
 //   Never the prompt/reply text, never the key, never a header -- just the six numeric/string fields above plus ts.
 //   appendUsage() must never throw or block the call path: any fs error is swallowed to `log()` only.
 const fs = require('node:fs');

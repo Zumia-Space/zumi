@@ -22,6 +22,7 @@ const EXCLUDE_PREFIX = ['src/renderer/brand/'];
 
 // Single-line allowances, each with a reason — the only way a colour literal may survive this gate.
 const ALLOW_LINE = [
+  { file: 'src/renderer/image-fit.js', match: "g.fillStyle = '#fff'", reason: 'the picture re-encode: JPEG has no alpha, so a transparent PNG is flattened onto white before it is encoded; pixels of the picture the person attached, not UI chrome' },
   { file: 'src/renderer/app.js', match: 'setClearColor(0x000000', reason: 'three.js canvas clear colour; alpha is 0 (fully transparent), so the CSS --background set on #stage shows through — not UI chrome' },
   { file: 'src/renderer/app.js', match: 'DirectionalLight(0xffffff, Math.PI * 0.95)', reason: 'three.js scene lighting colour (key light) that illuminates the 3D VRM model, not CSS/DOM chrome' },
   { file: 'src/renderer/app.js', match: 'DirectionalLight(0xbcc8ff, 1.1)', reason: 'three.js scene lighting colour (rim light tint) that illuminates the 3D VRM model, not CSS/DOM chrome' },

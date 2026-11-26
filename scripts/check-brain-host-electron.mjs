@@ -15,12 +15,13 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { assertElectronHost } from './lib/electron-guard.cjs';
+import { notRunOnBoxRefusal } from './lib/check-outcome.cjs';
 import { ownerPath } from './lib/owner-paths.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const keep = args.includes('--keep');
-assertElectronHost('check-brain-host-electron.mjs (electron scripts/electron-brain-host.cjs)');
+notRunOnBoxRefusal(() => assertElectronHost('check-brain-host-electron.mjs (electron scripts/electron-brain-host.cjs)'));
 const ELECTRON = process.env.ELECTRON_EXE || path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe');
 const BASE = `${ownerPath('scratchRoot', os.tmpdir())}/brain-host-electron-${process.pid}`; // never drive C on the owner's machines
 const electronRunning = () => /electron\.exe/i.test(execFileSync('tasklist', ['/FI', 'IMAGENAME eq electron.exe', '/FO', 'CSV', '/NH'], { encoding: 'utf8' }));

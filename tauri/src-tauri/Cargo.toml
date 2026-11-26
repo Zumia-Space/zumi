@@ -1,6 +1,6 @@
 [package]
 name = "zumi-preview"
-version = "0.3.7"
+version = "0.3.8"
 description = "T-31 P1a — Zumi Tauri preview shell (reversible scaffolding; Electron 0.2.3 stays the shipped app)"
 authors = ["Zumia Space"]
 edition = "2021"
@@ -44,6 +44,14 @@ tauri-build = { version = "2", features = [] }
 serde_json = "1"
 
 [dependencies]
+# T-31-MAUS P3: the agent loop and tool gate (no tauri dependency), a crate of this repository. agent_wiring.rs is the thin layer.
+zumi-agent-loop = { path = "../zumi-agent-loop" }
+# T-31-MAUS A2 reminders: a crate of this repository (tauri/zumi-routines, no tauri dependency; its lock is a subset of this one). Not an external crate.
+zumi-routines = { path = "../zumi-routines" }
+# T-31-MAUS R7 K0a power packs: a crate of this repository (tauri/zumi-packs, no tauri dependency; its lock is a subset of this one). Not an external crate.
+zumi-packs = { path = "../zumi-packs" }
+# T-31-MAUS R4b voice in: a crate of this repository (tauri/zumi-stt, no tauri dependency; its lock is a subset of this one). Not an external crate.
+zumi-stt = { path = "../zumi-stt" }
 # `unstable` is required only for Window::add_child (the native child-webview guest host, guest.rs);
 # it adds no crate. `~2.12` keeps API drift bounded while the lockfile holds 2.12.4.
 tauri = { version = "~2.12", features = ["unstable"] }
@@ -93,6 +101,10 @@ windows-sys = { version = "0.61", features = [
   "Win32_System_DataExchange",
   "Win32_System_Memory",
   "Win32_System_Ole",
+  # Room live B (gpu_adapter.rs): EnumDisplayDevicesW + RegGetValueW name the display adapter and its driver for the bench memory key.
+  # Feature flags of the windows-sys already locked: no new crate.
+  "Win32_Graphics_Gdi",
+  "Win32_System_Registry",
 ] }
 # WebView2 request filter + NavigationCompleted status for guests (Tauri 2.12 exposes neither); both
 # already in Cargo.lock via wry (0.39.1 / 0.62.2). A future `tauri ~2.12` patch that moves wry's pins

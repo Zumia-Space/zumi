@@ -59,12 +59,18 @@ ok(methods.every((m) => !m.startsWith('__host.')), 'no __host.* internal method 
 const HOST_ONLY = ['__host.guestDecide', '__host.decideExternalUrl', '__host.logRefusal', '__host.idle', '__host.windowVisible', '__host.osEvent',
   // Parity 4b: the asset route's resolver. The main webview names only a relative app path, and Rust re-checks whatever
   // it answers; the renderer must never be able to call it (it is not an inventory name).
-  '__host.resolveAsset'];
+  '__host.resolveAsset',
+  // R6e: the Rust agent loop's turn log and note correction. No renderer code calls them, and a page that could would plant "earlier chats"
+  // that recall quotes, or rewrite a note without the person's Edit: host-only, like __host.modelTurn.
+  '__host.memoryAddTurn', '__host.memoryCorrect'];
 const inventoryText = fs.readFileSync(INVENTORY, 'utf8');
 for (const name of HOST_ONLY) {
   ok(!methods.includes(name), `${name} is not in the generated allow-list`);
   ok(!inventoryText.includes(name), `${name} is not in the api inventory`);
   ok(!committed.includes(name), `${name} is not in the committed rpc_allow_list.rs`);
+}
+for (const name of ['memory.addTurn', 'memory.correct']) {
+  ok(!methods.includes(name) && !inventoryText.includes(`"${name}"`) && !committed.includes(`"${name}"`) && !fs.readFileSync(path.join(ROOT, 'tauri', 'shim', 'zumi-shim.js'), 'utf8').includes(`"${name}"`), `${name} is no longer an rpc the page can call (inventory, allow-list, shim)`);
 }
 ok(!/__host/.test(fs.readFileSync(path.join(ROOT, 'tauri', 'shim', 'zumi-shim.js'), 'utf8') + fs.readFileSync(path.join(ROOT, 'tauri', 'shim', 'webview-element.js'), 'utf8')), 'the renderer shims never name a __host method');
 

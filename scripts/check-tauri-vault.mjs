@@ -15,6 +15,7 @@ import path from 'node:path';
 import util from 'node:util';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { notRun } from './lib/check-outcome.cjs';
 
 import { createVaultSafeStorage, ENCRYPT_FAILED, DECRYPT_FAILED, validateVaultExe } from '../tauri/sidecar/vault-adapter.mjs';
 import { createSecretStores } from '../tauri/sidecar/secret-stores.mjs';
@@ -42,7 +43,7 @@ if (!HELPER) {
   console.log('FAIL helper not built. Run: cargo build --manifest-path tauri/src-tauri/Cargo.toml --bins');
   process.exit(1);
 }
-if (process.platform !== 'win32') { console.log('SKIP the vault is Windows-only (DPAPI)'); process.exit(0); }
+if (process.platform !== 'win32') notRun('precondition', 'the vault is Windows-only (DPAPI)');
 const HOST_DIR = path.dirname(HELPER);
 
 fs.rmSync(SCRATCH, { recursive: true, force: true });

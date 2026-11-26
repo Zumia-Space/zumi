@@ -202,11 +202,15 @@ fs.mkdirSync(tmpRoot, { recursive: true });
   const i18n = await import('../src/renderer/i18n.js');
   const { uiLangOf } = await import('../tauri/sidecar/main.mjs');
   const osUiLang = i18n.osUiLang;
-  const cases = [[['en-US'], 'en'], [['vi-VN'], 'vi'], [['zh-CN'], 'zh'], [['zh-Hans-CN'], 'zh'], [['vi'], 'vi'], [['fr-FR'], 'en'], [['vi-VN', 'en-US'], 'vi'], [['en-US', 'vi-VN'], 'en'], [[], 'en'], [undefined, 'en']];
+  // R6 item 6 (owner 19-11: default language English): a fresh install opens in English whatever the OS locale; only a saved uiLang changes it.
+  const cases = [[['en-US'], 'en'], [['vi-VN'], 'en'], [['zh-CN'], 'en'], [['zh-Hans-CN'], 'en'], [['vi'], 'en'], [['fr-FR'], 'en'], [['vi-VN', 'en-US'], 'en'], [['en-US', 'vi-VN'], 'en'], [[], 'en'], [undefined, 'en']];
   const got = typeof osUiLang === 'function' ? cases.map(([l]) => osUiLang(l)) : [];
-  ok(typeof osUiLang === 'function' && cases.every(([, want], i) => got[i] === want), 'OS locale -> UI language: en-US en, vi-VN vi, zh-CN zh, anything else en (first preferred language)', JSON.stringify(got));
+  ok(typeof osUiLang === 'function' && cases.every(([, want], i) => got[i] === want), 'a fresh install opens in English whatever the OS locale (vi-VN, zh-CN, fr-FR, none)', JSON.stringify(got));
   const first = typeof uiLangOf === 'function' ? ['en', 'vi', 'zh'].map((os) => uiLangOf(undefined, os)) : [];
-  ok(JSON.stringify(first) === '["en","vi","zh"]', 'first run (no uiLang saved): an en-US / vi-VN / zh-CN OS opens in en / vi / zh', JSON.stringify(first));
+  // What the renderer sends as the hint is osUiLang(...), always 'en' now; the host function itself still honours a hint it is given.
+  const fresh = typeof osUiLang === 'function' && typeof uiLangOf === 'function' ? ['vi-VN', 'zh-CN', 'en-US'].map((l) => uiLangOf(undefined, osUiLang([l]))) : [];
+  ok(JSON.stringify(fresh) === '["en","en","en"]', 'first run (no uiLang saved): a vi-VN / zh-CN / en-US OS all open in English (the hint the app sends)', JSON.stringify(fresh));
+  ok(JSON.stringify(first) === '["en","vi","zh"]', 'the host still honours a hint it is given (unchanged), so a saved choice path is untouched', JSON.stringify(first));
   const saved = typeof uiLangOf === 'function' ? [uiLangOf('en', 'vi'), uiLangOf('zh', 'vi'), uiLangOf('vi', 'zh'), uiLangOf('en', 'zh')] : [];
   ok(JSON.stringify(saved) === '["en","zh","vi","en"]', 'a saved uiLang always wins over the OS locale', JSON.stringify(saved));
   const odd = typeof uiLangOf === 'function' ? [uiLangOf(undefined, undefined), uiLangOf(undefined, 'fr'), uiLangOf('xx', 'vi')] : [];

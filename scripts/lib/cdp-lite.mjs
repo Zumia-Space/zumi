@@ -51,17 +51,44 @@ export async function connect(wsUrl) {
   let id = 0;
   const pending = new Map();
   const listeners = new Set();
+  // A target that goes away (its webview closed, its renderer gone) closes the socket. Before, every call pending on it waited out its
+  // own timeout (an evaluate: 120 s) and said only "timed out"; now it fails at once and says why (T31reload, the a9.1 main harness fails).
+  let gone = null;
   ws.onmessage = (m) => {
     const msg = JSON.parse(m.data);
     if (msg.id && pending.has(msg.id)) { const { resolve, reject } = pending.get(msg.id); pending.delete(msg.id); if (msg.error) reject(new Error(msg.error.message)); else resolve(msg.result); }
-    else if (msg.method) for (const l of listeners) l(msg);
+    else if (msg.method) {
+      if (msg.method === 'Inspector.detached' || msg.method === 'Inspector.targetCrashed') gone = `${msg.method}${msg.params && msg.params.reason ? ` (${msg.params.reason})` : ''}`;
+      for (const l of listeners) l(msg);
+    }
   };
-  const send = (method, params = {}) => new Promise((resolve, reject) => { const i = ++id; pending.set(i, { resolve, reject }); ws.send(JSON.stringify({ id: i, method, params })); });
+  ws.onclose = (e) => {
+    gone = `target socket closed (code ${e.code}${gone ? `, after ${gone}` : ''})`;
+    for (const { reject } of pending.values()) reject(new Error(gone));
+    pending.clear();
+  };
+  const send = (method, params = {}) => new Promise((resolve, reject) => {
+    if (gone && ws.readyState !== WebSocket.OPEN) { reject(new Error(gone)); return; }
+    const i = ++id; pending.set(i, { resolve, reject }); ws.send(JSON.stringify({ id: i, method, params }));
+  });
+  // A page that navigates while an evaluate is pending (the room guest's document was replaced once during its boot on 16-11, with
+  // the round-6 pack as well, task dossier round 8) answers "Execution context was destroyed". The expression
+  // is then asked again in the new document, at most 4 times; any other error, and a page that keeps navigating, still fails.
   const evaluate = async (expression, { awaitPromise = true, timeoutMs = 120000 } = {}) => {
-    const r = await Promise.race([
-      send('Runtime.evaluate', { expression, awaitPromise, returnByValue: true }),
-      sleep(timeoutMs).then(() => { throw new Error(`evaluate timed out: ${expression.slice(0, 60)}`); }),
-    ]);
+    let r;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        r = await Promise.race([
+          send('Runtime.evaluate', { expression, awaitPromise, returnByValue: true }),
+          sleep(timeoutMs).then(() => { throw new Error(`evaluate timed out: ${expression.slice(0, 60)}`); }),
+        ]);
+        break;
+      } catch (e) {
+        if (attempt >= 4 || !/Execution context was destroyed|Cannot find context with specified id/.test(String(e && e.message))) throw e;
+        console.log(`evaluate: the page navigated (${String(e.message).slice(0, 60)}); asking again (${attempt + 1})`);
+        await sleep(1000);
+      }
+    }
     if (r.exceptionDetails) throw new Error(`page threw: ${r.exceptionDetails.text} ${(r.exceptionDetails.exception || {}).description || ''}`);
     return r.result.value;
   };

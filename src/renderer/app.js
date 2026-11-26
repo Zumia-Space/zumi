@@ -1,7 +1,7 @@
 // Zumi renderer bootstrap: three.js stage + VRM loading + UI shell + reflex engine wiring.
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+import { VRMUtils } from '@pixiv/three-vrm';
+import { createAvatarCore } from './avatar-core/index.js';
 import { Catalog, ReflexEngine, ClipLayer, attachInput } from './reflex/index.js';
 import { runSelftest } from './selftest/index.js';
 import { createTalk, talkUi } from './talk/index.js';
@@ -11,14 +11,25 @@ import { initSay } from './talk/say.js';
 import { runDemo } from './demo.js';
 import { initSettings } from './settings.js';
 import { initMarket } from './market.js';
+import { initContent } from './content.js';
 import { initPackTabs } from './pack-tabs.js';
+import { createRoom3d, createRoomChoice, ROOM3D_VALUE, ROOM3D2_VALUE } from './room3d.js';
 import { initPhoneCard } from './phone-card.js';
+import { initMemorySettings } from './memory-settings.js';
 import { initSettingsTabs } from './settings-tabs.js';
 import { initRhythmCard } from './rhythm-card.js';
+import { initRemindersCard } from './reminders-card.js';
+import { initAgentChat } from './agent-chat.js';
+import { initChatSearch } from './chat-search.js';
+import { initChatAttach } from './chat-attach.js';
+import { avatarFor, avatarUrl } from './avatars.js';
+import { initVoiceIn } from './voice-in.js';
+import { initVoiceCard } from './voice-in-card.js';
 import { initBoardSignin } from './board-signin.js';
 import { planLiveReload } from './board-live-reload.js';
 import { decideLiveWatch, createFailLoadRecovery } from './board-live-watch.js';
 import { initRoomSettings } from './room-settings.js';
+import { initRoomEv, roomEvKey } from './room-ev.js';
 import { sceneLabel } from './room/messages.js';
 import { initUsage } from './usage.js';
 import { initRoleModels } from './role-models.js';
@@ -126,7 +137,8 @@ async function main() {
   new ResizeObserver(resize).observe(stageEl);
   resize();
 
-  const engine = new ReflexEngine({ catalog, clips });
+  const avatarCore = createAvatarCore(); // VRM load + idle life + gaze (T-31-ROOM-live-b P1); the engine below is built on it
+  const engine = new ReflexEngine({ catalog, clips, core: avatarCore });
   // CameraDirector (T-31 camera modes): idle for v1 rooms / no room (director.room stays null, update()/drawPlate()
   // are then no-ops) -- only a v2 room ever calls director.setRoom(...). Lives outside the player/rig; see the
   // module header for the latency-gate reasoning.
@@ -192,6 +204,16 @@ async function main() {
   const scenePicker = $('scene-picker');
   const sceneSelect = $('scene-select');
   let sceneList = { selected: 'current', geometry: null, rooms: [] };
+  // The 3D room is one more entry in this same list (owner 13-11); picking it shows the stage pack's guest in this tab's stage while the
+  // tab's own message box, mic and captions keep working. The main renderer pauses while it is on (ADR D1, one renderer at a time).
+  const tauriCore = window.__TAURI__ && window.__TAURI__.core;
+  const room3d = createRoom3d({
+    stageEl: $('stage'),
+    listPacks: async () => (tauriCore && typeof tauriCore.invoke === 'function' ? tauriCore.invoke('pack_list') : []),
+    storage: window.localStorage,
+    onActive: () => syncSceneVisibility(),
+  });
+  let room3dRestored = false;
   let sceneApplyToken = 0;
   // Launch order (0.2.2 RC box runs): the Jev variety warm used to be one ~27 s main-thread task right after the model
   // loaded, and the video room + chair waited behind it. Now it starts once the launch has settled -- the room/video
@@ -205,14 +227,21 @@ async function main() {
   const chairSettled = () => new Promise((r) => { chairWaiters.push(r); setTimeout(r, 20000); });
   const settleChair = () => { const w = chairWaiters; chairWaiters = []; for (const r of w) r(); };
   // (currentRoomV2 is declared further down; these only run after a room switch or a user pick, never before it exists)
+  // Once, after the first room is up: find the stage pack, list the 3D room, and restore the pick of the last run.
+  function initRoom3d() {
+    if (room3dRestored) return;
+    room3dRestored = true;
+    room3d.refresh().then(() => { room3d.restore(); paintScenePicker(); });
+  }
   function paintScenePicker() {
     sceneSelect.innerHTML = '';
     const cur = document.createElement('option');
     cur.value = 'current'; cur.textContent = t('scene.current');
     sceneSelect.appendChild(cur);
     for (const r of sceneList.rooms) { const o = document.createElement('option'); o.value = r.id; o.textContent = sceneLabel(r); sceneSelect.appendChild(o); }
-    sceneSelect.value = sceneList.selected;
-    scenePicker.hidden = !currentRoomV2 || !sceneList.rooms.length;
+    if (room3d.available()) for (const [value, key] of [[ROOM3D_VALUE, 'room3d.option'], [ROOM3D2_VALUE, 'room3d.option2']]) { const o = document.createElement('option'); o.value = value; o.textContent = t(key); sceneSelect.appendChild(o); }
+    sceneSelect.value = room3d.active ? (room3d.room() === 2 ? ROOM3D2_VALUE : ROOM3D_VALUE) : sceneList.selected;
+    scenePicker.hidden = !currentRoomV2 || !(sceneList.rooms.length || room3d.available());
   }
   if (window.__zumiPlateProbe) director.plateProbe = window.__zumiPlateProbe; // debug probe only (see CameraDirector.plateProbe); undefined in any real run
   // The video room is gone (load failed, timed out, or froze mid-play): the painted plate is back and the View picker unlocks.
@@ -242,7 +271,11 @@ async function main() {
     }
     settleScene();
   }
+  // The 3D room entries (Room 1, Room 2): no scene call, the video rooms are not touched. Any other pick gives the stage back and forgets the 3D choice.
   sceneSelect.addEventListener('change', async () => {
+    const pick3d = { [ROOM3D_VALUE]: 1, [ROOM3D2_VALUE]: 2 }[sceneSelect.value];
+    if (pick3d) { room3d.setRoom(pick3d); room3d.enter(); paintScenePicker(); return; }
+    room3d.leave({ forget: true });
     sceneList = await zumi.scenes.select(sceneSelect.value);
     paintScenePicker();
     document.dispatchEvent(new Event('zumi:scene-changed')); // Settings > Room names the video room too (room-settings.js)
@@ -251,7 +284,11 @@ async function main() {
   onLocaleChange(paintScenePicker);
   // Pause while the window cannot be seen (battery): main's minimize/hide/restore/show, plus the page's own visibility.
   let windowVisible = true;
-  const syncSceneVisibility = () => sceneVideo.setVisible(windowVisible && !document.hidden);
+  const syncSceneVisibility = () => sceneVideo.setVisible(windowVisible && !document.hidden && !room3d.active);
+  // F1 closed the 3D guest (the host says why, pack-tabs.js shows the reason line): the video room is back, the pick stays for the next start.
+  if (zumi.stage && typeof zumi.stage.onFallback === 'function') zumi.stage.onFallback(() => { if (room3d.active) { room3d.leave(); paintScenePicker(); } });
+  // "Test again" / "Try the 3D room anyway" on the reason line ask the Zumi tab to show the 3D room.
+  document.addEventListener('zumi:room3d-enter', () => { room3d.enter(); paintScenePicker(); });
   zumi.onWindowVisible((v) => { windowVisible = Boolean(v); syncSceneVisibility(); });
   document.addEventListener('visibilitychange', syncSceneVisibility);
   try { sceneList = await zumi.scenes.list(); } catch (e) { console.error('video rooms: list failed', e); }
@@ -381,8 +418,6 @@ async function main() {
     freeze: () => { poseFrozen = true; }, thaw: () => { poseFrozen = false; } }; // dev/test runs only (scripts/electron-room-picker.cjs, electron-chair3d.cjs)
 
   // ---------- models ----------
-  const loader = new GLTFLoader();
-  loader.register((parser) => new VRMLoaderPlugin(parser));
   // prepareVrm() (model-facing.js) does the same clean-up for every VRM instance (the stage model and the talk
   // path's hidden rig probe) and records the model's own base orientation (VRM 0.x 180-degree flip) so stage
   // placement composes with it instead of overwriting it.
@@ -403,7 +438,7 @@ async function main() {
   let brainCard = null; // assigned below; the talk switch refreshes it after a live provider change
   const ageConfirm = tauriHost && zumi.ai ? createAgeConfirm({ zumi, openPicker: openProviderPicker, onSwitched: () => { if (brainCard) brainCard.refresh(); } }) : null;
   const ui = talkUi($, { openSource: (url) => zumi.talk.openSource(url), ageConfirm });
-  const talk = await createTalk({ zumi, engine, catalog, loader, camera, prepareVrm, ui, canned: Boolean(info.demo && info.demoFixture) });
+  const talk = await createTalk({ zumi, engine, catalog, loader: avatarCore.loader, camera, prepareVrm, ui, canned: Boolean(info.demo && info.demoFixture) });
   // Auto-update offer: never while Zumi speaks or a reply is still on its way (the turn is not done yet).
   const replyBusy = () => Boolean(talk.speech && talk.speech.speaking()) || Boolean(talk.director && talk.director.turn && !talk.director.turn.done);
   // Working signal (T-31 C1 step 7): derived in the renderer from the HUD feed it already receives -- never a new
@@ -426,6 +461,8 @@ async function main() {
     engine.on('reaction', (r) => { if (r && r.trigger === 'poke') say.event('poke'); });
     engine.on('state', (st) => { if (st && st.name === 'pat' && st.on) say.event('pat'); });
     if (!info.packaged) window.__zumiSay = say;
+    // Test launches only (scripts/check-room-live-real.mjs): the host says so in the `status` answer when it was started with --stage-test-hook.
+    if (talk.stage) talk.stage.refresh().then(() => { if (talk.stage.testHook) window.__zumiStageTest = { speech: talk.speech, stage: talk.stage, renderer, talk }; }).catch((e) => console.error('stage test hook', e));
   }
   // Hologram screen (T-31 float-holo pilot): the 3D panel beside her in float mode. Its colour lights Zumi via
   // screenLight; a content change flickers + recolours and she glances (the same board quick-glance the HUD uses).
@@ -643,7 +680,7 @@ async function main() {
     roomViewPicker.hidden = !currentRoomV2; // the manual view picker only makes sense while a v2 room is loaded
     roomViewSelect.value = ''; // a fresh room load always starts on Auto -- a stale manual pin from the PREVIOUS room would be confusing
     director.setManualView(null);
-    if (token === roomLoadToken) { paintScenePicker(); applyScene(); } // video rooms apply only on top of the painted v2 room
+    if (token === roomLoadToken) { paintScenePicker(); applyScene(); initRoom3d(); } // video rooms apply only on top of the painted v2 room
   }
 
   // A room pack was installed or removed in the Marketplace (T-31-ROOM-slim): re-read the rooms and the video rooms, and load the
@@ -656,7 +693,7 @@ async function main() {
       roomNote('');
       const note = $('room-note'); if (note) { note.classList.remove('market-link'); note.onclick = null; }
       await switchRoom(list.selected && list.selected !== 'none' ? list.selected : null);
-    } else { paintScenePicker(); await applyScene(); }
+    } else { paintScenePicker(); await applyScene(); initRoom3d(); }
   }
 
   async function switchModel(id, { forceEntrance } = {}) {
@@ -665,9 +702,9 @@ async function main() {
     const token = ++loadToken;
     $('empty-model').hidden = true;
     setLoading(true, 0);
-    let gltf;
+    let loaded;
     try {
-      gltf = await loader.loadAsync(m.url, (e) => { if (e.total) setLoading(true, e.loaded / e.total); });
+      loaded = await avatarCore.load(m.url, { onProgress: (e) => { if (e.total) setLoading(true, e.loaded / e.total); } }); // prepareVrm included
     } catch (e) {
       console.error('model load failed', m.file, e);
       if (token === loadToken) {
@@ -677,9 +714,9 @@ async function main() {
       }
       return null;
     }
-    const vrm = gltf.userData.vrm;
-    if (token !== loadToken || !vrm) { VRMUtils.deepDispose(gltf.scene); return null; }
-    prepareVrm(gltf, vrm);
+    const vrm = loaded && loaded.vrm;
+    if (token !== loadToken || !vrm) { if (vrm) avatarCore.dispose(vrm); return null; } // a file with no VRM was disposed by the core
+    const gltf = loaded.gltf;
     // Compile shaders before the model goes on stage: otherwise the first frame blocks ~1.5 s and
     // the entrance reaction would start while the window is frozen.
     try { await renderer.compileAsync(vrm.scene, camera, scene); } catch (e) { console.warn('compileAsync', e); }
@@ -757,7 +794,7 @@ async function main() {
     last = now;
     workSignal.setChatBusy(replyBusy()); // C1 step 7: a chat turn in flight counts as working; also the 10-min expiry
     // clock -- above the stage-visibility return, so a paused stage (Settings/Board tab) still ends a silent step.
-    if (!stageVisible || !current) return;
+    if (!stageVisible || !current || room3d.active) return; // the 3D room is the one renderer while it is on (ADR D1)
     if (poseFrozen) { holo.update(now / 1000); floatShadow.update(); director.update(); renderer.render(scene, camera); return; } // dev/test only: comparison shots hold one pose (the holo + shadow still update, so its light A/B renders)
     engine.setSpeechMouth(talk.mouth());
     if (stageMode === 'float') updateFloat(engine, now / 1000); // float pilot: hover the root + refresh rig.hipsPos BEFORE engine.update pins the hips to it
@@ -786,9 +823,12 @@ async function main() {
     if (isPublicBuild(info) && !devChrome) return;
     const chip = $('reflex-chip');
     chip.textContent = r.labelVi;
+    // hidden between reactions: a faded chip kept its width and pushed the wrapping Zumi toolbar (alpha.12) to two rows at 1296 px
+    chip.hidden = false;
+    void chip.offsetWidth; // let the opacity transition start from the unhidden state
     chip.classList.add('show');
     clearTimeout(chipTimer);
-    chipTimer = setTimeout(() => chip.classList.remove('show'), 2600);
+    chipTimer = setTimeout(() => { chip.classList.remove('show'); chipTimer = setTimeout(() => { chip.hidden = true; }, 300); }, 2600);
   });
   let heardTimer;
   // Jev fast-reflex (T-31): fires on every Enter, in parallel with the /turn call below — not gated on talk being
@@ -812,9 +852,23 @@ async function main() {
     zumi.talk.log({ kind: 'reflex-jev', reaction: r.reaction, source: r.source, decider: r.decider || null, confidence: r.confidence, ms: r.ms, bodyId: picked.bodyId, faceId: picked.faceId, pickMs: +pickMs.toFixed(2) });
     for (const cb of reflexListeners) { try { cb(r); } catch (e) { console.error(e); } }
   };
+  // T-31-MAUS R2: with the "Do a task" switch on, the sentence is a task for agent.start, not a chat turn (Tauri host only; null elsewhere).
+  // R6c D: Zumi's own avatar in the chat panel (a file of our own; a built-in bot's default preset, the user's choice would win).
+  const talkAvatar = $('talk-avatar');
+  if (talkAvatar) talkAvatar.src = avatarUrl(avatarFor('zumi', null)) || '';
+  const agentChat = initAgentChat(zumi, $);
+  initChatSearch(zumi, $); // T-31-MAUS R6c C: search what was said (Tauri host only; absent without the memory API)
+  const attach = initChatAttach($); // T-31-MAUS R6c C: attach an image to the next message (sent for that one request, never kept)
+  // T-31-MAUS R4b voice in: the mic button beside the chat box (Tauri host only; null elsewhere). The words land in #msg.
+  initVoiceIn(zumi, $);
   const onSend = (text) => {
     if (current) runReflexJev(text);
-    if (talk.enabled && current && !talk.muted) { talk.send(text); return; }
+    if (agentChat && agentChat.take(text)) { if (attach && attach.count()) attach.say(t('chat.attach.taskMode')); return; }
+    if (talk.enabled && current && !talk.muted) {
+      // R6f: the pictures travel with the sentence (chat-attach.js sendVia: talk.send(text, pictures), and a failed turn gives them back).
+      if (attach) attach.sendVia(talk, text); else talk.send(text);
+      return;
+    }
     const el = $('heard');
     if (isPublicBuild(info) && current && !talk.enabled) {
       el.textContent = t('app.noKeyReply');
@@ -893,8 +947,13 @@ async function main() {
   let liveFailedGuest = null;
   const liveFailRecovery = createFailLoadRecovery({
     liveOpen: () => zumi.board.liveOpen(),
-    // the 30 s slow retry (gate S-b) asks the host only while this failed guest is on screen; watchLiveBoard resumes it
-    active: () => liveFailedGuest === webview && webviewMode === 'live' && isBoardTabActive() && document.visibilityState === 'visible',
+    // A retry asks the host only while this failed guest is the shown Board tab's live guest; otherwise it parks and the tab
+    // switch or the live watch resumes it. Never gated on the main page's visibility (alpha.9.6: the 9.5 owner smoke's heal-2
+    // parked while the main page read hidden and was not recovered in 30 s; WebView2 can report it hidden while on screen).
+    active: () => liveFailedGuest === webview && webviewMode === 'live' && isBoardTabActive(),
+    // alpha.9.7: while the window is minimised (the host's window:visible, not the page's own visibility) the slow retry backs off to 5 min
+    minimised: () => !windowVisible,
+    clearTimer: (t) => clearTimeout(t),
     rebuild: (r) => {
       if (!liveFailedGuest || liveFailedGuest !== webview || webviewMode !== 'live') return;
       liveFailedGuest = null;
@@ -903,6 +962,8 @@ async function main() {
       openLiveBoard(r);
     },
   });
+  const resumeLiveFailRecovery = () => { if (webview && webview === liveFailedGuest) liveFailRecovery.resume(); };
+  zumi.onWindowVisible((v) => { if (v) resumeLiveFailRecovery(); }); // restored from minimised: the backed-off retry runs at once
   let boardStatus = { mode: 'local', configured: false, locked: false };
   const isBoardTabActive = () => document.querySelector('.tab[data-tab="board"]').classList.contains('active');
   // Owner build (coordinator scope-add 07-10): the local/sample board's own pill never applies, so it is hidden
@@ -1177,9 +1238,10 @@ async function main() {
   // Reload click. Only while the tab is on screen; a call that fails while the sidecar restarts is simply asked again.
   let liveWatching = false;
   async function watchLiveBoard() {
-    if (liveWatching || liveOpening || !isBoardTabActive() || document.visibilityState !== 'visible') return;
+    if (!isBoardTabActive()) return;
+    resumeLiveFailRecovery(); // a retry parked while the tab was hidden; before the guards below (main-page visibility, a stuck host call)
+    if (liveWatching || liveOpening || document.visibilityState !== 'visible') return;
     if (webview ? webviewMode !== 'live' : boardStatus.mode !== 'live') return;
-    if (webview && webview === liveFailedGuest) liveFailRecovery.resume(); // a slow retry parked while the tab was hidden
     liveWatching = true;
     try {
       const wv = webview;
@@ -1199,9 +1261,11 @@ async function main() {
   setInterval(watchLiveBoard, 5000);
   window.addEventListener('zumi:sidecar-ready', watchLiveBoard);
   document.addEventListener('visibilitychange', watchLiveBoard);
-  // One delegated handler, so the tabs web-app packs add later (pack-tabs.js) switch the same way.
+  // One delegated handler, so the tabs web-app packs add later (pack-tabs.js) switch the same way. Only items with data-tab: the next UI's
+  // own sidebar items carry data-next and open their card over the Zumi stage themselves (next/boot.js); caught here too, the click
+  // bubbled after theirs and switched every panel off (no `tab-undefined`), so Brain showed an empty window (T-31-ALPHA11).
   $('sidebar').addEventListener('click', (event) => {
-    const tab = event.target.closest('.tab');
+    const tab = event.target.closest('.tab[data-tab]');
     if (!tab) return;
     {
       for (const el of document.querySelectorAll('.tab')) el.classList.toggle('active', el === tab);
@@ -1209,12 +1273,12 @@ async function main() {
       for (const p of document.querySelectorAll('.panel')) p.classList.toggle('active', p.id === `tab-${name}`);
       stageVisible = name === 'zumi';
       document.dispatchEvent(new CustomEvent('zumi:tab', { detail: name })); // settings.js drops an unapplied PIN-toggle prompt
-      if (name === 'board') { $('board-badge').hidden = true; refreshBoardTab(); }
+      if (name === 'board') { $('board-badge').hidden = true; refreshBoardTab(); resumeLiveFailRecovery(); }
       else if (name === 'zumi') { last = performance.now(); resize(); }
       else if (name === 'settings') { const s = document.querySelector('#tab-settings .settings'); if (s) s.scrollTop = 0; }
     }
   });
-  initPackTabs({ lang: () => document.documentElement.lang || 'en', openZumiTab: () => document.querySelector('.tab[data-tab="zumi"]').click() });
+  initPackTabs({ openZumiTab: () => document.querySelector('.tab[data-tab="zumi"]').click() });
   // Next-version UI (ADR 2026-10-27-next-version-path-flag): __ZUMI_NEXT_UI__ is a build constant (scripts/build-renderer.mjs, default off);
   // off, esbuild drops this line and the build carries no src/renderer/next/**. Runs after the tab handlers above, so it can add its own sidebar item.
   const freeKeyGuide = initFreeKeyGuide({ zumi, $ }); // the Guide panel: three key routes; opened from the first-run card and Settings > AI
@@ -1223,11 +1287,21 @@ async function main() {
   if (__ZUMI_NEXT_UI__) import('./next/boot.js').then((m) => m.initNextUi({ $, engine, info })).catch((e) => console.error('next-ui: init failed', e));
   // Settings > the six inner tabs (T-31 settings P1): one tab bar over one scroll box, arrow keys + last tab remembered.
   initSettingsTabs();
+  // CT-01: the Content tab, owner build only (content.js shows the tab only for app:info.ownerAdmin with the host's content bridge).
+  initContent({ zumi, info });
   // The Marketplace reads the stage's two pickers and switches through them, so "Use" and the picker can never disagree.
   const pickerRows = (select, hidden) => (hidden ? [] : [...select.options].filter((o) => o.value).map((o) => ({ id: o.value, label: o.textContent, selected: o.value === select.value })));
+  // 0.3.5-alpha.9.10 (OSS-02 step 2, owner 17-11): the Board tab is shown only while the Marketplace card "Laneboard" is on. Turning it
+  // off drops the board guest; the board's data stays where it is (the host never touches it).
+  const boardTabButton = document.querySelector('.tab[data-tab="board"]');
+  const setBoardTab = (on) => {
+    boardTabButton.hidden = !on;
+    if (!on) destroyWebview();
+  };
   const market = initMarket({
     zumi,
     openTab: () => document.querySelector('.tab[data-tab="market"]').click(),
+    onBoardTab: setBoardTab,
     pickers: {
       rooms: () => pickerRows($('scene-select'), $('scene-picker').hidden),
       models: () => pickerRows($('model-picker'), false),
@@ -1235,6 +1309,7 @@ async function main() {
       roomsChanged: roomsChangedByPack,
     },
   });
+  if (!market) boardTabButton.hidden = false; // Electron: no Marketplace, no switch; the Board tab stays as it always was
   // T-31-ROOM-slim: a slim install starts with no room. Say where one comes from instead of an empty stage with no word.
   if (market && !info.selftest && (!defaultRoom || defaultRoom === 'none')) {
     roomNote(t('market.start.noRoom'));
@@ -1257,11 +1332,19 @@ async function main() {
   });
   // T-31 alpha.12: Settings > Agent & Soul > Rhythm + the read-only watcher switch (rhythm-card.js; absent without the host API).
   initRhythmCard(zumi, $);
+  initVoiceCard(zumi, $); // T-31-MAUS R4b: Settings > Agent & Soul > Voice in (Tauri host only; hidden without the stt API)
+  initRemindersCard(zumi, $); // T-31-MAUS A2: Settings > Agent & Soul > Reminders (Tauri host only; hidden without the routines API)
   brainCard = initBrainKey(zumi, $);
   // Settings > AI brain saved/cleared the key: chat switches on/off now, no restart (role-models.js refreshes too).
   document.addEventListener('zumi:brain-key-changed', () => { talk.refreshStatus(); });
   initRoomSettings(zumi, $, { onRoomChange: (r) => { roomNote(''); switchRoom(r.selected); }, sceneName: () => { const r = sceneList.rooms.find((x) => x.id === sceneList.selected); return r ? sceneLabel(r) : null; } });
+  // 9.11 light round 2: Settings > Room > Brightness in EV, per room: the 3D room is the stage pack, its id is the room id (Tauri only; hidden without the host API or the pack).
+  // Room 2 is the same pack (room3d.js): the slider edits the picked room (roomEvKey) and follows a Room 1 / Room 2 switch.
+  const evRoomChoice = createRoomChoice({ getItem: (k) => window.localStorage.getItem(k), setItem: (k, v) => window.localStorage.setItem(k, v), removeItem: (k) => window.localStorage.removeItem(k) });
+  const roomEvCtl = initRoomEv(zumi, $, { roomId: async () => { try { const rows = tauriCore && typeof tauriCore.invoke === 'function' ? await tauriCore.invoke('pack_list') : []; const r = (Array.isArray(rows) ? rows : []).find((x) => x && x.stage === true); return r ? roomEvKey(r.id, evRoomChoice.get()) : null; } catch { return null; } } });
+  if (roomEvCtl) document.addEventListener('zumi:room-choice', () => { roomEvCtl.reload(); });
   initPhoneCard(zumi, $); // T-31-MOBILE M3: Settings > App > Phone (Tauri owner build only; hidden elsewhere)
+  initMemorySettings(zumi, $); // T-31-MAUS R6c C: Settings > App > Advanced > Memory switch (Tauri only; hidden without the memory API)
   const roleModels = initRoleModels(zumi, $);
   if (roleModels) roleModels.refresh();
   // Owner build only: the lane models (Plan/Code/Review/Scout per task) live on the Board tab, never in this card.

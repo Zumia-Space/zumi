@@ -126,7 +126,7 @@ function stubScript() {
     };
     if (!cfg.noOpenRef) board.openRef = async (ref) => { window.__calls.open.push(JSON.parse(JSON.stringify(ref))); return cfg.open || { opened: true }; };
     const boardProxy = new Proxy(board, { get: (t, k) => (k in t ? t[k] : (k === 'then' || k === 'media' || k === 'openRef' || k === 'state' ? undefined : deep())) });
-    const withFallback = (o) => new Proxy(o, { get: (t, k) => (k in t ? t[k] : (k === 'then' || k === 'memory' ? undefined : deep())) });
+    const withFallback = (o) => new Proxy(o, { get: (t, k) => (k in t ? t[k] : (k === 'then' || k === 'memory' || k === 'stt' ? undefined : deep())) });
     const base = { info: async () => info, listModels: async () => ({ models: [], selected: null }), listClips: async () => [],
       rooms: withFallback({ list: async () => ({ rooms: [], geometry: null }) }), scenes: withFallback({ list: async () => ({ rooms: [], geometry: null, selected: null }) }),
       chairs: withFallback({ list: async () => ({ chairs: [], selected: null }) }), wardrobe: withFallback({ canUndo: async () => false }), ui: withFallback({ getLang: async () => 'en', setLang: async () => {} }),

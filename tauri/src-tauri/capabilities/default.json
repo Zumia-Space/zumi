@@ -6,6 +6,8 @@
   "permissions": [
     "core:default",
     "allow-rpc",
+    "allow-agent-accept-pack",
+    "allow-pack-op",
     "allow-guest-open",
     "allow-guest-navigate",
     "allow-guest-bounds",

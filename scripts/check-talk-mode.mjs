@@ -409,10 +409,12 @@ const step = (title = 'Task', s = 'Step', outcome = 'done') => ({ title, step: s
     'step.done.plain', 'welcome.none', 'welcome.some',
     // T-31 alpha.12 (PLAN-ZUMI-WATCH): watcher findings, the W6 check-in variants and the soul-change line.
     'watch.W1', 'watch.W3b', 'watch.W4', 'watch.many', 'watch.generic', 'checkin.review', 'checkin.reviewOnly', 'event.soul',
+    // T-31-MAUS A2: a reminder the user set in the form.
+    'reminder.say', 'reminder.generic',
   ].sort();
   ok(JSON.stringify(enKeys) === JSON.stringify(EXPECTED_KEYS), 'pool: the table is exactly the plan 3.2 key set + check-ins + alpha.12 watch/soul', enKeys);
   ok(JSON.stringify([...LINE_KEYS].sort()) === JSON.stringify(EXPECTED_KEYS), 'pool: LINE_KEYS exposes the same explicit key set');
-  ok(KINDS.join(',') === 'ask,step,progress,morning,welcome,checkin,event,idle,watch', 'pool: KINDS is the scheduler vocabulary (+ watch, alpha.12)', KINDS);
+  ok(KINDS.join(',') === 'ask,step,progress,morning,welcome,checkin,event,idle,watch,reminder', 'pool: KINDS is the scheduler vocabulary (+ watch alpha.12, + reminder A2)', KINDS);
   ok(linePoolShape(data.en) && linePoolShape(data.vi), 'pool: every entry has a plain string text and a valid mood');
   ok(MOODS['event.look'] === 'greet' && MOODS['step.blocked'] === 'think' && MOODS['ask.step'] === 'point-screen' && MOODS['checkin.some'] === 'greet', 'pool: moods are pinned to the plan (not just self-compared)', MOODS);
   const emptyProgress = renderLine('progress', {}, 'en');
@@ -627,6 +629,61 @@ const step = (title = 'Task', s = 'Step', outcome = 'done') => ({ title, step: s
   // P5 never uses the reply path's voice gate: a subtitle-only line while muted
   const mutedPoke = make({ level: 'normal' }); mutedPoke.sched.mute(null); mutedPoke.sched.enqueue('event', { event: 'poke' });
   ok(mutedPoke.emitted.length === 0, 'P5: muted -> an app-event line is dropped (only a P1 ask survives a mute, as a subtitle)');
+}
+
+// ---------- A2. reminders the user set (kind 'reminder') ----------
+{
+  const text = 'drink some water';
+  // The user asked for it: it speaks at once, past the gap, the cap, an away user, a typing user and a hidden window.
+  const gapped = make({ level: 'normal' });
+  gapped.sched.enqueue('event', { event: 'poke' }); // takes the 3-minute gap
+  const spoke = gapped.sched.enqueue('reminder', { text });
+  ok(spoke.action === 'speak' && gapped.emitted.length === 2 && gapped.emitted[1].voice === true && gapped.emitted[1].text === `Reminder. ${text}`, 'A2: a reminder speaks inside the chatter gap, with its text', { spoke, out: gapped.emitted.map((e) => e.text) });
+  const away = make({ level: 'normal', idle: 600, visible: false }); away.sched.enqueue('reminder', { text });
+  ok(away.emitted.length === 1 && away.emitted[0].voice === true, 'A2: an away user with a hidden window still hears a reminder');
+  const typing = make({ level: 'normal', idle: 0 }); typing.sched.enqueue('reminder', { text });
+  ok(typing.emitted.length === 1 && typing.emitted[0].voice === true, 'A2: a typing user still hears a reminder (no hold)');
+  const capped = make({ level: 'quiet' });
+  const results = []; for (let i = 0; i < 20; i++) results.push(capped.sched.enqueue('reminder', { text: `r${i}` }).action);
+  ok(results.every((a) => a === 'speak') && capped.emitted.length === 20, 'A2: twenty reminders at Quiet all speak (no gap, no cap)', results);
+  // Level off and mute: shown, never spoken, never dropped.
+  const off = make({ level: 'off' }); const offR = off.sched.enqueue('reminder', { text });
+  ok(offR.action === 'subtitle' && off.emitted.length === 1 && off.emitted[0].voice === false && off.emitted[0].show === `Reminder. ${text}`, 'A2: level off shows a reminder as a subtitle, silent', { offR });
+  const muted = make({ level: 'normal' }); muted.sched.mute(null); const mutedR = muted.sched.enqueue('reminder', { text });
+  ok(mutedR.action === 'subtitle' && muted.emitted.length === 1 && muted.emitted[0].voice === false, 'A2: a muted stage shows a reminder as a subtitle, silent', { mutedR });
+  // Quiet hours are zumi-routines' job (it holds the reminder until they end); this path never second-guesses it.
+  const q = make({ level: 'normal', quietOn: true, t: new Date(2026, 10, 11, 23, 0, 0).getTime() }); const qR = q.sched.enqueue('reminder', { text });
+  ok(qR.action === 'speak', 'A2: the scheduler does not re-check quiet hours for a reminder (the routines runner owns that rule)', { qR });
+  // Text rules: the line renderer strips urls and caps at 80; an empty text is the generic line; VI text on the EN voice is shown, not spoken.
+  const long = make({ level: 'normal' }); long.sched.enqueue('reminder', { text: 'x'.repeat(300) });
+  ok(long.emitted[0].show.length <= 90, 'A2: a long reminder is capped by the 90-character speech cap', long.emitted[0].show.length);
+  const empty = make({ level: 'normal' }); empty.sched.enqueue('reminder', { text: '   ' });
+  ok(empty.emitted[0].text === 'You asked me to remind you of something.', 'A2: an empty text speaks the generic line', empty.emitted[0].text);
+  const url = make({ level: 'normal' }); url.sched.enqueue('reminder', { text: 'open https://evil.example/x now' });
+  ok(!/https?:|evil\.example/.test(url.emitted[0].text), 'A2: a url in the text is not spoken', url.emitted[0].text);
+  const vi = make({ level: 'normal', lang: 'en' }); vi.sched.enqueue('reminder', { text: 'uống nước đi anh' });
+  ok(vi.emitted[0].text === 'You asked me to remind you of something.' && vi.emitted[0].show.includes('uống nước'), 'A2: Vietnamese text on the EN voice is shown in full but spoken as the generic line', vi.emitted[0]);
+  const vi2 = make({ level: 'normal', lang: 'vi' }); vi2.sched.enqueue('reminder', { text: 'uống nước đi anh' });
+  ok(vi2.emitted[0].text.includes('uống nước đi anh'), 'A2: Vietnamese text on the VI voice is spoken in full', vi2.emitted[0].text);
+  // The renderer's ack closes the line like any other (said.jsonl gets it).
+  const ackH = make({ level: 'normal' }); ackH.sched.enqueue('reminder', { text });
+  ok(ackH.sched.ack(ackH.emitted[0].sayId, { spoken: true }).action === 'done', 'A2: the renderer ack closes a reminder line');
+  // A reply is speaking: the renderer answers busy. A reminder is not dropped like chatter; the next ticks re-issue it, and it is
+  // spoken once the voice is free. After 30 busy answers it is shown as a subtitle, never lost.
+  const busy = make({ level: 'normal' }); busy.sched.enqueue('reminder', { text });
+  ok(busy.sched.ack(busy.emitted[0].sayId, { spoken: false, reason: 'busy' }).action === 'hold', 'A2: a reminder acked busy is held for a retry, not dropped');
+  busy.state.t += 1000; busy.sched.tick();
+  ok(busy.emitted.length === 2 && busy.emitted[1].voice === true && busy.emitted[1].text === `Reminder. ${text}`, 'A2: the next tick re-issues a busy reminder', busy.emitted.length);
+  ok(busy.sched.ack(busy.emitted[1].sayId, { spoken: true }).action === 'done', 'A2: the retried reminder closes when it is spoken');
+  busy.state.t += 1000; busy.sched.tick();
+  ok(busy.emitted.length === 2, 'A2: a spoken reminder is not re-issued again');
+  const stuck = make({ level: 'normal' }); stuck.sched.enqueue('reminder', { text });
+  let guard = 0;
+  while (stuck.emitted.at(-1).voice === true && guard++ < 100) { stuck.sched.ack(stuck.emitted.at(-1).sayId, { spoken: false, reason: 'busy' }); stuck.state.t += 1000; stuck.sched.tick(); }
+  ok(stuck.emitted.at(-1).voice === false && stuck.emitted.at(-1).show === `Reminder. ${text}` && stuck.emitted.length === 31, 'A2: after 30 busy answers the reminder is shown as a subtitle (never lost)', { n: stuck.emitted.length, last: stuck.emitted.at(-1) });
+  // A reminder does not open the gap for nothing: the next chatter line still waits for its own gap after it.
+  const after = make({ level: 'normal' }); after.sched.enqueue('reminder', { text }); const next = after.sched.enqueue('event', { event: 'pat' });
+  ok(next.action === 'drop' && next.reason === 'gap', 'A2: ordinary chatter right after a reminder waits out the gap (it does not talk over it)', next);
 }
 
 function linePoolShape(table) {

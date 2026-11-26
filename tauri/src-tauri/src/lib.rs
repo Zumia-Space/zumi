@@ -32,11 +32,14 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
 
+mod agent_host;
+pub mod agent_wiring;
 mod asset_route;
 mod board_open;
 mod data_dir_notice;
 mod dialog_ops;
 mod events;
+mod gpu_adapter;
 mod guest;
 mod guest_cdp;
 mod guest_guard;
@@ -46,11 +49,20 @@ mod node_runtime;
 mod open_path;
 mod os_signals;
 mod pack_host;
+mod pack_controls;
+mod stage_bridge;
 #[cfg(test)]
 mod pack_host_tests;
+#[cfg(test)]
+mod pack_host_stage_tests;
+#[cfg(test)]
+mod stage_tests;
 mod phone_pair;
+mod process_hardening;
+mod routines_host;
 mod rpc_allow_list;
 mod shell_ops;
+mod stt_host;
 #[cfg(windows)]
 mod single_instance;
 mod updater;
@@ -75,6 +87,21 @@ const TALK_TURN_TIMEOUT: Duration = Duration::from_secs(60);
 /// `talk.tts` may wait for the Kokoro load (voice-host.mjs VOICE_LOAD_WAIT_MS = 60 s, then an explicit retryable
 /// `kokoro_loading`); 70 s = that cap + a 10 s margin so the host never cuts the wait before the sidecar answers.
 const TALK_TTS_TIMEOUT: Duration = Duration::from_secs(70);
+
+/// The sidecar methods that call a paid model and write the usage ledger, so the monthly budget holds them before the sidecar: the plain chat
+/// turn and (R7 item 0, gate R6b should-fix 1) the reflex classifier. The agent task is held in its own loop; every other method is not.
+fn cap_held_method(method: &str) -> bool {
+    matches!(method, "talk.turn" | "reflexJev.classify")
+}
+
+/// R6b S1: a reply the host gives for a sidecar method without calling the sidecar (see `cap_held_method`).
+fn host_stops_before_sidecar(method: &str, chat_turn_gate: &dyn Fn() -> Option<Value>) -> Option<Value> {
+    if cap_held_method(method) {
+        chat_turn_gate()
+    } else {
+        None
+    }
+}
 
 /// The host-side bound for one sidecar call: talk.turn (TALK_TURN_TIMEOUT) and talk.tts (TALK_TTS_TIMEOUT) are the long ones.
 fn method_timeout(method: &str) -> Duration {
@@ -148,6 +175,9 @@ struct Inner {
     ready_since: Mutex<Option<Instant>>,
 }
 
+/// How often a waiting call looks at its cancel flag.
+const CANCEL_POLL: Duration = Duration::from_millis(20);
+
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
 /// The sidecar client. Cheap to clone (an Arc); stored as Tauri managed state and also handed to the
@@ -186,6 +216,12 @@ impl Rpc {
     /// Send one JSON-RPC request and block for its response. Blocking is deliberate: the `rpc`
     /// command runs this on a blocking worker via `spawn_blocking`, never on the UI thread.
     fn call(&self, method: &str, args: Vec<Value>, timeout: Duration) -> Result<Value, String> {
+        self.call_cancellable(method, args, timeout, &|| false)
+    }
+
+    /// `call`, but it gives up (`cancelled:<method>`) within one slice of `cancelled()` turning true and forgets its waiter:
+    /// the chat's Stop must not wait out a slow sidecar answer (GATE-OPUS-R2 should-fix 3).
+    pub(crate) fn call_cancellable(&self, method: &str, args: Vec<Value>, timeout: Duration, cancelled: &dyn Fn() -> bool) -> Result<Value, String> {
         let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = mpsc::channel::<Result<Value, String>>();
         {
@@ -213,14 +249,27 @@ impl Rpc {
             return Err(err);
         }
 
-        match rx.recv_timeout(timeout) {
-            Ok(result) => result,
-            Err(mpsc::RecvTimeoutError::Timeout) => {
-                self.0.pending.lock().unwrap().waiters.remove(&id);
-                Err(format!("sidecar_timeout:{method}"))
+        let end = Instant::now() + timeout;
+        loop {
+            let left = end.saturating_duration_since(Instant::now());
+            match rx.recv_timeout(left.min(CANCEL_POLL)) {
+                Ok(result) => return result,
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    let gave_up = if cancelled() {
+                        Some(format!("cancelled:{method}"))
+                    } else if left <= CANCEL_POLL {
+                        Some(format!("sidecar_timeout:{method}"))
+                    } else {
+                        None
+                    };
+                    if let Some(why) = gave_up {
+                        self.0.pending.lock().unwrap().waiters.remove(&id);
+                        return Err(why);
+                    }
+                }
+                // Sender dropped = the sidecar died before answering (the reader failed all pending).
+                Err(mpsc::RecvTimeoutError::Disconnected) => return Err(format!("sidecar_gone:{method}")),
             }
-            // Sender dropped = the sidecar died before answering (the reader failed all pending).
-            Err(mpsc::RecvTimeoutError::Disconnected) => Err(format!("sidecar_gone:{method}")),
         }
     }
 
@@ -630,6 +679,7 @@ fn spawn_sidecar_at(app: &AppHandle, rpc: &Rpc, data_dir: Option<&std::path::Pat
     // Node 24 cannot load a verbatim (`\\?\`) path: the same path goes to it in plain form (host_path.rs).
     let script = host_path::node_path(&sidecar_script(app)?);
     let self_test = app.state::<guest_cdp::SelfTest>();
+    let probe_override = data_dir.is_some();
     let data_dir = match data_dir {
         Some(dir) => dir.to_path_buf(),
         None => {
@@ -638,6 +688,15 @@ fn spawn_sidecar_at(app: &AppHandle, rpc: &Rpc, data_dir: Option<&std::path::Pat
         }
     };
     std::fs::create_dir_all(&data_dir).map_err(|e| format!("data_dir_create_failed:{e}"))?;
+    // T-31-MAUS A2: the reminders runner starts once per process, beside the first sidecar of a real launch (the headless
+    // probe passes a data dir override and must start nothing).
+    if !probe_override {
+        routines_host::ensure_started(app, rpc, &data_dir);
+        // T-31-MAUS R2: the chat-run registry, beside the runner (same data dir, same once-per-process rule).
+        agent_host::ensure_started(app, rpc, &data_dir);
+        // T-31-MAUS R4b: voice in (hotkey, dictation, settings), same data dir and once-per-process rule.
+        stt_host::ensure_started(app, &data_dir);
+    }
 
     let mut cmd = Command::new(host_path::node_path(&node_exe(app).map_err(|e| e.to_string())?));
     cmd.arg(&script)
@@ -1189,6 +1248,8 @@ fn app_open_target(method: &str) -> Option<&'static str> {
         "talk.openSource" => Some("__host.citedUrlVerdict"),
         "talk.openGuide" => Some("__host.voiceGuideVerdict"),
         "links.open" => Some("__host.linkVerdict"),
+        // CT-01: the Content tab's compose link (owner flavour; a public sidecar has no verdict method, so nothing opens).
+        "content.openCompose" => Some("__host.contentComposeVerdict"),
         _ => None,
     }
 }
@@ -1265,6 +1326,32 @@ fn renderer_method_allowed(method: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// HB-2: shows the host's native warning for the Explorer pack and records the person's answer. The main webview may ask for
+/// the dialog; it cannot click it, and no rpc method, tool or sidecar call reaches this function.
+#[tauri::command]
+async fn agent_accept_pack(caller: tauri::Webview, app: tauri::AppHandle) -> Result<bool, String> {
+    if !guest::is_main(&caller) {
+        return Err("not_main_webview".to_string());
+    }
+    let data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?.with_file_name("zumi-hands.exe");
+    tauri::async_runtime::spawn_blocking(move || agent_wiring::accept_explorer_pack(&data, &exe)).await.map_err(|e| format!("accept_task_failed:{e}"))?
+}
+
+/// R7 K0a: the pack controls (turn on through the native consent window, turn off, kill, remove, list). Main webview only; not an rpc
+/// method, so the sidecar, the model and a helper cannot reach it. The page can ask for the window; it cannot click it.
+#[tauri::command]
+async fn pack_op(caller: tauri::Webview, app: tauri::AppHandle, op: String, id: Option<String>) -> Result<Value, String> {
+    if !guest::is_main(&caller) {
+        return Err("not_main_webview".to_string());
+    }
+    let data = app.state::<guest_cdp::SelfTest>().data_dir_or(app.path().app_data_dir().ok().as_deref()).ok_or("no_data_dir")?;
+    // R7b M1: the app's own folders, besides the data dir, that no pack scope may ever reach (install folder, local data, config, resources).
+    let mut app_dirs: Vec<std::path::PathBuf> = [app.path().app_local_data_dir().ok(), app.path().app_config_dir().ok(), app.path().resource_dir().ok()].into_iter().flatten().collect();
+    app_dirs.extend(std::env::current_exe().ok().and_then(|e| e.parent().map(std::path::Path::to_path_buf)));
+    tauri::async_runtime::spawn_blocking(move || pack_controls::serve(pack_controls::packs(&data, &app_dirs)?, &op, id.as_deref())).await.map_err(|e| format!("pack_task_failed:{e}"))?
+}
+
 /// The single bridge command. The shim sends the public API name as `method` and its declared
 /// arguments as `args`; the sidecar either answers, or rejects with `not_implemented:<method>`.
 /// Only the main webview may call it (defence in depth on top of the ACL in capabilities/default.json).
@@ -1304,6 +1391,40 @@ async fn rpc(
     // verified by scripts/check-tauri-allowlist.mjs). Anything else (including every removed wardrobe name) is
     // refused up front, before any sidecar call.
     renderer_method_allowed(&method)?;
+    // Room live B (ADR D2): the director's reply drives the 3D room through the stage producer, numbers and enums only.
+    if method == "stage.produce" {
+        let args = args.unwrap_or_default();
+        let (Some(op), Some(payload)) = (args.first().and_then(Value::as_str), args.get(1)) else { return Err("stage_invalid:args".to_string()) };
+        let packs = caller.app_handle().state::<pack_host::PackState>();
+        return packs.stage.produce(op, payload, packs.stage.now());
+    }
+    // T-31-MAUS A2 reminders: the host answers `routines.*` from the zumi-routines crate; no sidecar call, so the form works
+    // while the sidecar is still starting.
+    if routines_host::is_method(&method) {
+        let app = caller.app_handle().clone();
+        let args = args.unwrap_or_default();
+        return tauri::async_runtime::spawn_blocking(move || routines_host::serve(&app, &method, &args))
+            .await
+            .map_err(|e| format!("rpc_task_failed:{e}"))?;
+    }
+    // T-31-MAUS R2: the host answers `agent.start|stop|status|confirm` from the zumi-agent-loop registry; no sidecar call, so Stop
+    // works while the sidecar is busy with a model turn.
+    if agent_host::is_method(&method) {
+        let app = caller.app_handle().clone();
+        let args = args.unwrap_or_default();
+        return tauri::async_runtime::spawn_blocking(move || agent_host::serve(&app, &method, &args))
+            .await
+            .map_err(|e| format!("rpc_task_failed:{e}"))?;
+    }
+    // T-31-MAUS R4b: the host answers `stt.state|set|ptt|audio` from the zumi-stt crate; no sidecar call. Only this command serves them, and it
+    // refuses every webview but the main one, so the settings are the owner's screen only (never the model, the sidecar or the hands).
+    if stt_host::is_method(&method) {
+        let app = caller.app_handle().clone();
+        let args = args.unwrap_or_default();
+        return tauri::async_runtime::spawn_blocking(move || stt_host::serve(&app, &method, &args))
+            .await
+            .map_err(|e| format!("rpc_task_failed:{e}"))?;
+    }
     // The public build's updater answers `update.*` itself. In an owner or self-test launch it is off, so these fall through to the
     // sidecar's feed-less stubs.
     if let Some(op) = updater::Op::from_method(&method) {
@@ -1358,6 +1479,17 @@ async fn rpc(
         })
         .await
         .map_err(|e| format!("rpc_task_failed:{e}"))?;
+    }
+    // R6b S1 + R7 item 0: the monthly budget holds the plain chat turn and the reflex classifier too, before the sidecar reads the board or
+    // calls a model. Reads two small files. The renderer ignores a reflex reply without `ms`, so a stopped reflex is silent there.
+    if cap_held_method(&method) {
+        let (gate_app, method) = (caller.app_handle().clone(), method.clone());
+        let stopped = tauri::async_runtime::spawn_blocking(move || host_stops_before_sidecar(&method, &|| agent_host::chat_turn_stop(&gate_app)))
+            .await
+            .map_err(|e| format!("rpc_task_failed:{e}"))?;
+        if let Some(stop) = stopped {
+            return Ok(stop);
+        }
     }
     let timeout = method_timeout(&method);
     let args = args.unwrap_or_default();
@@ -1485,6 +1617,7 @@ fn app_context() -> tauri::Context {
 ///
 /// Exit 0 only when the sidecar completes the protocol-1 handshake and answers `info`.
 pub fn probe_sidecar_spawn(data_dir_override: Option<&std::path::Path>) -> i32 {
+    process_hardening::harden();
     let app = match tauri::Builder::default()
         .manage(Rpc::new())
         // The probe is a normal (non-self-test) launch: manage the default mode so spawn_sidecar_at can read it.
@@ -1545,6 +1678,7 @@ pub fn probe_sidecar_spawn(data_dir_override: Option<&std::path::Path>) -> i32 {
 /// Build and run the preview app. Identical entry point to the binary.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    process_hardening::harden();
     let client = Rpc::new();
     let setup_client = client.clone();
     // Parity 12-2 (GATE-ANSWER Q5): the self-test mode is read from the ARGV once, here, and then only read. Nothing in
@@ -1570,6 +1704,8 @@ pub fn run() {
     // `--pack-links-dry` makes links.open log instead of opening the OS browser (test runs). Read once, here.
     let pack_dir_arg = argv.windows(2).find(|w| w[0] == "--pack-dir").map(|w| PathBuf::from(&w[1]));
     let pack_links_dry = argv.iter().any(|a| a == "--pack-links-dry");
+    // Room live B: `--stage-test-hook` queues one scripted utterance for a stage pack when its guest says ready (a test aid).
+    let stage_test_hook = argv.iter().any(|a| a == "--stage-test-hook");
 
     tauri::Builder::default()
         .manage(client)
@@ -1578,6 +1714,9 @@ pub fn run() {
         .manage(dialog_ops::SingleFlight::default())
         .manage(phone_pair::QrState::default())
         .manage(os_signals::OsSignals::default())
+        .manage(routines_host::State::default())
+        .manage(agent_host::State::default())
+        .manage(stt_host::State::default())
         .manage(guest_cdp::RunWatchdog::default())
         .manage(updater::State::default())
         .manage(pack_host::PackState::default())
@@ -1614,6 +1753,8 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             rpc,
+            agent_accept_pack,
+            pack_op,
             guest::guest_open,
             guest::guest_navigate,
             guest::guest_bounds,
@@ -1637,15 +1778,32 @@ pub fn run() {
                 let packs = app.state::<pack_host::PackState>();
                 *packs.data_dir.lock().unwrap() = self_test.data_dir_or(app.path().app_data_dir().ok().as_deref());
                 packs.links_dry.store(pack_links_dry, Ordering::SeqCst);
-                if let Some(dir) = &pack_dir_arg {
-                    if host_owner(flavour.as_ref()) && pack_host::plain_dir(dir) {
-                        *packs.dev_dir.lock().unwrap() = Some(dir.clone());
-                        eprintln!("pack: dev folder on (owner flavour)");
-                    } else {
-                        eprintln!("pack: --pack-dir ignored (owner flavour and an absolute folder only)");
+                packs.stage.set_data_dir(packs.data_dir.lock().unwrap().clone());
+                packs.stage.set_test_hook(stage_test_hook);
+                let owner_build = host_owner(flavour.as_ref());
+                if pack_dir_arg.is_some() {
+                    match pack_host::pack_dir_decision(owner_build, pack_dir_arg.as_deref()) {
+                        pack_host::PackDirDecision::Use(dir) => {
+                            *packs.dev_dir.lock().unwrap() = Some(dir);
+                            eprintln!("pack: dev folder on (owner flavour)");
+                        }
+                        pack_host::PackDirDecision::Refused(code) => {
+                            pack_host::log_line(packs.data_dir.lock().unwrap().as_deref(), &format!("refused {code} (--pack-dir ignored: owner flavour and an absolute folder only)"));
+                        }
+                        pack_host::PackDirDecision::Absent => {}
+                    }
+                } else if owner_build {
+                    // The owner installer carries the Room pack beside the exe: load it like the dev folder, so a clean install and an
+                    // upgrade both show the Phòng tab (it also wins over an older store-installed copy). Files are still re-hashed.
+                    if let Some(dir) = flavour.as_ref().and_then(|(_, exe_dir)| pack_host::bundled_pack_dir(exe_dir)) {
+                        *packs.dev_dir.lock().unwrap() = Some(dir);
+                        packs.bundled.store(true, Ordering::SeqCst);
+                        eprintln!("pack: bundled room pack on (owner flavour)");
                     }
                 }
             }
+            // Room live B: the stage watchdog clock (F1). Idle until a stage pack's guest is opened.
+            stage_bridge::start_watchdog(handle.clone());
             // A stranger's build: one app per data folder. Before the sidecar, so a second launch starts nothing and asks nothing.
             #[cfg(windows)]
             if !flavour_file && !self_test.enabled() {
@@ -1809,6 +1967,25 @@ mod tests {
     }
 
     #[test]
+    fn r6b_only_the_chat_turn_is_held_by_the_monthly_budget_before_the_sidecar() {
+        let stop = json!({ "ok": false, "error": { "code": "budget_month", "message": "monthly budget 5.00 USD", "retryable": false } });
+        let gate = || Some(stop.clone());
+        assert_eq!(host_stops_before_sidecar("talk.turn", &gate), Some(stop.clone()), "the chat turn gets the stop");
+        // R7 item 0 (gate R6b should-fix 1): the reflex classifier is a paid model call that writes the ledger, so the cap holds it too.
+        assert_eq!(host_stops_before_sidecar("reflexJev.classify", &gate), Some(stop.clone()), "the reflex classifier gets the stop");
+        assert_eq!(host_stops_before_sidecar("reflexJev.classify", &|| None), None, "inside the cap the reflex goes on");
+        for other in ["talk.status", "talk.tts", "talk.gesture", "ai.status", "memory.add", "agent.start", "reflexJev.other", ""] {
+            assert_eq!(host_stops_before_sidecar(other, &gate), None, "{other:?} is not held");
+        }
+        assert_eq!(host_stops_before_sidecar("talk.turn", &|| None), None, "inside the cap the turn goes on");
+        // the rpc command must ask it before calling the sidecar
+        let src = include_str!("lib.rs");
+        let (ask, call) = (src.find("host_stops_before_sidecar(&method"), src.find("client.call(&method, args, timeout)"));
+        assert!(ask.is_some() && call.is_some() && ask < call, "the rpc command asks the gate before it calls the sidecar");
+        assert!(src.contains("if cap_held_method(&method) {"), "the rpc command runs the gate for every cap-held method, not only talk.turn");
+    }
+
+    #[test]
     fn only_the_talk_methods_get_a_long_timeout() {
         assert_eq!(method_timeout("talk.turn"), TALK_TURN_TIMEOUT);
         assert_eq!(method_timeout("talk.tts"), TALK_TTS_TIMEOUT);
@@ -1833,7 +2010,8 @@ mod tests {
         assert_eq!(app_open_target("talk.openSource"), Some("__host.citedUrlVerdict"));
         assert_eq!(app_open_target("talk.openGuide"), Some("__host.voiceGuideVerdict"));
         assert_eq!(app_open_target("links.open"), Some("__host.linkVerdict"));
-        for other in ["board.liveOpen", "__host.aiKeyPageVerdict", "ai.openKeyPage ", "ai.setProvider", "talk.openGuide ", "links.list", "__host.linkVerdict", ""] {
+        assert_eq!(app_open_target("content.openCompose"), Some("__host.contentComposeVerdict"));
+        for other in ["board.liveOpen", "__host.aiKeyPageVerdict", "ai.openKeyPage ", "ai.setProvider", "talk.openGuide ", "links.list", "__host.linkVerdict", "content.week", "__host.contentComposeVerdict", ""] {
             assert!(app_open_target(other).is_none(), "{other:?} must not be intercepted");
         }
         for m in ["ai.openKeyPage", "talk.openSource", "talk.openGuide", "links.open"] {
@@ -2011,6 +2189,42 @@ mod tests {
         rpc.0.pending.lock().unwrap().starting = false; // what the provisioning thread does when it ends (failure)
         let err = rpc.call("ui.getLang", vec![], Duration::from_millis(10)).unwrap_err();
         assert_eq!(err, "sidecar_not_running");
+    }
+
+    /// GATE-OPUS-R2 should-fix 3: a call the user cancels does not wait out its timeout, and leaves no waiter behind.
+    #[test]
+    fn a_cancelled_call_returns_within_a_slice_and_forgets_its_waiter() {
+        // A sidecar stand-in that reads its stdin and never answers.
+        let mut child = std::process::Command::new(r"C:\Windows\System32\findstr.exe")
+            .arg("x")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let rpc = Rpc::new();
+        *rpc.0.stdin.lock().unwrap() = child.stdin.take();
+        {
+            let mut p = rpc.0.pending.lock().unwrap();
+            p.conn = true;
+            p.ready = true;
+        }
+        let stop = Arc::new(AtomicBool::new(false));
+        let s2 = stop.clone();
+        let flipper = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(100));
+            s2.store(true, Ordering::SeqCst);
+        });
+        let t = Instant::now();
+        let r = rpc.call_cancellable("talk.status", vec![], Duration::from_secs(4), &|| stop.load(Ordering::SeqCst));
+        let took = t.elapsed();
+        flipper.join().unwrap();
+        assert_eq!(r.unwrap_err(), "cancelled:talk.status");
+        assert!(took < Duration::from_millis(600), "waited {took:?}: the cancel was not seen");
+        assert!(rpc.0.pending.lock().unwrap().waiters.is_empty(), "the abandoned request leaves no waiter");
+        // Twin: never cancelled and never answered = the ordinary timeout.
+        let r = rpc.call_cancellable("talk.status", vec![], Duration::from_millis(150), &|| false);
+        assert_eq!(r.unwrap_err(), "sidecar_timeout:talk.status");
+        let _ = child.kill();
     }
 
     #[test]
@@ -2206,6 +2420,21 @@ mod tests {
         let base = json!({ "jsonrpc": "2.0", "id": 1, "method": "gcache.save", "params": [""] });
         let overhead = serde_json::to_vec(&base).unwrap().len();
         json!({ "jsonrpc": "2.0", "id": 1, "method": "gcache.save", "params": ["x".repeat(len - overhead)] })
+    }
+
+    /// R6e: a chat turn with attached pictures, as the renderer builds it. Each picture is held to 600,000 base64 characters before it is
+    /// attached (src/renderer/image-fit.js), so four of them, a long message and six long history lines fit; an unshrunk 5 MB photo
+    /// (6,990,508 characters) is what the host refused.
+    fn talk_turn_with_images(image_chars: usize, images: usize) -> Value {
+        let history: Vec<Value> = (0..6).map(|i| json!({ "role": if i % 2 == 0 { "user" } else { "assistant" }, "text": "x".repeat(20_000) })).collect();
+        let pictures: Vec<Value> = (0..images).map(|_| json!({ "mime": "image/jpeg", "data": "A".repeat(image_chars) })).collect();
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "talk.turn", "params": [{ "turnId": "a".repeat(32), "message": "What is in these pictures? ".repeat(80), "history": history, "images": pictures }] })
+    }
+
+    #[test]
+    fn a_chat_turn_with_four_fitted_pictures_encodes_and_an_unshrunk_photo_is_refused() {
+        assert!(encode_frame(&talk_turn_with_images(600_000, 4)).is_ok(), "four pictures at the per-picture cap");
+        assert_eq!(encode_frame(&talk_turn_with_images(6_990_508, 1)).unwrap_err(), "sidecar_request_too_large", "one 5 MB photo as it was");
     }
 
     #[test]

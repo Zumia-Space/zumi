@@ -95,10 +95,10 @@ module.exports = {
   // also absent from the release build. Same idea for the Jev fast-reflex egress allowlist: only this internal build
   // may reach openrouter.ai, and only after the operator imports a key (jev-key.import, see src/main/reflex-jev.js).
   // `zumiOwnerAdmin: true` (T-31 owner-admin + usage, Fable ruling 05-10, anh)
-  // is this build's own flag: the owner's internal build is the one he actually runs, so it is the one build where
-  // the chat daily cap is OFF. A future separate user-facing build keeps the cap (no such field => unchanged).
+  // is this build's own flag: the owner's internal build is the one he actually runs, so it is the one build with the
+  // owner-only extras (main.js OWNER_ADMIN). There is no chat daily cap on any build since owner 12-11.
   // Release package.json has none of these fields.
-  // No `zumiDisabledViews` any more: the Work-view-off interim (CoS/Pi HOLD 07-10, "work view OFF" until the chair
+  // No `zumiDisabledViews` any more: the Work-view-off interim (CoS HOLD 07-10, "work view OFF" until the chair
   // passed) ended when CoS QC passed the chair on 09-10, so this build has all three views like the release build.
   // The mechanism stays in main.js (DISABLED_VIEWS) / the renderer for a later build that needs it.
   // `zumiBoardMirror: 'http://127.0.0.1:3100'` (T-31 board-aware, coordinator follow-up 07-10): the owner's own

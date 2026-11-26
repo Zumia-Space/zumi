@@ -15,6 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { ownerPath } from './lib/owner-paths.mjs';
+import { notRun } from './lib/check-outcome.cjs';
 
 const require = createRequire(import.meta.url);
 const precond = require('./lib/kokoro-live-precond.cjs');
@@ -30,7 +31,7 @@ if (pre.mode === 'INVALID') invalid(pre.reason);
 const assertLatency = pre.mode === 'ASSERT';
 if (!fs.existsSync(path.join(SEED, 'kokoro-v1.0-fp16.onnx'))) {
   if (assertLatency) invalid('render box but the local model seed is missing; the latency budget would be skipped');
-  console.log('SKIP check-kokoro-live: no local model seed'); process.exit(0);
+  notRun('precondition', 'check-kokoro-live: no local model seed');
 }
 
 // P1 requirement: "EN p95 first-audio <= 3 s" from Enter to audio start (P1-REPORT.md:74, ROUND6.md:23). NOTES.md:30: the

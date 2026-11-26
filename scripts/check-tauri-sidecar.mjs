@@ -286,6 +286,18 @@ const waitFor = (fn, ms = 30000) => new Promise((resolve, reject) => {
     ok(viaRpc.result === true, '__host.idle with an id answers true (the host never does this; the renderer cannot reach it, see check:tauri-allowlist)');
   }
 
+  // ---- R6e: the agent loop's memory calls are host-only names (the page cannot reach them; check:tauri-allowlist) ----
+  {
+    const turn = (await c.request('__host.memoryAddTurn', ['r6e-host-1', 'hello there', 'hi'])).result;
+    ok(turn && turn.ok === true && turn.stored === true, '__host.memoryAddTurn answers (the Rust loop keeps the sentence and reply of a run)', JSON.stringify(turn));
+    const old = await c.request('memory.addTurn', ['r6e-page-1', 'planted chat', 'x']);
+    ok(old.error && old.error.message === 'not_implemented:memory.addTurn', 'the old page-visible name memory.addTurn is gone', JSON.stringify(old));
+    const corr = await c.request('memory.correct', ['dentist', 'x']);
+    ok(corr.error && corr.error.message === 'not_implemented:memory.correct', 'the old page-visible name memory.correct is gone', JSON.stringify(corr));
+    const hostCorr = (await c.request('__host.memoryCorrect', ['nothing matches this', 'x'])).result;
+    ok(hostCorr && hostCorr.ok === false && hostCorr.error === 'not_found', '__host.memoryCorrect answers (not_found with no such note)', JSON.stringify(hostCorr));
+  }
+
   // ---- frames the sidecar cannot tie to a request fail fast with a `fatal` notification ----
   // (a parse error and an oversized frame have no usable id, so the host must be told to stop)
   c.child.stdin.write('this is not json\n');

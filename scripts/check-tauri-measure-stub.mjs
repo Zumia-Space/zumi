@@ -54,7 +54,7 @@ ok(Boolean(stage) && stage.stagedTrackedFiles('tauri/sidecar', { measureStub: tr
   const ps = text('tauri/build.ps1');
   ok(/measureStub: process\.argv\.includes\('--measure-stub'\) \}/.test(stageSrc) && !/measure[^\n]*process\.env|process\.env[^\n]*measure/i.test(stageSrc), 'stage-bundle turns the stub on from the argv switch alone (no env var, no other source)');
   ok(/process\.argv\.includes\('--measure-stub'\)/.test(stageSrc), 'stage-bundle reads the explicit --measure-stub switch');
-  ok(/\[switch\]\$MeasureStub/.test(ps) && /if \(\$MeasureStub -and \$Flavour -eq 'public'\) \{ throw/.test(ps), 'build.ps1 -MeasureStub exists and refuses a public flavour');
+  ok(/\[switch\]\$MeasureStub/.test(ps) && /if \(\$MeasureStub -and \$Flavour (?:-eq 'public'|-in 'public'(?:, '\w+')*)\) \{ throw/.test(ps), 'build.ps1 -MeasureStub exists and refuses a public flavour');
   ok(/if \(\$MeasureStub\) \{[^}]*--measure-stub/.test(ps), 'build.ps1 passes --measure-stub to stage-bundle only under -MeasureStub');
 }
 

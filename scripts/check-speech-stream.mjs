@@ -11,6 +11,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { ownerPath } from './lib/owner-paths.mjs';
+import { notRun } from './lib/check-outcome.cjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -19,7 +20,7 @@ const PW_FALLBACK = ownerPath('playwrightCore', 'node_modules/playwright-core');
 let chromium;
 try { ({ chromium } = require('playwright-core')); }
 catch {
-  if (!fs.existsSync(PW_FALLBACK)) { console.error('SKIP: playwright-core is not installed and the vendored fallback is missing'); process.exit(0); }
+  if (!fs.existsSync(PW_FALLBACK)) notRun('precondition', 'check-speech-stream: playwright-core is not installed and the vendored fallback is missing');
   ({ chromium } = createRequire(path.join(PW_FALLBACK, 'package.json'))(PW_FALLBACK));
 }
 

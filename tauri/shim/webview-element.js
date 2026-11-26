@@ -12,7 +12,7 @@
 // Contract with the host:
 //   invoke('guest_open', { src, partition, bounds })      -> { id }
 //   invoke('guest_navigate', { id, url })                 -> resolves after the next load
-//   invoke('guest_bounds', { id, bounds, visible })       -> ()
+//   invoke('guest_bounds', { id, bounds, visible, reason }) -> ()
 //   invoke('guest_close', { id })                         -> ()
 //   listen('guest:event', { id, type, url?, errorCode?, errorDescription? })   dom-ready | did-finish-load | did-fail-load
 //
@@ -42,6 +42,9 @@
     var invoke = opts.invoke;
     var listen = opts.listen;
     var raf = opts.raf;
+    // A plain timer drives the same sync as the rAF loop: rAF stops whenever the main page gets no frames (minimised, locked,
+    // display off on some drivers), and a guest is shown ONLY by guest_bounds — so it must never wait on a frame (board-poll 15-11).
+    var later = opts.later || (typeof setTimeout === 'function' ? setTimeout : null);
     if (!doc || typeof invoke !== 'function' || typeof listen !== 'function' || typeof raf !== 'function') {
       throw new Error('installWebviewElement: document, invoke, listen and raf are required');
     }
@@ -52,6 +55,7 @@
     var pendingEvents = new Map(); // guest id -> events that arrived before the id was known
     var opening = 0;            // guest_open calls in flight (an id may yet claim a buffered event)
     var loopRunning = false;
+    var timerArmed = false;
     var listening = false;
 
     function stateFor(el) {
@@ -61,7 +65,7 @@
           el: el, id: null, src: null, partition: null, url: null,
           attached: false, opening: false,
           loadedOnce: false, domReady: false, failed: false,
-          visible: null, bounds: null, waiters: [],
+          visible: null, bounds: null, sending: false, retryLater: false, waiters: [],
         };
         states.set(el, s);
       }
@@ -148,7 +152,7 @@
         dispatch(s.el, 'did-finish-load', { url: payload.url });
         settle(s, null);
       } else if (payload.type === 'did-fail-load') {
-        s.failed = true;
+        s.failed = 'fail-load:' + payload.errorCode; // truthy; also the hide reason guest_bounds reports
         // webErrorStatus is the raw WebView2 enum value (probe instrumentation, additive); Electron's
         // event has no such field, so nothing in the app reads it.
         dispatch(s.el, 'did-fail-load', { errorCode: payload.errorCode, errorDescription: payload.errorDescription, webErrorStatus: payload.webErrorStatus, url: payload.url });
@@ -185,7 +189,7 @@
         if (s.url && s.url !== src) {
           invoke('guest_navigate', { id: id, url: s.url }).then(
             function () { settle(s, null); },
-            function (e) { s.failed = true; settle(s, e); }
+            function (e) { s.failed = 'navigate'; settle(s, e); }
           );
         }
       }, function (err) {
@@ -195,7 +199,7 @@
       });
     }
     function failOpen(s, message) {
-      s.failed = true;
+      s.failed = 'open';
       dispatch(s.el, 'did-fail-load', { errorCode: -2, errorDescription: message });
       settle(s, new Error(message));
     }
@@ -248,29 +252,46 @@
       observer.observe(doc.body || doc.documentElement || doc, { childList: true, subtree: true });
     }
 
-    // ---- one rAF loop while any guest exists; guest_bounds only on change ----
+    // ---- one rAF loop plus a 1 s timer while any guest exists; guest_bounds only on a change from the confirmed verdict ----
     function ensureLoop() {
+      if (!timerArmed && later) { timerArmed = true; later(timerTick, 1000); }
       if (loopRunning) return;
       loopRunning = true;
       raf(tick);
     }
     function tick() {
       loopRunning = false;
+      if (sync(false)) ensureLoop();
+    }
+    function timerTick() {
+      timerArmed = false;
+      if (sync(true)) ensureLoop();
+    }
+    /** Push each guest's rect + visibility verdict when it differs from the last one the HOST CONFIRMED. One call in flight per
+     *  guest; a rejected call leaves the confirmed verdict unchanged and is retried on the next timer tick (at most 1/s). */
+    function sync(fromTimer) {
       var still = false;
       var copy = active.slice();
       for (var i = 0; i < copy.length; i++) {
         var s = copy[i];
         if (s.id == null) continue;
         still = true;
+        if (s.sending || (s.retryLater && !fromTimer && later)) continue;
         var b = rectOf(s.el);
-        var visible = isConnected(s.el) && b.width > 0 && b.height > 0 && s.loadedOnce && !s.failed;
-        if (s.visible !== visible || !sameBounds(s.bounds, b)) {
-          s.visible = visible;
-          s.bounds = b;
-          invoke('guest_bounds', { id: s.id, bounds: b, visible: visible }).catch(function () {});
-        }
+        // the first term that hides the guest, sent with the verdict so the host can log each visibility change with its cause
+        var reason = !isConnected(s.el) ? 'detached' : !(b.width > 0 && b.height > 0) ? 'no-rect' : s.failed ? s.failed : !s.loadedOnce ? 'not-loaded' : 'shown';
+        var visible = reason === 'shown';
+        if (s.visible !== visible || !sameBounds(s.bounds, b)) sendBounds(s, b, visible, reason);
       }
-      if (still) ensureLoop();
+      return still;
+    }
+    function sendBounds(s, b, visible, reason) {
+      s.sending = true;
+      s.retryLater = false;
+      invoke('guest_bounds', { id: s.id, bounds: b, visible: visible, reason: reason }).then(
+        function () { s.sending = false; s.visible = visible; s.bounds = b; },
+        function () { s.sending = false; s.retryLater = true; }
+      );
     }
 
     // ---- loadURL + the Electron method surface ----

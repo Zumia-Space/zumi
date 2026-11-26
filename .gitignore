@@ -27,6 +27,8 @@ tauri/src-tauri/bundle/*
 
 # per-run check script output (scripts/lib/check-out-dir.mjs)
 out/
+# T-31-MAUS P1: the goal check's saved files are evidence (rule 3.11): this one out/ is committed.
+!docs/maus/P1/out/
 
 # T-31 0.2.11: scratch output of scripts/check-third-party.mjs (removed by the gate itself)
 _third-party-check/
@@ -34,3 +36,16 @@ _third-party-check/
 # T-31 0.2.11: scratch manifests of scripts/check-third-party-attest.mjs (removed by the test itself)
 _third-party-attest-test/
 _third-party-openlegal-test/
+
+# T-31-ROOM: CC0 assets are fetched by room/tools/fetch-assets.mjs, built bundle is generated
+room/public/assets/
+room/public/app.js
+room/public/app.js.map
+room/out/
+room/zumi2/__pycache__/
+.npm-cache-room/
+# T-31-MAUS P0: zumi-hands build output and disposable measuring profiles (Chrome/VS Code user-data dirs, screenshots in flight).
+tauri/zumi-hands/target/
+tauri/zumi-agent-loop/target/
+tauri/zumi-routines/target/
+tmp/

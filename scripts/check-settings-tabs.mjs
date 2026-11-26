@@ -310,5 +310,21 @@ ok(TABLES.en['msg.placeholderOn'] === 'Message Zumi… (Enter to send)', 'i18n: 
   Object.assign(globalThis, saved);
 }
 
+// ---------- 6. the voice card (alpha.12 Fable final: notes on the card border, a truncated picker, mixed address) ----------
+{
+  const css = read('src', 'renderer', 'styles.css');
+  const vp = html.slice(html.indexOf('<div id="vp-google" class="vp">'), html.indexOf('<div id="voice-panels">'));
+  ok(/id="voice-leda-guide" class="note"/.test(vp) && /<p class="note"><button id="vp-google-guide"/.test(vp) && /\.settings \.card \.vp > \.note[^{]*\{ padding: 0 var\(--s-pad\) 10px; \}/.test(css),
+    'voice card: the notes and the guide button inside a .vp panel get the card note padding (not on the card border)');
+  // The picker is at most 240 px (styles.css .settings select); a label that carried its explanation was cut ("Tiếng Anh · dùng giọng tiếng A...").
+  const long = ['en', 'vi', 'zh'].flatMap((l) => ['talk.lang.en', 'talk.lang.vi'].filter((k) => TABLES[l][k].length > 20).map((k) => l + ':' + k));
+  ok(long.length === 0, 'voice card: the "Voice for her own lines" options fit the 240 px picker in every language', long.join(', '));
+  // One address in Settings: the owner table says "bạn" there; "anh" was left in two voice lines. settings.holoStyleD is the owner's own
+  // wording, pinned verbatim above, and stays.
+  const anh = /(?<![\p{L}\p{N}])(?<!(?:[Tt]iếng|quốc) )anh(?![\p{L}\p{N}])/iu;
+  const mixed = Object.keys(TABLES.vi).filter((k) => k.startsWith('settings.') && k !== 'settings.holoStyleD' && anh.test(TABLES.vi[k]));
+  ok(mixed.length === 0, 'Settings (owner VI): no line addresses the reader as "anh" beside the "bạn" of the rest', mixed.join(', '));
+}
+
 console.log(`\ncheck:settings-tabs ${pass}/${pass + fail} passed`);
 process.exit(fail ? 1 : 0);

@@ -1,0 +1,17 @@
+{
+  "_note": "12 of our own moments for the blind compare (T-31-YOKI step 5.1, plan M5). Written for this app, EN and VI. kind = what the moment tests; history is the chat so far (role user or assistant).",
+  "moments": [
+    { "id": "greeting-en", "kind": "greeting", "lang": "en", "message": "Hey, morning!", "history": [] },
+    { "id": "greeting-vi", "kind": "greeting", "lang": "vi", "message": "Chào em, anh vừa mở máy", "history": [] },
+    { "id": "thanks-en", "kind": "thanks", "lang": "en", "message": "Thanks, that fixed it.", "history": [{ "role": "user", "text": "My export keeps failing" }, { "role": "assistant", "text": "Try clearing the cache folder, then export again." }] },
+    { "id": "thanks-vi", "kind": "thanks", "lang": "vi", "message": "Cảm ơn em nhiều nhé", "history": [{ "role": "user", "text": "Nhắc anh họp lúc 3 giờ" }, { "role": "assistant", "text": "Dạ, em nhắc anh lúc 3 giờ ạ." }] },
+    { "id": "bad-news-en", "kind": "bad news", "lang": "en", "message": "I just found out the client cancelled the whole project.", "history": [] },
+    { "id": "joke-vi", "kind": "joke", "lang": "vi", "message": "Kể anh nghe một chuyện cười ngắn đi", "history": [] },
+    { "id": "are-you-an-ai-en", "kind": "are you an AI", "lang": "en", "message": "Wait, are you an AI?", "history": [] },
+    { "id": "how-to-vi", "kind": "how-to", "lang": "vi", "message": "Làm sao để đổi tên nhiều file cùng lúc trên Windows?", "history": [] },
+    { "id": "one-word-en", "kind": "one-word reply", "lang": "en", "message": "ok", "history": [{ "role": "user", "text": "Want me to open the report now?" }, { "role": "assistant", "text": "Yes, it is ready whenever you are." }] },
+    { "id": "venting-vi", "kind": "venting", "lang": "vi", "message": "Hôm nay mệt quá, sếp lại đổi yêu cầu lần thứ ba rồi", "history": [] },
+    { "id": "language-switch", "kind": "language switch", "lang": "en", "message": "Sorry, can we continue in English? My guest is here.", "history": [{ "role": "user", "text": "Hôm nay lịch của anh có gì không?" }, { "role": "assistant", "text": "Dạ, chiều nay anh có một cuộc họp lúc 3 giờ ạ." }] },
+    { "id": "repeated-question-en", "kind": "repeated question", "lang": "en", "message": "What time is my meeting again?", "history": [{ "role": "user", "text": "What time is my meeting?" }, { "role": "assistant", "text": "Three o'clock this afternoon." }, { "role": "user", "text": "ok" }] }
+  ]
+}

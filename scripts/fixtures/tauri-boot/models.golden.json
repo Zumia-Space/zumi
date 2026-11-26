@@ -72,6 +72,7 @@
         {
           "id": "user",
           "label": "Model from this PC",
+          "labelKey": "model.fromThisPc",
           "source": "user",
           "file": "user.vrm",
           "path": "<ROOT>\\user.vrm",

@@ -30,6 +30,7 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 
 import { verifyStagedFlavour } from '../flavour-stage.mjs';
+import { notRun } from '../../scripts/lib/check-outcome.cjs';
 
 const { verifyStagedDefaultModel } = createRequire(import.meta.url)('../../scripts/lib/default-vrm.cjs');
 
@@ -74,9 +75,7 @@ const SECRET_FILE = /^(?:\.env(?:\..*)?|\.npmrc|\.netrc|secrets?(?:[-_.].*)?\.(?
 function main() {
   console.log(`check-bundle: ${bundleDir}`);
   if (!fs.existsSync(bundleDir) || !fs.statSync(bundleDir).isDirectory()) {
-    console.log(`FAIL bundle directory exists ${bundleDir}`);
-    console.log('check-bundle FAIL — build the app first (tauri\\build.ps1 -Flavour owner, or -Flavour public for a public kit), then point --dir at the unpacked bundle');
-    process.exit(1);
+    notRun('bundle', `no bundle directory at ${bundleDir}: build the app first (tauri\\build.ps1 -Flavour owner, or -Flavour public for a public kit), then point --dir at the unpacked bundle`);
   }
 
   const mainExe = path.join(bundleDir, ['public', 'official'].includes(argValue('--flavour') || (fs.existsSync(path.join(bundleDir, 'flavour.json')) ? 'owner' : 'public')) ? 'Zumi.exe' : 'ZumiPreview.exe');

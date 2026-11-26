@@ -43,7 +43,8 @@ const DEFAULT_SOUL = Object.freeze({
 });
 
 // The alpha.10 language sentence (auto) and the fixed reply-language sentences.
-const LANG_AUTO = 'Reply in the same language the owner just wrote in: English by default, Vietnamese for Vietnamese, Simplified Chinese for Chinese.';
+// T-31-YOKI 3.2 (plan M3): the base sentence follows each message, not the conversation. The per-message note (voice-lang.mjs langNoteOf) adds to it.
+const LANG_AUTO = "Reply in the language of your owner's latest message; when it is too short to tell, keep the language you were just using.";
 const LANG_FIXED = { en: 'Always reply in English.', vi: 'Always reply in Vietnamese.', zh: 'Always reply in Simplified Chinese.' };
 // What Zumi is (owner 01-11, T-31 alpha.12): nothing in the chat turn executes work, and she must say so.
 const COMPANION_RULE = 'Your job is to review task progress and talk with your owner, as a work-management assistant and a '
@@ -55,7 +56,7 @@ const SPOKEN_RULE = 'Your words are spoken aloud by a voice, whatever the langua
   + 'would read out. Say numbers and units as words where that sounds more natural.';
 // Public / official builds (owner 04-11, R8 "người dùng tự thiết lập các phần cá nhân hóa"): the person using this Zumi is
 // "the user", named by the soul's ownerName, and has no board or code sessions. The owner flavour keeps the texts above byte for byte.
-const LANG_AUTO_PUBLIC = 'Reply in the same language the user just wrote in: English by default, Vietnamese for Vietnamese, Simplified Chinese for Chinese.';
+const LANG_AUTO_PUBLIC = "Reply in the language of the user's latest message; when it is too short to tell, keep the language you were just using.";
 const COMPANION_RULE_PUBLIC = 'Your job is to talk with the user, as a work-management assistant and a friend to confide in. You never carry out '
   + 'tasks yourself. If asked to do such work, say so plainly and offer to talk it through.';
 // The hard rules: the alpha.10 SYSTEM_PROMPT sentences after the style line, unchanged, plus COMPANION_RULE and SPOKEN_RULE.
@@ -250,5 +251,5 @@ function createSoulStore({ settings, saveSettings, dataDir, now = Date.now, owne
 
 module.exports = {  SPOKEN_RULE,
   DEFAULT_SOUL, LIMITS, REPLY_LANGS, TEMPLATE_IDS, HISTORY_MAX, COMPANION_RULE,
-  OWNER_ADDRESS, PUBLIC_ADDRESS, soulPrefs, isOnboarded, validateSoul, soulSystemPrompt, addressRule, addressVars, templateList, looksSecret, createSoulStore,
+  LANG_AUTO, LANG_AUTO_PUBLIC, OWNER_ADDRESS, PUBLIC_ADDRESS, soulPrefs, isOnboarded, validateSoul, soulSystemPrompt, addressRule, addressVars, templateList, looksSecret, createSoulStore,
 };

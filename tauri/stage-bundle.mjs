@@ -23,7 +23,7 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 
-import { stageRoomVideos, stageFlavourFile, stageInstallManifest, stripOfficialManifest, verifyStagedFlavour } from './flavour-stage.mjs';
+import { stageRoomVideos, stageRoomPackSeed, stageFlavourFile, stageInstallManifest, stripOfficialManifest, verifyStagedFlavour } from './flavour-stage.mjs';
 import { stageNextUiFlag } from './next-ui-stage.mjs';
 
 const { stageIntoTauriBundle, verifyStagedDefaultModel } = createRequire(import.meta.url)('../scripts/lib/default-vrm.cjs');
@@ -226,6 +226,12 @@ function main() {
   if (flavour !== 'public' && flavour !== 'official') {
     try { roomVideos = stageRoomVideos(stage).count; } catch (e) { fail(e.message); }
   }
+  // 3c6. the Room pack, owner / selftest only, from ZUMI_ROOM_PACK_SEED (the folder build-pack.mjs writes); before the install manifest below.
+  try {
+    const seed = stageRoomPackSeed(stage, flavour);
+    if (seed.count) console.log(`  room pack plugin.room-preview ${seed.version} staged (${seed.count} files)`);
+    else if (flavour === 'owner' || flavour === 'selftest') console.log('  room pack NOT staged (ZUMI_ROOM_PACK_SEED unset): the flavour gate below fails this stage');
+  } catch (e) { fail(e.message); }
   const flavourProblems = verifyStagedFlavour(stage, flavour);
   if (flavourProblems.length) fail(flavourProblems.join('; '));
 

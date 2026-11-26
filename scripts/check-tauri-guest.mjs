@@ -45,7 +45,8 @@ const dirDigest = (dir) => {
   return hash.digest('hex');
 };
 
-const TMP_ROOT = path.join(ROOT, '.tauri-check-tmp');
+// Its own subfolder: the shared .tauri-check-tmp holds the other checks' working dirs (and, run together, this wipe deleted them mid-run)
+const TMP_ROOT = path.join(ROOT, '.tauri-check-tmp', 'guest');
 fs.rmSync(TMP_ROOT, { recursive: true, force: true });
 fs.mkdirSync(TMP_ROOT, { recursive: true });
 
@@ -132,9 +133,10 @@ function newWorld() {
   const calls = [];
   const opened = [];
   const listeners = new Map();
-  const behavior = { openReject: null, navigate: () => Promise.resolve(true), cdpReject: null };
+  const behavior = { openReject: null, navigate: () => Promise.resolve(true), cdpReject: null, boundsRejects: 0 };
   let nextId = 1;
   let rafCb = null;
+  let timers = []; // the injected `later` (setTimeout stand-in): callbacks run only when the test calls advance()
 
   const invoke = (cmd, payload) => {
     calls.push({ cmd, payload });
@@ -145,6 +147,7 @@ function newWorld() {
       return Promise.resolve({ id });
     }
     if (cmd === 'guest_navigate') return behavior.navigate(payload);
+    if (cmd === 'guest_bounds' && behavior.boundsRejects > 0) { behavior.boundsRejects--; return Promise.reject(new Error('guest_set_bounds:transient')); }
     if (cmd === 'guest_cdp') {
       if (behavior.cdpReject) return Promise.reject(behavior.cdpReject);
       const reply = { ok: true, width: 8, height: 4, pngBase64: 'iVBORw0KGgo=', bitmapBase64: 'AAAAAAAA' };
@@ -154,14 +157,16 @@ function newWorld() {
   };
   const listen = (name, handler) => { listeners.set(name, handler); return Promise.resolve(() => {}); };
   const raf = (cb) => { rafCb = cb; };
+  const later = (cb, ms) => { timers.push({ cb, ms }); };
 
-  const api = install({ document: doc, invoke, listen, raf });
+  const api = install({ document: doc, invoke, listen, raf, later });
 
   return {
     doc, body, calls, opened, listeners, behavior, api,
     fire(added, removed) { for (const observer of observers) observer.trigger(added, removed); },
     emit(payload) { const handler = listeners.get('guest:event'); if (handler) handler(payload); },
     tick() { const cb = rafCb; rafCb = null; if (cb) cb(0); },
+    advance() { const due = timers; timers = []; for (const t of due) t.cb(); return due.length; },
   };
 }
 
@@ -352,6 +357,92 @@ function addGuest(w, src = 'http://127.0.0.1:4321/', partition = 'preview-board'
     ok(bounds().length === 3 && bounds()[2].payload.visible === false, 'hiding the tab (zero rect) reports visible:false');
   }
 
+  // ---- 8b. T-31 board-poll (alpha.9.3 owner PC: the Board guest stayed document.hidden while its tab was shown, so it never polled).
+  // The native child is created hidden and only guest_bounds(visible:true) shows it. (1) Showing it must not depend on main-page
+  // animation frames: rAF stops whenever the main page gets no frames (minimised, locked, display off on some drivers), so a plain
+  // timer must drive the same sync. (2) A guest_bounds that fails must be retried: the cached verdict is set only once the host
+  // confirmed it, else one transient failure leaves the guest hidden for good (the next tick sees "no change").
+  {
+    const w = newWorld();
+    const wv = addGuest(w, 'http://127.0.0.1:4321/', 'preview-board', { x: 10, y: 10, width: 400, height: 300 });
+    await flush();
+    const id = w.opened[0];
+    w.emit({ id, type: 'did-finish-load', url: 'http://127.0.0.1:4321/' });
+    // no rAF tick at all from here on: the main page produces no frames
+    for (let i = 0; i < 3; i++) { w.advance(); await flush(); }
+    const shown = w.calls.filter((c) => c.cmd === 'guest_bounds' && c.payload.visible === true);
+    ok(shown.length === 1 && shown[0].payload.id === id, 'with no animation frames the loaded board guest is still shown (timer-driven guest_bounds visible:true), once', JSON.stringify(w.calls.filter((c) => c.cmd === 'guest_bounds').map((c) => c.payload.visible)));
+    wv._rect = { x: 0, y: 0, width: 0, height: 0 }; // the shell hides the tab while frames are still stopped
+    w.advance(); await flush();
+    const last = w.calls.filter((c) => c.cmd === 'guest_bounds').pop();
+    ok(last && last.payload.visible === false, 'with no animation frames a tab hide still reaches the host (visible:false)', JSON.stringify(last && last.payload));
+  }
+  {
+    const w = newWorld();
+    addGuest(w, 'http://127.0.0.1:4321/', 'preview-board', { x: 10, y: 10, width: 400, height: 300 });
+    await flush();
+    const id = w.opened[0];
+    w.emit({ id, type: 'did-finish-load', url: 'http://127.0.0.1:4321/' });
+    w.behavior.boundsRejects = 1; // the first show fails once (a transient host error)
+    w.tick(); await flush();
+    const st = w.api.stateFor(w.body.childNodes[0]);
+    ok(st.visible !== true, 'a rejected guest_bounds does not cache visible:true', String(st.visible));
+    for (let i = 0; i < 3; i++) { w.tick(); w.advance(); await flush(); }
+    const sent = w.calls.filter((c) => c.cmd === 'guest_bounds' && c.payload.visible === true);
+    ok(sent.length === 2 && st.visible === true, 'the failed show is retried and ends shown: 2 sends (1 failed, 1 confirmed), visible cached only after the success', JSON.stringify({ sends: sent.length, cached: st.visible }));
+    w.tick(); w.advance(); await flush();
+    ok(w.calls.filter((c) => c.cmd === 'guest_bounds').length === 2, 'after the confirmed show nothing more is sent while nothing changes');
+  }
+  // ---- 8c. T-31 alpha.9.6: every guest_bounds names WHY the verdict is what it is, so the host can log each guest visibility change
+  // with its cause (9.5 owner smoke: the Board guest was hidden while its tab was shown, with occlusion off; nothing said who hid it).
+  {
+    const w = newWorld();
+    const wv = addGuest(w, 'http://127.0.0.1:4321/', 'preview-board', { x: 0, y: 0, width: 0, height: 0 });
+    await flush();
+    const id = w.opened[0];
+    const reasons = () => w.calls.filter((c) => c.cmd === 'guest_bounds').map((c) => `${c.payload.visible}:${c.payload.reason}`);
+    w.tick(); await flush();
+    wv._rect = { x: 10, y: 10, width: 400, height: 300 };
+    w.tick(); await flush(); // a rect, not loaded yet: bounds change, verdict still hidden
+    w.emit({ id, type: 'did-finish-load', url: 'http://127.0.0.1:4321/' });
+    w.tick(); await flush();
+    w.emit({ id, type: 'did-fail-load', errorCode: -103, errorDescription: 'ERR_CONNECTION_ABORTED' });
+    w.tick(); await flush();
+    w.emit({ id, type: 'did-finish-load', url: 'http://127.0.0.1:4321/' });
+    w.tick(); await flush();
+    wv._rect = { x: 0, y: 0, width: 0, height: 0 };
+    w.tick(); await flush();
+    ok(reasons().join(' ') === 'false:no-rect false:not-loaded true:shown false:fail-load:-103 true:shown false:no-rect',
+      'each guest_bounds carries the reason for its verdict (no-rect, not-loaded, shown, fail-load:<code>)', reasons().join(' '));
+  }
+  {
+    const w = newWorld();
+    w.behavior.navigate = () => Promise.reject(new Error('guest_navigate_timeout'));
+    const wv = addGuest(w, 'http://127.0.0.1:4321/', 'preview-board', { x: 10, y: 10, width: 400, height: 300 });
+    wv.loadURL('http://127.0.0.1:4321/next').catch(() => {}); // arrives while the guest is still opening
+    await flush();
+    w.tick(); await flush();
+    const last = w.calls.filter((c) => c.cmd === 'guest_bounds').pop();
+    ok(last && last.payload.visible === false && last.payload.reason === 'navigate', 'a rejected deferred guest_navigate hides the guest with reason navigate', JSON.stringify(last && last.payload));
+  }
+  // ---- 8d. the host logs each guest visibility CHANGE (not every bounds call) with that reason, into sidecar.log ----
+  {
+    const guestRsSrc = fs.readFileSync(path.join(ROOT, 'tauri', 'src-tauri', 'src', 'guest.rs'), 'utf8').split('#[cfg(test)]')[0];
+    const osRs = fs.readFileSync(path.join(ROOT, 'tauri', 'src-tauri', 'src', 'os_signals.rs'), 'utf8');
+    const mainSrc = fs.readFileSync(path.join(ROOT, 'tauri', 'sidecar', 'main.mjs'), 'utf8');
+    const boundsFn = guestRsSrc.slice(guestRsSrc.indexOf('pub async fn guest_bounds'), guestRsSrc.indexOf('pub async fn guest_close'));
+    ok(/reason: Option<String>/.test(boundsFn), 'guest_bounds takes the shim\'s reason (optional)');
+    ok(/if registry\.note_visible\(id, visible\) \{[\s\S]*?push_guest_visibility\(/.test(boundsFn), 'guest_bounds logs only when the guest\'s applied visibility changed (registry.note_visible)');
+    ok(/pub fn push_guest_visibility\([\s\S]*?"__host\.guestVisibility"/.test(osRs), 'os_signals forwards the change to the sidecar as __host.guestVisibility');
+    // T-31 alpha.9.7: the 9.6 owner smoke saw the Board guest hidden in 20/20 idle samples and "no hide" in the log. With `shown: bool`
+    // starting false, a guest that was NEVER shown (first verdict hidden: not-loaded, no-rect, fail-load) logged nothing at all, the same
+    // as one shown once and never hidden. The first applied verdict is now always logged, so the log tells the two apart.
+    const noteFn = guestRsSrc.slice(guestRsSrc.indexOf('fn note_visible'), guestRsSrc.indexOf('fn remove(&self'));
+    ok(/shown: Option<bool>,/.test(guestRsSrc) && /shown: None,/.test(guestRsSrc), 'a guest starts with no applied verdict (shown: Option<bool> = None), not "hidden"');
+    ok(/g\.shown != Some\(visible\)/.test(noteFn) && /g\.shown = Some\(visible\)/.test(noteFn), 'note_visible: the FIRST applied verdict counts as a change, so a never-shown guest logs "hidden reason <r>"', noteFn.split('\n').slice(0, 6).join(' '));
+    ok(/'__host\.guestVisibility': \(info\) =>[\s\S]*?\[guest\] visibility/.test(mainSrc), 'the sidecar writes "[guest] visibility ..." (stderr, so sidecar.log)');
+  }
+
   // ---- 9. the self-test methods route to the one guest_cdp command (and refuse before a guest exists) ----
   {
     const w = newWorld();
@@ -467,7 +558,19 @@ function addGuest(w, src = 'http://127.0.0.1:4321/', partition = 'preview-board'
     // Parity step 7 ruling (a): a guest must not inherit wry's SmartScreen-off default (it passes no args -> wry adds
     // msSmartScreenProtection). The exact arg string is pinned, and the builder call that applies it is pinned too.
     const guestArgs = (guestRs.match(/pub\(crate\) const GUEST_BROWSER_ARGS: &str = "([^"]+)";/) || [])[1];
-    ok(guestArgs === '--disable-features=msWebOOUI,msPdfOOUI', 'guest WebView2 args disable only msWebOOUI/msPdfOOUI, so SmartScreen stays ON', String(guestArgs));
+    ok(guestArgs === '--disable-features=msWebOOUI,msPdfOOUI,CalculateNativeWinOcclusion --disable-background-timer-throttling', 'guest WebView2 args: disable only msWebOOUI/msPdfOOUI/CalculateNativeWinOcclusion (SmartScreen stays ON), plus no background timer throttling', String(guestArgs));
+    // T-31 alpha.9.5: native window occlusion must be off in every guest as in the main webview (tauri.conf.json, P1c4). Not Electron
+    // parity: Electron disabled it only in its test/capture modes (src/main/main.js). With it on, WebView2 may mark a guest hidden while
+    // its window is covered or off-screen, and the Laneboard page then drops to its slow hidden poll.
+    const mainArgs = JSON.parse(fs.readFileSync(path.join(ROOT, 'tauri', 'src-tauri', 'tauri.conf.json'), 'utf8')).app.windows[0].additionalBrowserArgs;
+    const disabled = (a) => ((String(a).match(/--disable-features=(\S+)/) || [])[1] || '').split(',');
+    ok(disabled(mainArgs).includes('CalculateNativeWinOcclusion') && disabled(guestArgs).includes('CalculateNativeWinOcclusion') && !disabled(guestArgs).includes('msSmartScreenProtection'),
+      'native window occlusion is off in every guest as in the main webview', JSON.stringify({ main: disabled(mainArgs), guest: disabled(guestArgs) }));
+    // T-31 alpha.9.6: the 9.5 owner smoke saw the Board guest hidden while shown, its hidden-poll gaps landing on minute-aligned
+    // wake-ups (one 106 s gap). The main webview never throttles background timers; every guest must not either.
+    const flags = (a) => String(a).split(/\s+/).filter(Boolean);
+    ok(flags(mainArgs).includes('--disable-background-timer-throttling') && flags(guestArgs).includes('--disable-background-timer-throttling'),
+      'background timer throttling is off in every guest as in the main webview', JSON.stringify({ main: flags(mainArgs), guest: flags(guestArgs) }));
     const guestBuilder = guestRs.slice(guestRs.indexOf('fn add_guest_webview'), guestRs.indexOf('let webview = window'));
     ok(/\.additional_browser_args\(GUEST_BROWSER_ARGS\)/.test(guestBuilder), 'add_guest_webview applies GUEST_BROWSER_ARGS to every guest webview');
     ok(/\.data_directory\(profile\.data_dir\.clone\(\)\)/.test(guestBuilder), 'each guest keeps its own data directory (wry requires one for differing args)');

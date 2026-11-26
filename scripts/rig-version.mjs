@@ -7,12 +7,24 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
-export const RIG_SOURCES = ['schema.js', 'player.js', 'rig.js', 'engine.js'];
+// Paths relative to src/renderer. The reflex files are the rig; avatar-core/*.js (life, gaze, pose, the core's load path) joined in
+// T-31-ROOM-live-b P1 (CoS decision): the idle life and gaze moved there out of engine.js, and a new file there is covered at once.
+export const RIG_SOURCES = ['reflex/schema.js', 'reflex/player.js', 'reflex/rig.js', 'reflex/engine.js', 'avatar-core/*.js'];
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export function rigSrcHash() {
+export function rigSourceFiles(root = ROOT) {
+  const out = [];
+  for (const entry of RIG_SOURCES) {
+    if (!entry.endsWith('/*.js')) { out.push(entry); continue; }
+    const dir = entry.slice(0, -'/*.js'.length);
+    out.push(...fs.readdirSync(path.join(root, 'src', 'renderer', dir)).filter((f) => f.endsWith('.js')).sort().map((f) => `${dir}/${f}`));
+  }
+  return out;
+}
+
+export function rigSrcHash(root = ROOT) {
   const h = crypto.createHash('sha256');
-  for (const f of RIG_SOURCES) h.update(fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'reflex', f)));
+  for (const f of rigSourceFiles(root)) h.update(fs.readFileSync(path.join(root, 'src', 'renderer', f)));
   return h.digest('hex').slice(0, 32);
 }
 

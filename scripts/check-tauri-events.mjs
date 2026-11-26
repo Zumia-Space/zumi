@@ -46,7 +46,10 @@ const CASES = {
   'talk:replyDone':      { name: 'talk.onReplyDone', args: ['t1'], payload: { turnId: 't1', ok: true, reply: 'hello world', sources: [...SOURCES, { title: 'no url' }] }, expect: [{ ok: true, reply: 'hello world', error: null, sources: SOURCES }], dropped: { turnId: 'other', ok: true } },
   'talk:checkDone':      { name: 'talk.onCheckDone', args: ['t1'], payload: { turnId: 't1', verdict: 'fix', text: 'use 2' }, expect: [{ verdict: 'fix', text: 'use 2' }], dropped: { turnId: 't1', verdict: 'maybe' } },
   'talk:ttsMore':        { name: 'talk.onTtsMore', args: ['t1'], payload: { turnId: 't1', audio: { mime: 'audio/wav', data: 'AAEC' } }, expect: [{ mime: 'audio/wav', data: 'AAEC' }], dropped: { turnId: 'other', audio: {} } },
+  'stage:fallback': { name: 'stage.onFallback', args: [], payload: { pack: 'plugin.room-preview', reason: 'bench' }, expect: [{ pack: 'plugin.room-preview', reason: 'bench' }] },
   'market:progress': { name: 'market.onProgress', args: [], payload: { id: 'voice.kokoro-82m', phase: 'download', loaded: 5, total: 10 }, expect: [{ id: 'voice.kokoro-82m', phase: 'download', loaded: 5, total: 10 }] },
+  'stt:event': { name: 'stt.onEvent', args: [], payload: { ev: 'text', text: 'xin chào' }, expect: [{ ev: 'text', text: 'xin chào' }] },
+  'agent:event': { name: 'agent.onEvent', args: [], payload: { ev: 'tool_start', run: 'chat-1', step: 1, name: 'hands.launch' }, expect: [{ ev: 'tool_start', run: 'chat-1', step: 1, name: 'hands.launch' }] },
   'talk:kokoroProgress': { name: 'talk.onKokoroProgress', args: [], payload: { phase: 'download', loaded: 5, total: 10 }, expect: [{ phase: 'download', loaded: 5, total: 10 }] },
   'speech:say':          { name: 'talk.onSay', args: [], payload: { sayId: 's1', kind: 'ack', text: 'ok', show: true, voice: 'en', lang: 'en', mood: 'calm' }, expect: [{ sayId: 's1', kind: 'ack', text: 'ok', show: true, voice: 'en', lang: 'en', mood: 'calm' }], dropped: { text: 'no sayId' } },
   'model:changed':       { name: 'onModelChanged', args: [], payload: { reason: 'select' }, expect: [{ reason: 'select' }] },
@@ -55,7 +58,7 @@ const CASES = {
   'window:visible':      { name: 'onWindowVisible', args: [], payload: true, expect: [true] },
 };
 
-ok(events.length === 14, 'the inventory has 14 event entries (market:progress added in 0.3.0-alpha.14)', `got ${events.length}`);
+ok(events.length === 17, 'the inventory has 17 event entries (market:progress added in 0.3.0-alpha.14, agent:event in R2, stt:event in R4b, stage:fallback in room-live-b)', `got ${events.length}`);
 ok(!events.some((e) => /^wardrobe:/.test(e.channel)), 'no wardrobe event channel is left');
 ok(events.every((e) => CASES[e.channel] && CASES[e.channel].name === e.name), 'every inventory event has a case here, named as the inventory names it', events.filter((e) => !CASES[e.channel]).map((e) => e.channel).join(', '));
 
@@ -77,8 +80,8 @@ const child = spawnSync(process.execPath, ['--input-type=module', '-e', fixtureS
 const frames = child.stdout.split('\n').filter(Boolean).map((l) => JSON.parse(l));
 const written = JSON.parse((child.stderr.match(/RESULT (.*)/) || [])[1] || '[]');
 ok(child.status === 0, 'the emitting process exits cleanly', child.stderr.slice(0, 200));
-ok(frames.length === 14, 'exactly the 14 valid events were written to stdout (the 3 refused ones were not)', `got ${frames.length}`);
-ok(written.length === 17 && written.slice(0, 14).every(Boolean) && written.slice(14).every((w) => w === false), 'emit() returns true for valid events and false for the 3 refused ones', JSON.stringify(written));
+ok(frames.length === 17, 'exactly the 17 valid events were written to stdout (the 3 refused ones were not)', `got ${frames.length}`);
+ok(written.length === 20 && written.slice(0, 17).every(Boolean) && written.slice(17).every((w) => w === false), 'emit() returns true for valid events and false for the 3 refused ones', JSON.stringify(written));
 ok(frames.every((f) => f.jsonrpc === '2.0' && f.method === 'event' && !('id' in f) && Object.keys(f.params).sort().join() === 'channel,payload'), 'every frame is a JSON-RPC notification { method:"event", params:{ channel, payload } }');
 ok(same(frames.map((f) => f.params.channel), events.map((e) => e.channel)), 'frames keep the emit order');
 ok(!child.stderr.includes(SECRET) && !child.stdout.includes(SECRET), 'the payload text of a refused event is never logged or written');

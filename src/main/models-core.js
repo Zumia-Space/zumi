@@ -47,8 +47,9 @@ function createModels({ modelsDir, loadSettings, getTestModelPath = () => null, 
     const st = fs.statSync(file);
     // owner words only; the file name travels in `file` (the picker shows it as a tooltip)
     const label = slot === 'user' ? 'Model from this PC' : 'Zumi (test build)';
-    // the bundled default avatar (restored into the user slot) is named by key so each UI language says "Zumi default"
-    const labelKey = slot === 'user' && isDefaultSample(file) ? 'model.zumiDefault' : undefined;
+    // the user slot is named by key so each UI language paints it (the bundled default avatar restored there says "Zumi default");
+    // `label` stays the English fallback for a host with no table
+    const labelKey = slot === 'user' ? (isDefaultSample(file) ? 'model.zumiDefault' : 'model.fromThisPc') : undefined;
     return { id: slot, label, ...(labelKey ? { labelKey } : {}), source: slot, file: path.basename(file), path: file, bytes: st.size, url: `${urlPrefix}external/${slot}.vrm?v=${Math.floor(st.mtimeMs).toString(36)}-${st.size.toString(36)}` };
   }
 

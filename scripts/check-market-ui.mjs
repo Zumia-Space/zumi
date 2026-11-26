@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { ownerPath } from './lib/owner-paths.mjs';
 import { packZip, sha256 } from './lib/zip-write.mjs';
 import { createMarketHost } from '../tauri/sidecar/market-host.mjs';
+import { readSettings, saveSettings } from '../tauri/sidecar/adapters.mjs';
 import { TABLES } from '../src/renderer/i18n.js';
 import { MARKET_STUB as STUB } from './lib/market-stub.mjs';
 
@@ -71,7 +72,7 @@ const browser = await chromium.launch({ executablePath: EXE, headless: true, arg
 
 /** fetchImpl: 'ok' serves the bytes, a number answers that status, 'offline' throws the way fetch does with no network. */
 // decorate: changes market.list's answer on its way to the page (T-31-mkt-previews: the host's preview data URIs are check:market-store-host).
-async function open({ w = 1366, h = 768, lang = 'en', bundled = false, modelPresent = bundled, serverBytes = goodZip, net = 'ok', catalog = [item(goodZip)], dataDir: given = null, decorate = null } = {}) {
+async function open({ w = 1366, h = 768, lang = 'en', bundled = false, modelPresent = bundled, serverBytes = goodZip, net = 'ok', catalog = [item(goodZip)], dataDir: given = null, boardTab = false, decorate = null } = {}) {
   const dataDir = given || path.join(tmp, `d${++run}`); fs.mkdirSync(dataDir, { recursive: true });
   const page = await browser.newPage({ viewport: { width: w, height: h } });
   const errors = []; page.on('pageerror', (e) => errors.push(String(e.message).split('\n')[0]));
@@ -89,7 +90,9 @@ async function open({ w = 1366, h = 768, lang = 'en', bundled = false, modelPres
     emit: (c, p) => { page.evaluate((x) => window.__marketProgress(x), p).catch(() => {}); return true; },
     model: { present: () => modelHere, download: async (cb) => { cb({ loaded: 5, total: 10 }); modelHere = true; return true; }, stop() {}, remove() { modelHere = false; } },
   });
-  await page.exposeFunction('__market', async (name, id) => { const r = await host.handlers[`market.${name}`](id); return name === 'list' && decorate ? decorate(r) : r; });
+  // boardTab: the handlers the Tauri sidecar answers with (main.mjs: the Laneboard card around the market host, 0.3.5-alpha.9.10).
+  const handlers = boardTab ? (await import('../tauri/sidecar/board-tab.mjs')).withBoardTab(host.handlers, { dataDir, settings: () => readSettings(dataDir), saveSettings: (p) => saveSettings(dataDir, p) }) : host.handlers;
+  await page.exposeFunction('__market', async (name, id) => { const r = await handlers[`market.${name}`](id); return name === 'list' && decorate ? decorate(r) : r; });
   await page.addInitScript(`window.__uiLang = ${JSON.stringify(lang)};`);
   await page.addInitScript(STUB);
   await page.goto(`http://127.0.0.1:${server.address().port}/index.html`, { waitUntil: 'load' });
@@ -307,7 +310,50 @@ for (const [w, h] of [[1680, 987], [1366, 768], [1280, 800], [900, 600]]) for (c
   if (shotsDir && (lang === 'en' || w === 1366)) await shot(page, `market-store-${lang}-${w}x${h}`);
   await page.close();
 }
-// ---------- 10. T-31-mkt-previews: a store room with a preview shows the picture, the glyph otherwise; Kokoro VI card whole ----------
+// ---------- 10. the Laneboard card switches the Board tab (0.3.5-alpha.9.10, OSS-02 step 2, owner 17-11) ----------
+{
+  const boardTabShown = (page) => page.locator('.tab[data-tab="board"]').evaluate((e) => !e.hidden && getComputedStyle(e).display !== 'none');
+  const lb = (page) => card(page, 'tool.laneboard');
+  const { page, dataDir, errors } = await open({ boardTab: true });
+  await page.waitForFunction(() => document.querySelector('.market-card[data-id="tool.laneboard"]'), null, { timeout: 5000 });
+  ok(!(await boardTabShown(page)), 'fresh profile: no Board tab in the sidebar');
+  const rail = await page.$$eval('#sidebar .tab', (els) => els.filter((e) => !e.hidden).map((e) => e.dataset.tab));
+  ok(!rail.includes('board') && rail.includes('market'), 'fresh profile: the rail has no Board, the Marketplace is there', rail.join());
+  ok((await lb(page).locator('.k').innerText()) === 'Laneboard' && (await lb(page).locator('button[data-act="turnOn"]').innerText()) === EN['market.turnOn'], 'the Laneboard card offers Turn on');
+  const cats = await page.$$eval('#market-cats .stab', (els) => els.map((e) => e.dataset.cat));
+  ok(cats.includes('tool'), 'a Tools chip once the card is listed', cats.join());
+  await lb(page).click();
+  await shot(page, 'board-toggle-card-off-en-1366x768');
+  await lb(page).locator('button[data-act="turnOn"]').click();
+  await page.waitForFunction(() => { const t = document.querySelector('.tab[data-tab="board"]'); return t && !t.hidden; }, null, { timeout: 5000 });
+  ok(await boardTabShown(page), 'Turn on: the Board tab appears at once, no restart');
+  ok(await lb(page).locator('button[data-act="turnOff"]').count() === 1, 'the card now offers Turn off');
+  ok(readSettings(dataDir).boardTab === true, 'Turn on is saved in settings.json');
+  await shot(page, 'board-toggle-card-on-en-1366x768');
+  ok(errors.length === 0, 'no page error while switching', errors.join(' | '));
+  await page.close();
+  // A restart: the same data folder, a new page.
+  const again = await open({ boardTab: true, dataDir });
+  await again.page.waitForFunction(() => { const t = document.querySelector('.tab[data-tab="board"]'); return t && !t.hidden; }, null, { timeout: 5000 });
+  ok(await boardTabShown(again.page), 'after a restart the Board tab is still there');
+  // Turn off: the tab goes; the board data folder is not touched.
+  const lbDir = path.join(dataDir, 'board-data', 'laneboard');
+  fs.mkdirSync(lbDir, { recursive: true }); fs.writeFileSync(path.join(lbDir, 'journal.ndjson'), '{"seq":1}\n');
+  await lb(again.page).locator('button[data-act="turnOff"]').click();
+  await again.page.waitForFunction(() => document.querySelector('.tab[data-tab="board"]').hidden, null, { timeout: 5000 });
+  ok(!(await boardTabShown(again.page)), 'Turn off: the Board tab is gone');
+  ok(fs.readFileSync(path.join(lbDir, 'journal.ndjson'), 'utf8') === '{"seq":1}\n', 'Turn off leaves the board data as it was');
+  await again.page.close();
+  // An install that already has a board, switch never set: the tab is on.
+  const had = path.join(tmp, `d${++run}`);
+  fs.mkdirSync(path.join(had, 'board-data', 'laneboard'), { recursive: true }); fs.writeFileSync(path.join(had, 'board-data', 'laneboard', 'journal.ndjson'), '{"seq":1}\n');
+  const old = await open({ boardTab: true, dataDir: had });
+  await old.page.waitForFunction(() => { const t = document.querySelector('.tab[data-tab="board"]'); return t && !t.hidden; }, null, { timeout: 5000 });
+  ok(await boardTabShown(old.page), 'existing board data, switch unset: the Board tab stays');
+  await old.page.close();
+}
+
+// ---------- 11. T-31-mkt-previews: a store room with a preview shows the picture, the glyph otherwise; Kokoro VI card whole ----------
 {
   /** A real, decodable PNG (w x h, one colour), so the page can load it. */
   const png = (w, h, rgb) => {

@@ -21,6 +21,9 @@ const MUTE_HOUR_MS = 60 * 60 * 1000;
 const DEFAULT_QUIET_END = '07:30';
 const LEVELS = ['off', 'quiet', 'normal', 'chatty'];
 
+/** A 128-bit hex turn id. The voice routes (the local Windows voice, the cloud ones) refuse any other shape, and the scheduler's `say-<n>-<time>` id is not one: it authorises the line (talk.tts `sayId`), it is not the turn id. */
+const randomTurnId = () => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+
 /** The next local occurrence of "HH:MM" strictly after `now` (epoch ms). A bad value falls back to 07:30. */
 export function nextClockTime(hhmm, now = Date.now()) {
   const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(hhmm)) || /^([01]\d|2[0-3]):([0-5]\d)$/.exec(DEFAULT_QUIET_END);
@@ -42,11 +45,12 @@ const bytesOf = (audios) => audios.reduce((a, b) => a + (b && b.byteLength ? b.b
  * @param {() => boolean} [o.isBusy]   true while a reply is being thought/spoken
  * @param {(key: string, vars?: object) => string} o.t
  * @param {{showLine(text: string, ms: number): void, hideLine(): void, paintMute(state: object): void}} o.ui
+ * @param {() => string} [o.newTurnId]  a fresh 128-bit hex id per synthesis (tests inject a fixed one)
  * @param {() => number} [o.now]
  * @param {(fn: Function, ms: number) => any} [o.setTimer]
  * @param {(h: any) => void} [o.clearTimer]
  */
-export function createSay({ zumi, speech, library = null, engine = null, isBusy = () => false, t, ui, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
+export function createSay({ zumi, speech, library = null, engine = null, isBusy = () => false, t, ui, newTurnId = randomTurnId, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
   const talk = zumi.talk;
   const cache = new Map(); // `${lang}|${text}` -> Uint8Array[]  (insertion order = LRU order)
   let cacheBytes = 0;
@@ -93,6 +97,7 @@ export function createSay({ zumi, speech, library = null, engine = null, isBusy 
 
     const job = { sayId, cancelled: false, started: false };
     current = job;
+    const turnId = newTurnId();
     const key = `${line.lang || 'en'}|${line.text}`;
     let audios = cacheGet(key);
     const fromCache = Boolean(audios);
@@ -101,9 +106,9 @@ export function createSay({ zumi, speech, library = null, engine = null, isBusy 
     const more = [];         // chunks that arrive before playback starts
     const finish = () => { if (off) { try { off(); } catch { /* already gone */ } off = null; } if (current === job) current = null; };
     if (!audios) {
-      try { off = talk.onTtsMore ? talk.onTtsMore(sayId, (a) => more.push(a)) : null; } catch { /* streaming is optional */ }
+      try { off = talk.onTtsMore ? talk.onTtsMore(turnId, (a) => more.push(a)) : null; } catch { /* streaming is optional */ }
       try {
-        const r = await talk.tts({ turnId: sayId, text: line.text, sayId });
+        const r = await talk.tts({ turnId, text: line.text, sayId });
         if (!r || !r.ok) failure = (r && r.error && r.error.code) || 'failed';
         else if (!Array.isArray(r.audios) || !r.audios.length) failure = r.reason || 'no-audio';
         else audios = r.audios;
@@ -124,7 +129,7 @@ export function createSay({ zumi, speech, library = null, engine = null, isBusy 
     const h = prepared.start();
     showSubtitle(line.show || line.text, prepared.durationMs || 0);
     for (const a of more.splice(0)) take(a);
-    if (off) { off(); off = talk.onTtsMore ? talk.onTtsMore(sayId, take) : null; }
+    if (off) { off(); off = talk.onTtsMore ? talk.onTtsMore(turnId, take) : null; }
     playMood(line.mood);
     await ack(true, 'spoken');
     let how = 'ended';
