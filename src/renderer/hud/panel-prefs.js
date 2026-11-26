@@ -10,7 +10,7 @@
 //   below-left  -- the full panel, always open, in a new .hud-group under the 48% arm-safe line (yieldLoop fades it for
 //                  a passing arm, exactly like the two existing groups).
 //   below-right -- the same, on the other side.
-// Default: T1 in place (Pi decision 2026-10-23, PLAN section 10). Nothing shows unless HUD style != Off, and HUD style
+// Default: T1 in place (lead decision 2026-10-23, PLAN section 10). Nothing shows unless HUD style != Off, and HUD style
 // defaults to Off, so the shipped default view does not change.
 export const PANEL_DESIGNS = Object.freeze(['none', 't1', 't2', 't3']);
 export const PANEL_PLACES = Object.freeze(['inplace', 'below-left', 'below-right']);

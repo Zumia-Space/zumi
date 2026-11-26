@@ -10,7 +10,7 @@
 // 5 not in any wording: no UI string (en/vi/zh i18n tables) and no room display name says "Office" / "Văn phòng" /
 //   "办公室", and default-v2 is labelled "Night City" / "Thành phố đêm" / "城市夜景" in the Settings picker and the
 //   "{current}" clause (owner calls the approved room; id, file names and settings keys stay default-v2).
-// 6 Tauri (ported from Pi's 0ff6dc9e + f8901072, T-31-TAURI preview.3): the sidecar neither lists nor serves v1, rewrites a
+// 6 Tauri (ported from the lead lane's 0ff6dc9e + f8901072, T-31-TAURI preview.3): the sidecar neither lists nor serves v1, rewrites a
 //   saved v1 once, the bundle gate refuses the importer's test .glb fixture, and the shell markup says no Office (0.2.11 release notes announce the removal, so they are not checked).
 // 7 no name clash: in every locale the room names (Settings picker + video scene picker) are pairwise distinct and only
 //   default-v2 says "night city"; video room rooftop-night is "Rooftop" / "Sân thượng" / "天台" (id + file unchanged).

@@ -1,5 +1,5 @@
 // Stand-in room.json v2 generator (T-31 camera modes, PLAN-camera-modes.md item 7 + coordinator rounds 2-3):
-// writes a complete, checker-passing v2 room MIRRORING VESTA'S REAL v2-B SCHEMA (the v2-B room repo
+// writes a complete, checker-passing v2 room MIRRORING THE ROOM AUTHOR'S REAL v2-B SCHEMA (the v2-B room repo
 // out/room.json) -- per-view zumi_seat/camera (pos/target/three.fov/aspect/viewOffset), occluders referencing
 // named meshes in a generated occluders.glb, and a per-view `lights` test case (round 3: work has its own rig,
 // talk/room fall back to the app's default lights, exercising both branches) -- so the rest of this task
@@ -40,7 +40,7 @@ const { chromium } = createRequire(path.join(PW_SOURCE, 'package.json'))(PW_SOUR
 const THREE = await import('three');
 const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
 
-// Box specs in the SAME per-view local frames the cameras/seats below use. node names follow Vesta's own
+// Box specs in the SAME per-view local frames the cameras/seats below use. node names follow the room author's own
 // "occ_<view>_<part>" convention (not required by the loader, which only ever matches the exact `node` string
 // room.json gives -- this is just for a human reading the file to recognise it).
 const OCCLUDER_BOXES = {
@@ -96,7 +96,7 @@ window.renderPlate = function (spec) {
 window.ready = true;
 </script></body></html>`;
 
-// ---------- room.json v2 (mirrors Vesta's real v2-B field names, round-3 frozen) ----------
+// ---------- room.json v2 (mirrors the room author's real v2-B field names, round-3 frozen) ----------
 // Camera: "front-facing, webcam" (owner, verbatim, PLAN-camera-modes.md) for talk; a closer, down-angled shot at
 // the desk for work (a deliberate off-centre viewOffset here, exercising that code path -- the real room uses
 // one too); a wide shot for room. Each view has its OWN zumi_seat (round 2: views are not geometrically

@@ -1,4 +1,4 @@
-// HUD toggle-on poll (T-31 0.2.11, Pi2 R3 "HUD S1"): switching the HUD on must show the panel within ~1 s, not on the
+// HUD toggle-on poll (T-31 0.2.11, box review R3 "HUD S1"): switching the HUD on must show the panel within ~1 s, not on the
 // next 20 s board tick (measured 14.4 s on Electron). Headless, the REAL main host (src/main/hud-host.mjs), node:test
 // fake timers, a fake board reader with a read latency, and a fake IPC (host.setPrefs -> 'hud:feed' recorded).
 // Two causes, both in the host: (1) setPrefs off -> on called start(), a no-op while the timer already runs (a talk level

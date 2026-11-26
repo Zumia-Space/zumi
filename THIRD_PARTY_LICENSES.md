@@ -1151,3 +1151,12 @@ tauri-plugin-updater 2.14.1 and its dependency tree. Licences as the crates decl
 | tempfile | 3.27.0 | MIT OR Apache-2.0 |
 | windows-registry | 0.6.1 | MIT OR Apache-2.0 |
 | windows-sys / windows-targets / windows_x86_64_msvc | 0.52.x | MIT OR Apache-2.0 |
+
+## Synthesized test audio (source tree only, not in the installer)
+
+`tauri/zumi-stt/tests/fixtures/t58-20/*.wav` are speech clips the voice-input tests play back. They are synthesized, not a recording of a person. `make-fixtures.sh` and `make-en.ps1` in the same folder made them; `sentences.tsv` holds the text.
+
+| Clips | Made with | Licence and credit |
+|---|---|---|
+| `vi-01.wav` .. `vi-10.wav` | Piper text-to-speech (https://github.com/OHF-voice/piper1-gpl, GPL-3.0-or-later; earlier releases at https://github.com/rhasspy/piper, MIT; which build made the clips is not recorded), voice `vi_VN-vais1000-medium` from rhasspy/piper-voices (https://huggingface.co/rhasspy/piper-voices) | The voice is trained on the VAIS-1000 Vietnamese speech synthesis corpus (https://ieee-dataport.org/documents/vais-1000-vietnamese-speech-synthesis-corpus), licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), per the voice's model card. Changes: resampled to 16 kHz mono 16-bit with ffmpeg. The program's GPL covers Piper itself, not the audio it outputs. |
+| `en-01.wav` .. `en-10.wav` | Microsoft Windows speech synthesis (SAPI, .NET `System.Speech`), the Windows default voice (`make-en.ps1` selects none, so the voice name is not recorded) | Output of the Windows built-in voice, used as test input only. Microsoft does not endorse Zumi. |

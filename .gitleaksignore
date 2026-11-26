@@ -1,0 +1,23 @@
+# gitleaks: reviewed findings in the public source export (OSS-02 push plan step 0, 23-11). Each is a test value or a hash, not a
+# credential. Fingerprint = path:rule:line of the export tree; a moved line shows up again and is reviewed again.
+# sha256 pins of the Kokoro model files (hex digests, public)
+assets/voice-fillers/kokoro-af_heart/candidates/manifest.json:generic-api-key:11
+assets/voice-fillers/kokoro-af_heart/candidates/manifest.json:generic-api-key:12
+scripts/render-fillers.mjs:generic-api-key:38
+scripts/render-fillers.mjs:generic-api-key:39
+src/main/kokoro-worker.mjs:generic-api-key:38
+src/main/kokoro-worker.mjs:generic-api-key:39
+# file-name keys of the default-model notice (a .vrm name, no secret)
+tauri/third-party-manifest.json:generic-api-key:119
+third-party-manifest.json:generic-api-key:135
+# the RFC 6455 sample Sec-WebSocket-Key of a CSP check
+scripts/check-tauri-board-csp.mjs:generic-api-key:25
+# fake keys the checks feed in to prove they are refused, masked or never logged
+scripts/check-soul.mjs:gcp-api-key:78
+scripts/check-tauri-voice.mjs:generic-api-key:69
+scripts/check-tts-providers.mjs:generic-api-key:599
+scripts/check-tauri-profile-import.mjs:generic-api-key:28
+tauri/zumi-agent-loop/tests/chat_runs.rs:generic-api-key:435
+tauri/zumi-agent-loop/src/tool_gate.rs:generic-api-key:753
+tauri/zumi-agent-loop/src/tool_gate.rs:generic-api-key:754
+tauri/zumi-packs/tests/kill.rs:generic-api-key:117

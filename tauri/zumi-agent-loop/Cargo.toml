@@ -1,0 +1,58 @@
+[package]
+name = "zumi-agent-loop"
+version = "0.0.1"
+description = "T-31-MAUS P3: the agent loop, tool_gate and built-in tools. No tauri dependency; the host calls it through a thin wiring layer"
+authors = ["Zumia Space"]
+edition = "2021"
+rust-version = "1.90"
+license = "AGPL-3.0-only"
+publish = false
+
+# Rule 3.7 (no new crate): a crate of this repository. External crates are serde_json and `windows` 0.62, both already in
+# tauri/src-tauri/Cargo.lock; scripts/check-zumi-hands-lock.mjs (pass this crate's lock as argument 1) proves the subset.
+[dependencies]
+serde_json = "1"
+# R4g: upstream's redaction patterns, ported as they are. regex 1.13.1 is already in tauri/src-tauri/Cargo.lock (same checksum).
+regex = "1"
+zumi-audit = { path = "../zumi-audit" }
+# A2 reminders store: a crate of this repository (no tauri dependency).
+zumi-routines = { path = "../zumi-routines" }
+# R3: the one door for outbound HTTP (MCP servers, a custom endpoint). A crate of this repository; its own external crates
+# (reqwest, rustls, tokio, url) are all in tauri/src-tauri/Cargo.lock.
+zumi-egress = { path = "../zumi-egress" }
+# R7c: the HB-2 acceptance dialog is asked on the private desktop (`zumi_packs::consent::secure_ask`); the skill tests also install a real
+# skill pack and load its text. A crate of this repository.
+zumi-packs = { path = "../zumi-packs" }
+
+[dev-dependencies]
+zumi-egress = { path = "../zumi-egress", features = ["fixture"] }
+
+[features]
+# The MCP fixture server binary for goal harnesses (not part of the app).
+fixture = ["zumi-egress/fixture"]
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  # The usage ledger files are named by the owner's LOCAL date (usage-ledger.js localDate): GetLocalTime.
+  "Win32_System_SystemInformation",
+  # R7c: the private-desktop dialog test finds windows of the person's desktop (FindWindowW).
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[[bin]]
+name = "zumi-agent-loop"
+path = "src/bin/zumi-agent-loop.rs"
+
+[[bin]]
+name = "zumi-mcp-fixture"
+path = "src/bin/zumi-mcp-fixture.rs"
+required-features = ["fixture"]
+
+[profile.release]
+codegen-units = 1
+
+# R5: a stand-in for the hands helper for the offline tests (no window, no input). Never part of the app.
+[[bin]]
+name = "zumi-hands-fake"
+path = "src/bin/zumi-hands-fake.rs"

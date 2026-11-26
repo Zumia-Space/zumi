@@ -75,15 +75,15 @@ function measureSurfaces(vrm, headN, chestN, hipsN, frame) {
   const H = [], C = [], P = [];
   vrm.scene.traverse((o) => {
     if (!o.isSkinnedMesh || !o.geometry.attributes.skinIndex) return;
-    const hi = o.skeleton.bones.indexOf(headRaw), ci = chestRaw ? o.skeleton.bones.indexOf(chestRaw) : -1, pi = o.skeleton.bones.indexOf(hipsRaw);
-    if (hi < 0 && ci < 0 && pi < 0) return;
+    const hi = o.skeleton.bones.indexOf(headRaw), ci = chestRaw ? o.skeleton.bones.indexOf(chestRaw) : -1, hipIdx = o.skeleton.bones.indexOf(hipsRaw);
+    if (hi < 0 && ci < 0 && hipIdx < 0) return;
     const g = o.geometry, sI = g.attributes.skinIndex, sW = g.attributes.skinWeight;
     for (let i = 0; i < g.attributes.position.count; i++) {
       let b = 0;
       for (let k = 1; k < 4; k++) if (sW.getComponent(i, k) > sW.getComponent(i, b)) b = k;
       if (sW.getComponent(i, b) < 0.6) continue;
       const j = sI.getComponent(i, b);
-      if (j !== hi && j !== ci && j !== pi) continue;
+      if (j !== hi && j !== ci && j !== hipIdx) continue;
       const pt = o.getVertexPosition(i, V()).applyMatrix4(o.matrixWorld);
       if (j === hi) H.push(pt.applyMatrix4(headInv)); else if (j === ci) C.push(pt.applyMatrix4(chestInv)); else P.push(pt.applyMatrix4(hipsInv));
     }

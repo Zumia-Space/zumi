@@ -75,9 +75,20 @@ const viHits = Object.entries(TABLES.vi).filter(([, v]) => MINH.test(v)).map(([k
 ok(viHits.every((k) => ALLOWED_I18N[k]), 'every "mình" in the VI table is on the allow-list', viHits.filter((k) => !ALLOWED_I18N[k]).join(', '));
 ok(Object.keys(ALLOWED_I18N).every((k) => viHits.includes(k)), 'the VI allow-list holds nothing stale');
 const mainFiles = fs.readdirSync(path.join(ROOT, 'src/main')).filter((f) => /\.(js|mjs|json)$/.test(f)).map((f) => `src/main/${f}`);
-const fileHits = mainFiles.filter((f) => fs.readFileSync(path.join(ROOT, f), 'utf8').split('\n').some((l) => !/^\s*(\/\/|\*)/.test(l) && MINH.test(l)));
+// Skipped from the scan, not allow-listed: data about language names and words, never a fixed line she speaks.
+const SKIPPED_FILES = {
+  'src/main/voice-lang-table.json': 'voice-language table: per-language word lists used to detect the language, not a line she says',
+};
+const minhFiles = (files, read) => files.filter((f) => !SKIPPED_FILES[f] && read(f).split('\n').some((l) => !/^\s*(\/\/|\*)/.test(l) && MINH.test(l)));
+const fileHits = minhFiles(mainFiles, (f) => fs.readFileSync(path.join(ROOT, f), 'utf8'));
 ok(fileHits.every((f) => ALLOWED_FILES[f]), 'every "mình" in src/main is on the allow-list', fileHits.filter((f) => !ALLOWED_FILES[f]).join(', '));
 ok(Object.keys(ALLOWED_FILES).every((f) => fileHits.includes(f)), 'the file allow-list holds nothing stale');
+{ // the skip is exact: voice-lang-table.json passes with "mình", the same text in any other file still fails.
+  const fake = { 'src/main/voice-lang-table.json': '{"x": "tiếng mình"}', 'src/main/some-new-file.js': 'const s = "mình nghe rồi";' };
+  const hits = minhFiles(Object.keys(fake), (f) => fake[f]);
+  ok(hits.length === 1 && hits[0] === 'src/main/some-new-file.js', 'the voice-lang-table.json skip is exact: a planted "mình" in any other file is still flagged', hits.join(', '));
+  ok(Object.keys(SKIPPED_FILES).every((f) => fs.existsSync(path.join(ROOT, f))), 'the skip list names only files that exist');
+}
 const speechJson = fs.readFileSync(path.join(ROOT, 'src/main/speech-lines.json'), 'utf8');
 ok(!MINH.test(speechJson), 'speech-lines.json has no "mình" at all');
 { const fx = readJson('src/main/soul-templates.json').address.publicDefault; ok(soulPrefs({}).selfWord === fx.selfWord && soulPrefs({}).userWord === fx.userWord, 'soulPrefs public default = soul-templates.json'); }

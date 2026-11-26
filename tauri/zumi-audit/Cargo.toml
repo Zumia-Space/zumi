@@ -1,0 +1,19 @@
+[package]
+name = "zumi-audit"
+version = "0.0.1"
+description = "T-31-MAUS hands audit log: one JSON line per hands decision (allowed or refused)"
+authors = ["Zumia Space"]
+edition = "2021"
+rust-version = "1.90"
+license = "AGPL-3.0-only"
+publish = false
+
+# A crate of this repository (not a new external crate). serde_json is already in the app lock.
+[dependencies]
+serde_json = "1"
+# P3 M3 (HB-2): record authentication. sha2 is already in tauri/src-tauri/Cargo.lock (the host uses it): an edge, not a new crate.
+sha2 = "0.10"
+
+[target.'cfg(windows)'.dependencies]
+# The random key (BCryptGenRandom) and keep-awake (SetThreadExecutionState). Features of the `windows` 0.62 already locked.
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_Power"] }

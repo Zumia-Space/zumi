@@ -1,0 +1,47 @@
+[package]
+name = "zumi-hands"
+version = "0.0.1"
+description = "T-31-MAUS hands helper: read-only UI Automation snapshots over stdio line JSON (P0 measure phase)"
+authors = ["Zumia Space"]
+edition = "2021"
+rust-version = "1.90"
+license = "AGPL-3.0-only"
+publish = false
+
+# A separate package (not a bin of tauri/src-tauri) so building and measuring it does not compile Tauri/WebView2.
+# Rule 3.7 (no new crate): Cargo.lock here is a SUBSET of tauri/src-tauri/Cargo.lock, same versions and checksums;
+# scripts/check-zumi-hands-lock.mjs proves it. Only features of the locked `windows` 0.62 are added.
+[dependencies]
+serde_json = "1"
+# R4g: upstream's sensitive-field pattern, as it is. regex 1.13.1 is already in tauri/src-tauri/Cargo.lock (same checksum).
+regex = "1"
+# P2 audit log: a crate of this repository (tauri/zumi-audit), not an external crate.
+zumi-audit = { path = "../zumi-audit" }
+
+[target.'cfg(windows)'.dependencies]
+# P0c: `#[implement]` (the UIA event handlers in watch.rs) expands to `windows_core::` paths, so the crate must be a
+# direct dependency. windows-core 0.62.2 is already in the app lock (tauri/src-tauri depends on it directly): an edge.
+windows-core = "0.62"
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  # P1: window capture (GDI + PrintWindow) and SendInput/RegisterHotKey. Features of the locked crate only.
+  "Win32_Graphics_Gdi",
+  "Win32_Storage_Xps",
+  # P2 R6 B1: the path check resolves local fixed drives only (GetDriveTypeW).
+  "Win32_Storage_FileSystem",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_System_Com",
+  # P2: the target process's executable path for the allowlist (OpenProcess + QueryFullProcessImageNameW).
+  "Win32_System_Threading",
+  # P2 fix: Explorer /separate hands its window to a new process; launch --handoff finds it (EnumProcesses).
+  "Win32_System_ProcessStatus",
+  # P2 R4 E2 (2): new child processes of ours after an action (Toolhelp process snapshot with parent pids).
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_Ole",
+  "Win32_System_Variant",
+  "Win32_UI_Accessibility",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+codegen-units = 1

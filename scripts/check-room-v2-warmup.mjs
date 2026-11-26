@@ -23,7 +23,7 @@ import { ownerPath } from './lib/owner-paths.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // The real room B (same path main.js's ROOM_V2_DEFAULT_PATH_FALLBACK points at); falls back to the stand-in
-// generator's output so this still runs on a machine that never pulled Vesta's real asset.
+// generator's output so this still runs on a machine that never pulled the room author's real asset.
 const CANDIDATES = [`${ownerPath('roomV2Dir', 'local/room-v2')}/room.json`, `${ownerPath('standinRoom', 'local/standin-room-v2')}/room.json`];
 const ROOM_JSON = CANDIDATES.find((p) => fs.existsSync(p));
 
@@ -40,7 +40,7 @@ function tmpStoreDir() {
 }
 
 if (!ROOM_JSON) {
-  console.log(`SKIP A/B: no room.json found at any of ${CANDIDATES.join(' or ')} -- run scripts/gen-standin-room-v2.mjs first, or run this on a machine with Vesta's real room.`);
+  console.log(`SKIP A/B: no room.json found at any of ${CANDIDATES.join(' or ')} -- run scripts/gen-standin-room-v2.mjs first, or run this on a machine with the room author's real room.`);
 } else {
   // ---- A: the BUG pattern -- N callers, no shared warm-up (a fresh cache each time, same as calling
   // ensureDefaultRoomV2CopyFn directly on every request before any of them has set the cache). Every one must

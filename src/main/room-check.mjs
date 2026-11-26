@@ -268,7 +268,7 @@ export function roomContentId(buf) { return crypto.createHash('sha256').update(b
 // room standard v2 (T-31 camera modes, PLAN-camera-modes.md + coordinator rounds 2-3, 2026-10-03): a JSON room,
 // no .glb SCENE (the walls/furniture are a PAINTED PLATE image per view) but occluders DO come from one shared
 // .glb of named, depth-only meshes (`model`, e.g. "occluders.glb"), picked per view by node name -- this is
-// VESTA'S REAL v2-B SCHEMA (the v2-B room.json), frozen field names as of round 3; this
+// THE ROOM AUTHOR'S REAL v2-B SCHEMA (the v2-B room.json), frozen field names as of round 3; this
 // checker validates it as-is. Each view carries its OWN zumi_seat and camera (views are NOT geometrically
 // consistent with each other -- separate paintings, separate local origins) and may carry its own `lights`
 // (round 3: replaces the default light rig while that view is active; absent = keep the app's default lights).
@@ -287,7 +287,7 @@ export const CAPS_V2 = {
   fovMax: 120,
   aspectMin: 0.3,
   aspectMax: 3.5,
-  // coordinator round 3 originally said "<=4 lights" (written before any real lights data existed); Vesta's
+  // coordinator round 3 originally said "<=4 lights" (written before any real lights data existed); the room author's
   // final v2-B room.json ships 5 per view (work/room: 2 directional key/rim + 1 point lamp + 1 directional
   // screen-glow + 1 hemisphere ambient) -- raised to fit the real, final, shipped data, still bounded.
   lightsPerViewRefuse: 8,
@@ -310,7 +310,7 @@ export const CAPS_V2 = {
   allowedRegionPointsRefuse: 80,
 };
 const VIEW_NAMES = ['talk', 'work', 'room'];
-const LIGHT_TYPES = new Set(['directional', 'point', 'hemisphere']); // Vesta's real v2-B field names (round 3 final) -- 'ambient' was this task's own earlier guess, corrected against the shipped data
+const LIGHT_TYPES = new Set(['directional', 'point', 'hemisphere']); // the room author's real v2-B field names (round 3 final) -- 'ambient' was this task's own earlier guess, corrected against the shipped data
 const refuseV2 = (code, params = {}) => ({ ok: false, refused: { code, params }, warnings: [], views: null, fallback: null });
 
 function isVec3(v) { return Array.isArray(v) && v.length === 3 && v.every(Number.isFinite); }
@@ -396,7 +396,7 @@ function checkLookTargets(list, warn) {
   return out;
 }
 
-// lights (coordinator round 3, ADDS to the frozen v2 schema; shapes matched against Vesta's real, final v2-B
+// lights (coordinator round 3, ADDS to the frozen v2 schema; shapes matched against the room author's real, final v2-B
 // room.json, not guessed): a per-view light rig matched to that view's plate. 'directional' carries `toward` (a
 // unit vector the light travels TOWARD, i.e. the direction FROM the light TO the subject) + `color`; 'point'
 // carries `position` + `color` (+ optional `distance`/`decay` falloff); 'hemisphere' carries `skyColor` +

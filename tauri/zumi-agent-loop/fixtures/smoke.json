@@ -1,0 +1,8 @@
+{
+  "name": "smoke",
+  "model": "mock/loop-v1",
+  "turns": [
+    { "text": "Saving the note.", "tool_calls": [{ "name": "note.save", "args": { "text": "{{note}}" } }], "usage": { "in": 300, "out": 40 } },
+    { "text": "Saved.", "usage": { "in": 360, "out": 6 } }
+  ]
+}

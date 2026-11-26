@@ -53,7 +53,7 @@ function createKokoroTts({ userDataDir, log = () => {}, workerFactory = () => ne
   let crashed = false;     // a worker died on its own: reloads are throttled until one reaches ready
   let lastReloadAt = 0;
   const firstAudioPending = new Map(); // turnId -> request time, for the first-audio measurement line
-  // Measurement hook (Pi2's box kit greps '[voice-measure]'): ISO timestamp + epoch ms on every line.
+  // Measurement hook (the test box kit greps '[voice-measure]'): ISO timestamp + epoch ms on every line.
   const measure = (event, extra = '') => { const t = Date.now(); log(`[voice-measure] event=${event} ts=${new Date(t).toISOString()} epochMs=${t}${extra ? ' ' + extra : ''}`); };
   const touch = () => {
     if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }

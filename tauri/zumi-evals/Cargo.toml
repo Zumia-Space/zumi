@@ -1,0 +1,24 @@
+[package]
+name = "zumi-evals"
+version = "0.0.1"
+description = "T-31-MAUS R7 K1: one command (`zumi-evals --all`) that replays the fixture sets of the earlier phases and the pack and skill checks, and says which ones hold"
+authors = ["Zumia Space"]
+edition = "2021"
+rust-version = "1.90"
+license = "AGPL-3.0-only"
+publish = false
+
+# Standalone crate. Rule 3.7 (no new crate): Cargo.lock is a SUBSET of tauri/src-tauri/Cargo.lock
+# (`node scripts/check-zumi-hands-lock.mjs tauri/zumi-evals/Cargo.lock`).
+[dependencies]
+serde_json = "1"
+zumi-audit = { path = "../zumi-audit" }
+zumi-agent-loop = { path = "../zumi-agent-loop" }
+zumi-packs = { path = "../zumi-packs" }
+
+[[bin]]
+name = "zumi-evals"
+path = "src/main.rs"
+
+[profile.release]
+codegen-units = 1

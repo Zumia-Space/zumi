@@ -1,0 +1,33 @@
+[package]
+name = "zumi-egress"
+version = "0.0.1"
+description = "T-31-MAUS R3: the one door for outbound HTTP from the agent (Rust port of guardedFetch): origin allow-list, https unless the user added a loopback origin, no redirects, resolved address pinned"
+authors = ["Zumia Space"]
+edition = "2021"
+rust-version = "1.90"
+license = "AGPL-3.0-only"
+publish = false
+
+# Rule 3.7 (no new crate): every registry package in this crate's lock is already in tauri/src-tauri/Cargo.lock at the same
+# version (scripts/check-zumi-hands-lock.mjs, pass this crate's lock as argument 1). reqwest runs on the rustls the app
+# already locks (ring provider, no aws-lc).
+[dependencies]
+reqwest = { version = "=0.13.5", default-features = false, features = ["rustls-no-provider"] }
+rustls = { version = "=0.23.46", default-features = false, features = ["ring", "std"] }
+tokio = { version = "1", default-features = false, features = ["rt", "time", "net"] }
+url = "2"
+
+[features]
+# A loopback HTTP fixture server for tests and goal harnesses (std sockets, one thread per connection). Never in the app.
+fixture = []
+
+[profile.release]
+codegen-units = 1
+
+[[test]]
+name = "egress"
+path = "tests/egress.rs"
+required-features = ["fixture"]
+
+[dev-dependencies]
+serde_json = "1"

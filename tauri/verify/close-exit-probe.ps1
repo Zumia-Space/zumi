@@ -6,9 +6,9 @@ $src = @'
 using System; using System.Runtime.InteropServices; using System.Collections.Generic; using System.Text;
 public static class HD {
  [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)] public struct SI { public int cb; public string r; public string desk; public string title; public int x,y,w,h,cx,cy,attr,flags; public short show,r2; public IntPtr r3,i,o,e; }
- [StructLayout(LayoutKind.Sequential)] public struct PI { public IntPtr hP,hT; public int pid,tid; }
+ [StructLayout(LayoutKind.Sequential)] public struct PROCINFO { public IntPtr hP,hT; public int pid,tid; }
  [DllImport("user32",CharSet=CharSet.Unicode,SetLastError=true)] public static extern IntPtr CreateDesktopW(string n,IntPtr d,IntPtr dm,int f,uint a,IntPtr s);
- [DllImport("kernel32",CharSet=CharSet.Unicode,SetLastError=true)] public static extern bool CreateProcessW(string app,StringBuilder cmd,IntPtr pa,IntPtr ta,bool inh,uint fl,IntPtr env,string cwd,ref SI si,out PI pi);
+ [DllImport("kernel32",CharSet=CharSet.Unicode,SetLastError=true)] public static extern bool CreateProcessW(string app,StringBuilder cmd,IntPtr pa,IntPtr ta,bool inh,uint fl,IntPtr env,string cwd,ref SI si,out PROCINFO procInfo);
  public delegate bool EnumProc(IntPtr h,IntPtr l);
  [DllImport("user32")] public static extern bool EnumDesktopWindows(IntPtr d,EnumProc e,IntPtr l);
  [DllImport("user32")] public static extern uint GetWindowThreadProcessId(IntPtr h,out int pid);
@@ -32,10 +32,10 @@ $desk = [HD]::CreateDesktopW($deskName,[IntPtr]::Zero,[IntPtr]::Zero,0,0x1000000
 if($desk -eq [IntPtr]::Zero){ throw "CreateDesktop failed" }
 if($Guest){ $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=$Port" }
 $si = New-Object HD+SI; $si.cb=[Runtime.InteropServices.Marshal]::SizeOf($si); $si.desk=$deskName
-$pi0 = New-Object HD+PI
+$procInfo0 = New-Object HD+PROCINFO
 $cmd = New-Object Text.StringBuilder("`"$Exe`" --data-dir $Data")
-if(-not [HD]::CreateProcessW($Exe,$cmd,[IntPtr]::Zero,[IntPtr]::Zero,$false,0,[IntPtr]::Zero,(Split-Path $Exe),[ref]$si,[ref]$pi0)){ throw "CreateProcess failed" }
-$procId=$pi0.pid; $p=Get-Process -Id $procId
+if(-not [HD]::CreateProcessW($Exe,$cmd,[IntPtr]::Zero,[IntPtr]::Zero,$false,0,[IntPtr]::Zero,(Split-Path $Exe),[ref]$si,[ref]$procInfo0)){ throw "CreateProcess failed" }
+$procId=$procInfo0.pid; $p=Get-Process -Id $procId
 say "pid=$procId desktop=$deskName exe=$Exe sha=$((Get-FileHash $Exe -Algorithm SHA256).Hash.Substring(0,16)) guest=$Guest"
 try {
 Start-Sleep -Seconds $Settle

@@ -5,7 +5,7 @@
 //   2. waiting_before_done  a 'waiting' step (an open ask) sitting before a later 'done' step in the same task is a
 //                           violation: the ask was overtaken by newer work, so showing it as current would lie.
 //                           s21: "in the same task" means of the same lane -- steps carry a `lane` (the effective one: the
-//                           step's own, else the task's). A done step of Vesta does not overtake Pi's ask on the same task;
+//                           step's own, else the task's). A done step of Workerb does not overtake Workera's ask on the same task;
 //                           without lanes (every step the same lane) the rule is exactly what it was.
 //   3. waiting_status_without_ask  a task may carry status 'waiting' (waiting on the owner) only while the owner has
 //                           something to answer on it: an open ask, an unresolved ask proposal in the inbox, or a

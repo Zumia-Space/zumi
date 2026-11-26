@@ -21,7 +21,7 @@ export async function startHudBoard({ dataDir, port: wantPort = 0 }) {
   };
   const stepRev = (taskId, stepId) => board.state.steps[`${taskId}/${stepId}`].rev;
   w('task.create', 'T-31', {
-    title: 'Zumi agent: HUD hologram + task reactions', status: 'doing', lane: 'Pi CoS', health: 'yellow',
+    title: 'Zumi agent: HUD hologram + task reactions', status: 'doing', lane: 'CoS', health: 'yellow',
     // Panel fields (T-31 hud-panels, PLAN section 2): a goal and a now with a trailing ref line each, so the harness
     // proves the feed drops the ref lines and keeps the sentence.
     goal: 'Ship the three HUD panel designs so anh picks the look and where it sits in the talk view.\n`C:/data/hud-build/PLAN.md` · [plan](https://example.invalid/plan)',
@@ -33,13 +33,13 @@ export async function startHudBoard({ dataDir, port: wantPort = 0 }) {
       { id: 'qc', label: 'Owner QC in the app', zone: 'owner', state: 'todo' },
     ],
   });
-  w('task.create', 'F-04', { title: 'Wardrobe: outfit round 4', status: 'waiting', lane: 'Vesta', steps: [
+  w('task.create', 'F-04', { title: 'Wardrobe: outfit round 4', status: 'waiting', lane: 'Worker B', steps: [
     { id: 'r4', label: 'Round 4 looks ready for review', zone: 'owner', state: 'waiting' },
   ] });
-  w('task.create', 'C-52', { title: 'Content factory: crawl + classify', status: 'doing', lane: 'Pi', steps: [
+  w('task.create', 'C-52', { title: 'Content factory: crawl + classify', status: 'doing', lane: 'Worker A', steps: [
     { id: 'gate', label: 'Quality gate on 40 drafts', zone: 'test', state: 'active' },
   ] });
-  w('task.create', 'H-03', { title: 'Hunter: job review board', status: 'doing', lane: 'Pi', steps: [
+  w('task.create', 'H-03', { title: 'Hunter: job review board', status: 'doing', lane: 'Worker A', steps: [
     { id: 'scan', label: 'Link scanner pass', zone: 'build', state: 'blocked' },
   ] });
   w('ask.raise', 'F-04', { text: 'Pick the look for round 4 (A, B or C)', step_id: 'r4', options: [{ key: 'A', label: 'Night blue' }, { key: 'B', label: 'White' }, { key: 'C', label: 'Both' }] });

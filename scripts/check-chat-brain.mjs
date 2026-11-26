@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const CB = require('../src/main/chat-brain.js');
-const { createChatBrain, createDailyCap, callChat, assertAllowedUrl, parseReplyIntent, createReplyParser, EMOTIONS, EMOTION_PRESETS, ALLOWED_ORIGIN, CHAT_PATH, MODEL, DAILY_CAP, CAP_MESSAGE_VI, SYSTEM_PROMPT } = CB;
+const { createChatBrain, callChat, assertAllowedUrl, parseReplyIntent, createReplyParser, EMOTIONS, EMOTION_PRESETS, ALLOWED_ORIGIN, CHAT_PATH, MODEL, SYSTEM_PROMPT } = CB;
 
 let pass = 0, fail = 0;
 const ok = (cond, name, detail = '') => { if (cond) { pass++; console.log(`PASS ${name}`); } else { fail++; console.log(`FAIL ${name} ${detail}`); } };
@@ -94,22 +94,7 @@ function mockFetch({ delayMs = 1, status = 200, body = { choices: [{ message: { 
   ok(!r.ok && r.error === 'timeout', 'callChat: an aborted request reports a clean timeout', JSON.stringify(r));
 }
 
-// ---------- daily cap (generic mechanism) ----------
-{
-  const dir = tmpDir();
-  const file = path.join(dir, 'cap.json');
-  const cap = createDailyCap(file, 3);
-  ok(cap.count() && cap.count() && cap.count(), 'dailyCap: the first `cap` calls all succeed');
-  ok(cap.count() === false, 'dailyCap: the next call is refused once the cap is reached');
-  ok(cap.total() === 3, 'dailyCap: total() stops counting the refused call');
-  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  saved.date = '2000-01-01'; // force a stale date, as if this were yesterday's file
-  fs.writeFileSync(file, JSON.stringify(saved));
-  ok(cap.count() === true, 'dailyCap: a new calendar date resets the counter');
-  ok(cap.total() === 1, 'dailyCap: the reset count starts from 1, not 4');
-}
-
-// ---------- createChatBrain integration: 200 turns ok, the 201st is the Vietnamese cap message, next day resets ----------
+// ---------- createChatBrain integration: no daily chat cap (owner 12-11 "Bỏ hạn mức đi nhé"): turn 201 answers, no cap file ----------
 {
   const dir = tmpDir();
   seedKey(dir);
@@ -118,23 +103,14 @@ function mockFetch({ delayMs = 1, status = 200, body = { choices: [{ message: { 
   ok(cb.hasKey(), 'chatBrain: the seeded key is readable (same jev-key.bin reflex-jev would have imported)');
   ok(cb.status().enabled === true && cb.status().mode === 'byo', 'chatBrain: status() is enabled/byo with a key present');
 
-  let allNormal = true;
-  for (let i = 0; i < DAILY_CAP; i++) {
+  const TURNS = 201; // one past the old 200/day cap
+  let normal = 0;
+  for (let i = 0; i < TURNS; i++) {
     const r = await cb.turn({ message: `turn ${i}`, history: [] });
-    if (!r.ok || r.reply !== 'hi there' || r.model !== MODEL) { allNormal = false; break; }
+    if (r.ok && r.reply === 'hi there' && r.model === MODEL) normal++;
   }
-  ok(allNormal, `chatBrain: all ${DAILY_CAP} turns within the daily cap answer normally`);
-
-  const over = await cb.turn({ message: 'one more', history: [] });
-  ok(over.ok && over.reply === CAP_MESSAGE_VI && over.model === 'cap', `chatBrain: turn ${DAILY_CAP + 1} is blocked with the daily cap message`, JSON.stringify(over));
-
-  // Simulate the next calendar day the same way the generic dailyCap test did: edit the persisted date.
-  const capFile = path.join(dir, 'chat-turn-cap.json');
-  const saved = JSON.parse(fs.readFileSync(capFile, 'utf8'));
-  saved.date = '2000-01-01';
-  fs.writeFileSync(capFile, JSON.stringify(saved));
-  const nextDay = await cb.turn({ message: 'tomorrow', history: [] });
-  ok(nextDay.ok && nextDay.reply === 'hi there' && nextDay.model === MODEL, 'chatBrain: the next calendar day answers normally again (cap reset)', JSON.stringify(nextDay));
+  ok(normal === TURNS, `chatBrain: all ${TURNS} turns in one day answer normally (no daily cap)`, String(normal));
+  ok(!fs.existsSync(path.join(dir, 'chat-turn-cap.json')), 'chatBrain: no chat-turn-cap.json is written');
 }
 
 // ---------- no key present: chat-brain refuses cleanly, never calls fetch ----------

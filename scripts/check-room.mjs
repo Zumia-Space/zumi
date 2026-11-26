@@ -298,7 +298,7 @@ function view2(patch) { return { camera: { pos: [0, 1.3, 2], target: [0, 1.3, 0]
 }
 
 // -- real files, skipped (not failed) when absent on this machine --
-for (const [label, p] of [['Vesta\'s v2-B room', `${ownerPath('roomV2Dir', 'local/room-v2')}/room.json`], ['the T-31 camera-modes stand-in', `${ownerPath('standinRoom', 'local/standin-room-v2')}/room.json`]]) {
+for (const [label, p] of [['the room author\'s v2-B room', `${ownerPath('roomV2Dir', 'local/room-v2')}/room.json`], ['the T-31 camera-modes stand-in', `${ownerPath('standinRoom', 'local/standin-room-v2')}/room.json`]]) {
   if (!fs.existsSync(p)) { console.log(`SKIP v2 real-file check (${label} not present at ${p})`); continue; }
   const r = checkRoomJsonFile(p);
   ok(r.ok === true, `v2: ${label} passes the checker`, JSON.stringify(r.refused));

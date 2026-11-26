@@ -1,0 +1,11 @@
+{
+  "name": "r5-paint-line",
+  "model": "mock/loop-v1",
+  "turns": [
+    { "text": "Opening Paint.", "tool_calls": [{ "name": "hands.launch", "args": { "app": "paint" } }], "usage": { "in": 520, "out": 40 } },
+    { "text": "Reading the window.", "tool_calls": [{ "name": "hands.snapshot", "args": {} }], "usage": { "in": 640, "out": 20 } },
+    { "text": "Choosing the pencil.", "tool_calls": [{ "name": "hands.act", "args": { "name": "Pencil", "do": "invoke" } }], "usage": { "in": 700, "out": 30 } },
+    { "delay_ms": 600, "text": "Drawing the line on the canvas, which has no label.", "tool_calls": [{ "name": "hands.point", "args": { "do": "drag", "x": "250", "y": "550", "x2": "750", "y2": "550" } }], "usage": { "in": 760, "out": 40 } },
+    { "delay_ms": 1500, "text": "Done: the line is drawn.", "usage": { "in": 800, "out": 10 } }
+  ]
+}

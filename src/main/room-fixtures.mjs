@@ -1,5 +1,5 @@
 // Room fixture generator (T-31 R1, PLAN-room.md §6 R1: "Generate the bad ones from the good one with a small
-// script; don't commit huge files"). Pure Buffer transforms of ONE good room .glb (Vesta's default room, read
+// script; don't commit huge files"). Pure Buffer transforms of ONE good room .glb (the room author's default room, read
 // read-only from its configured path) -- nothing here is ever written into the repo; every caller generates these
 // in a scratch/selftest directory at run time. Shared by scripts/check-room.mjs (plain-Node unit fixtures) and
 // main.js's test-only room selftest IPC (so both exercise the exact same bad bytes).
@@ -58,7 +58,7 @@ export function tooBigFixture(goodGlb) {
   return Buffer.concat([goodGlb, Buffer.alloc(26 * 1024 * 1024, 0)]);
 }
 
-/** @param {Buffer} goodGlb -- Vesta's default room.glb, read-only input. Returns { name: Buffer } for 6 bad fixtures. */
+/** @param {Buffer} goodGlb -- the room author's default room.glb, read-only input. Returns { name: Buffer } for 6 bad fixtures. */
 export function generateBadRoomFixtures(goodGlb) {
   const out = {};
 

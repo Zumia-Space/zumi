@@ -6,13 +6,13 @@
 // it needs the sit-idle clip's own data) and cached by the caller, then applied synchronously on every switch.
 //
 // The drop is ANKLE-anchored, not hip-anchored (coordinator QC, 2026-10-03, scripts/check-seat-offset.mjs's own
-// header, confirmed again in Vesta's own v2-B room.json seatedPose.rootDrop note): anchoring on (standing hip
+// header, confirmed again in the room author's own v2-B room.json seatedPose.rootDrop note): anchoring on (standing hip
 // height, a nominal seat height) leaves the ankle/toe through the floor, because a pose's own hip-to-ankle
 // offset does not exactly match any nominal seat height. Anchoring on (this pose's OWN seated ankle height,
 // this model's OWN standing ankle-to-floor clearance) instead reproduces the standing foot/floor relationship
 // exactly, because the pose's own foot keeps its standing world orientation by construction -- the SAME method
 // scripts/check-seat-offset.mjs and scripts/check-motion-seated.mjs already test/use. room.json's zumi_seat.pos.y
-// (the pelvis/hips height) is informational only here (what the plate's chair was painted against, per Vesta's
+// (the pelvis/hips height) is informational only here (what the plate's chair was painted against, per the room author's
 // own note) -- never fed into the drop math.
 import * as THREE from 'three';
 import { createVRMAnimationClip } from '@pixiv/three-vrm-animation';
@@ -62,7 +62,7 @@ export async function measureSeatDropM(engine, poseName = DEFAULT_SIT_CLIP_NAME)
 
 /**
  * Measures the hip-joint midpoint's LOCAL (x,z) offset from the vrmScene root, for the CURRENTLY bound model,
- * once -- the horizontal counterpart of measureSeatDropM's vertical drop. Reference implementation: Vesta's own
+ * once -- the horizontal counterpart of measureSeatDropM's vertical drop. Reference implementation: the room author's own
  * v2-B/tools/render/app.js poseSeated() step 5 ("put the hip joint midpoint over the seat axis (x/z)").
  *
  * room.json's zumi_seat.pos x/z is documented as "the hip-joint midpoint" (over/behind the chair column), NOT
@@ -78,7 +78,7 @@ export async function measureSeatDropM(engine, poseName = DEFAULT_SIT_CLIP_NAME)
  * ROTATION; a bone's origin is fixed by its parent chain, i.e. by the model's bind pose) -- so this can be
  * measured at any time after bind(), independent of the clip's load state (unlike measureSeatDropM, this does
  * not need to be async). Temporarily resets vrmScene to the origin/identity to measure in a clean local frame
- * (Vesta's own reset at the start of poseSeated()), then RESTORES the scene's previous placement: the caller's
+ * (the room author's own reset at the start of poseSeated()), then RESTORES the scene's previous placement: the caller's
  * next step (seatFit.measureModel, also in the model's own local frame) and any frame rendered between the two
  * must still see the model facing forward, including the VRM 0.x base flip this reset would otherwise drop.
  * @returns {x,z} in metres, or null when no humanoid is bound.
@@ -109,7 +109,7 @@ export function measureHipOffsetXZ(engine) {
  * anchor (room.json's documented meaning of zumi_seat.pos x/z) lands exactly there once rotated, then applies
  * the cached vertical drop on top. No I/O, safe to call from CameraDirector's per-frame switch path.
  * @param seat { pos:[x,y,z], rotYDeg } -- the ACTIVE view's own zumi_seat (round 2: per view, not shared).
- *   pos[1] (the pelvis/hips height) is NOT used here -- see the module header: it is Vesta's own measurement of
+ *   pos[1] (the pelvis/hips height) is NOT used here -- see the module header: it is the room author's own measurement of
  *   WHERE THE PELVIS BONE ENDS UP, a result of correct placement, not an input to it. Using it as the scene
  *   root's starting Y would double-count the seat height (root Y already measured relative to the FLOOR, which
  *   room.json's own coordinateSystem fixes at y=0 for every view).

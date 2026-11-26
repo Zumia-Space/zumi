@@ -1,0 +1,10 @@
+{
+  "name": "goal-notepad-unlock",
+  "model": "mock/loop-v1",
+  "turns": [
+    { "delay_ms": 150, "text": "Opening Notepad on the file.", "tool_calls": [{ "name": "hands.launch", "args": { "app": "notepad", "file": "{{path}}" } }], "usage": { "in": 520, "out": 70 } },
+    { "delay_ms": 7000, "text": "Typing the text.", "tool_calls": [{ "name": "hands.type", "args": { "text": "{{text}}" } }], "usage": { "in": 640, "out": 40 } },
+    { "delay_ms": 150, "text": "Saving.", "tool_calls": [{ "name": "hands.key", "args": { "chord": "ctrl+s" } }], "usage": { "in": 700, "out": 20 } },
+    { "delay_ms": 1500, "text": "Done: Notepad holds the text and it is saved.", "usage": { "in": 760, "out": 30 } }
+  ]
+}

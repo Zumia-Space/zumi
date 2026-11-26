@@ -1,4 +1,4 @@
-// T-31 Tauri: the 0.2.8 default-room rule (Pi's resolveRoomSelection, commit 2a4534d) through the SIDECAR path.
+// T-31 Tauri: the 0.2.8 default-room rule (the lead lane's resolveRoomSelection, commit 2a4534d) through the SIDECAR path.
 // Same case names as scripts/check-room.mjs section (6). Plain Node, no Electron, no window, no network.
 //   node scripts/check-tauri-room-default.mjs   (exit 1 on any failure)
 import fs from 'node:fs';

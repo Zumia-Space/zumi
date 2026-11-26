@@ -306,7 +306,7 @@ app.whenReady().then(async () => {
       await sleep(3000);
       // 2) crowded left group: 6 open tasks -> the feed's 5 update rows; T-31 made most recent again so the panel follows it.
       for (const [id, title] of [['X-11', 'Crowd filler one: a long enough title to wrap in the card'], ['X-12', 'Crowd filler two: another long title for the left group']]) {
-        board.addTask(id, { title, status: 'doing', lane: 'Pi', steps: [{ id: 's1', label: 'A running step with a label of some length', zone: 'build', state: 'active' }] });
+        board.addTask(id, { title, status: 'doing', lane: 'Worker A', steps: [{ id: 's1', label: 'A running step with a label of some length', zone: 'build', state: 'active' }] });
       }
       board.update('T-31', 'hud', { state: 'waiting' }); await sleep(2500);
       board.update('T-31', 'hud', { state: 'active', sub: 'T1 card, T2 steps, T3 log (62%)' });

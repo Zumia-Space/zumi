@@ -1,0 +1,11 @@
+{
+  "name": "reminder-shape",
+  "model": "mock/loop-v1",
+  "turns": [
+    { "text": "Trying to pick the tool and a repeat.", "tool_calls": [
+        { "name": "reminder.add", "args": { "text": "uống nước", "time": "15:00", "tool": "hands.type" } },
+        { "name": "reminder.add", "args": { "text": "uống nước", "time": "15:00", "repeat": "daily" } }
+      ], "usage": { "in": 380, "out": 60 } },
+    { "text": "Refused.", "usage": { "in": 430, "out": 8 } }
+  ]
+}

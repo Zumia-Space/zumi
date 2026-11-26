@@ -261,7 +261,7 @@ export function openMessageStore(dir, { now = Date.now, retentionMs = MAILBOX.re
       return rec;
     },
     /** Messages in one lane's inbox: addressed to it, broadcast to all, or sent by it. `after` is a msg seq.
-     *  Lane names are case-insensitive, like mayUseInbox, so a token lane spelled `Pi` still sees its own. */
+     *  Lane names are case-insensitive, like mayUseInbox, so a token lane spelled `Workera` still sees its own. */
     list(lane, after = 0) {
       const key = laneLower(lane);
       return messages.filter(m => m.seq > after && (laneLower(m.to) === key || laneLower(m.to) === 'all' || laneLower(m.from) === key));

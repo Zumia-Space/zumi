@@ -50,7 +50,7 @@
     "updated_at": "2026-10-27T08:28:00.000Z"
    },
    "title": "Zumi agent: Brain panel (memory + task library)",
-   "lane": "Pi CoS",
+   "lane": "CoS",
    "health": "yellow",
    "status": "doing",
    "text_at": "2026-10-27T08:28:00.000Z",
@@ -364,7 +364,7 @@
     "updated_at": "2026-10-27T08:35:00.000Z"
    },
    "title": "Wardrobe: outfit round 4",
-   "lane": "Vesta",
+   "lane": "Worker B",
    "health": "green",
    "status": "waiting",
    "text_at": "2026-10-27T08:35:00.000Z",
@@ -489,7 +489,7 @@
     "updated_at": "2026-10-27T08:42:00.000Z"
    },
    "title": "Content factory: crawl + classify",
-   "lane": "Pi",
+   "lane": "Worker A",
    "health": "green",
    "status": "doing",
    "text_at": "2026-10-27T08:42:00.000Z",
@@ -589,7 +589,7 @@
     "updated_at": "2026-10-27T08:49:00.000Z"
    },
    "title": "Hunter: job review board",
-   "lane": "Pi",
+   "lane": "Worker A",
    "health": "red",
    "status": "doing",
    "text_at": "2026-10-27T08:49:00.000Z",
@@ -685,7 +685,7 @@
     "updated_at": "2026-10-27T08:56:00.000Z"
    },
    "title": "Tidewell Tours: schedule page",
-   "lane": "Pi",
+   "lane": "Worker A",
    "health": "grey",
    "status": "paused",
    "text_at": "2026-10-27T08:56:00.000Z",
@@ -781,7 +781,7 @@
     "updated_at": "2026-10-27T09:03:00.000Z"
    },
    "title": "Old: release 0.2.10 notes",
-   "lane": "Pi",
+   "lane": "Worker A",
    "health": "green",
    "status": "closed",
    "text_at": "2026-10-27T09:03:00.000Z",
