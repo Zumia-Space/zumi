@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "diagram/op.json",
+  "title": "One diagram op: an item of data.ops in diagram.apply and diagram.propose",
+  "description": "Pure, id-addressed edits applied in order by the shared module (diagram-ops.mjs) on the revision named by expected_revision. The server validates each item against #/$defs/<op> (dispatch on `op` first, so the error names the op), applies all of them or none, then validates the result against document.json and the hard lint (duplicate id, unknown region, dangling or self edge, stamp ahead). x-group layout bumps rev only; content bumps rev and contentRev. Ops marked x-new are not in the P4 local module and are added in 5A.2. Clients never send rev, contentRev, stamp, viAt, enAt or syncSha.",
+  "anyOf": [
+    { "$ref": "#/$defs/node.move" }, { "$ref": "#/$defs/node.resize" },
+    { "$ref": "#/$defs/region.move" }, { "$ref": "#/$defs/region.resize" }, { "$ref": "#/$defs/canvas.resize" },
+    { "$ref": "#/$defs/node.add" }, { "$ref": "#/$defs/node.remove" }, { "$ref": "#/$defs/node.set" }, { "$ref": "#/$defs/node.text" },
+    { "$ref": "#/$defs/edge.add" }, { "$ref": "#/$defs/edge.remove" }, { "$ref": "#/$defs/edge.set" },
+    { "$ref": "#/$defs/region.add" }, { "$ref": "#/$defs/region.remove" }, { "$ref": "#/$defs/region.text" },
+    { "$ref": "#/$defs/title.text" }
+  ],
+  "$defs": {
+    "node.move": {
+      "x-group": "layout", "type": "object", "additionalProperties": false, "required": ["op", "id", "x", "y"],
+      "properties": { "op": { "const": "node.move" }, "id": { "$ref": "document.json#/$defs/id" }, "x": { "type": "integer" }, "y": { "type": "integer" } }
+    },
+    "node.resize": {
+      "x-group": "layout", "type": "object", "additionalProperties": false, "required": ["op", "id", "w", "h"],
+      "properties": { "op": { "const": "node.resize" }, "id": { "$ref": "document.json#/$defs/id" }, "w": { "type": "integer", "minimum": 20 }, "h": { "type": "integer", "minimum": 20 } }
+    },
+    "region.move": {
+      "x-group": "layout", "x-new": true, "description": "Moves the region to x,y and every node whose region is this id by the same delta.",
+      "type": "object", "additionalProperties": false, "required": ["op", "id", "x", "y"],
+      "properties": { "op": { "const": "region.move" }, "id": { "$ref": "document.json#/$defs/id" }, "x": { "type": "integer" }, "y": { "type": "integer" } }
+    },
+    "region.resize": {
+      "x-group": "layout", "x-new": true, "type": "object", "additionalProperties": false, "required": ["op", "id", "w", "h"],
+      "properties": { "op": { "const": "region.resize" }, "id": { "$ref": "document.json#/$defs/id" }, "w": { "type": "integer", "minimum": 20 }, "h": { "type": "integer", "minimum": 20 } }
+    },
+    "canvas.resize": {
+      "x-group": "layout", "x-new": true, "type": "object", "additionalProperties": false, "required": ["op", "w", "h"],
+      "properties": { "op": { "const": "canvas.resize" }, "w": { "type": "integer", "minimum": 400, "maximum": 20000 }, "h": { "type": "integer", "minimum": 300, "maximum": 20000 } }
+    },
+    "nodeInput": {
+      "description": "A node as a client sends it: the document node minus the server-set viAt, enAt, syncSha (both languages are stamped at the new contentRev).",
+      "type": "object", "additionalProperties": false, "required": ["id", "region", "kind", "x", "y", "w", "h", "vi", "en"],
+      "properties": {
+        "id": { "$ref": "document.json#/$defs/id" }, "region": { "$ref": "document.json#/$defs/id" }, "kind": { "$ref": "document.json#/$defs/kind" },
+        "x": { "type": "integer" }, "y": { "type": "integer" },
+        "w": { "type": "integer", "minimum": 20 }, "h": { "type": "integer", "minimum": 20 },
+        "tag": { "type": "string", "maxLength": 28, "pattern": "^[^<>]*$" },
+        "vi": { "$ref": "document.json#/$defs/viText" }, "en": { "$ref": "document.json#/$defs/enText" },
+        "state": { "$ref": "document.json#/$defs/state" },
+        "src": { "type": "string", "minLength": 3, "maxLength": 300, "pattern": "^[^<>]*$" },
+        "core": { "type": "boolean" }, "cos": { "type": "boolean" },
+        "doc": { "$ref": "document.json#/$defs/doc" },
+        "order": { "type": "integer", "minimum": 0, "maximum": 9999 },
+        "enforcedBy": { "type": "string", "maxLength": 80, "pattern": "^[^<>]*$" },
+        "tracks": { "type": "array", "maxItems": 8, "items": { "type": "string", "maxLength": 300 } },
+        "verified": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}Z$" }
+      }
+    },
+    "node.add": {
+      "x-group": "content", "description": "Refused 409 conflict when the id is in the document, 409 id_retired when it was ever in an earlier revision.",
+      "type": "object", "additionalProperties": false, "required": ["op", "node"],
+      "properties": { "op": { "const": "node.add" }, "node": { "$ref": "#/$defs/nodeInput" } }
+    },
+    "node.remove": {
+      "x-group": "content", "description": "Removes the node and every edge that touches it. Its open comments are listed under removed nodes in the view.",
+      "type": "object", "additionalProperties": false, "required": ["op", "id"],
+      "properties": { "op": { "const": "node.remove" }, "id": { "$ref": "document.json#/$defs/id" } }
+    },
+    "node.set": {
+      "x-group": "content", "description": "Sets non-text fields; null removes an optional field (kind and region cannot be null: 400 bad_op). Text goes through node.text.",
+      "type": "object", "additionalProperties": false, "required": ["op", "id", "fields"],
+      "properties": {
+        "op": { "const": "node.set" }, "id": { "$ref": "document.json#/$defs/id" },
+        "fields": {
+          "type": "object", "additionalProperties": false, "description": "At least one field (server: 400 bad_op on an empty object).",
+          "properties": {
+            "kind": { "$ref": "document.json#/$defs/kind" },
+            "region": { "$ref": "document.json#/$defs/id" },
+            "tag": { "anyOf": [{ "type": "string", "maxLength": 28, "pattern": "^[^<>]*$" }, { "type": "null" }] },
+            "state": { "anyOf": [{ "$ref": "document.json#/$defs/state" }, { "type": "null" }] },
+            "src": { "anyOf": [{ "type": "string", "minLength": 3, "maxLength": 300, "pattern": "^[^<>]*$" }, { "type": "null" }] },
+            "core": { "type": ["boolean", "null"] },
+            "cos": { "type": ["boolean", "null"] },
+            "doc": { "anyOf": [{ "$ref": "document.json#/$defs/doc" }, { "type": "null" }] },
+            "order": { "anyOf": [{ "type": "integer", "minimum": 0, "maximum": 9999 }, { "type": "null" }] },
+            "enforcedBy": { "anyOf": [{ "type": "string", "maxLength": 80, "pattern": "^[^<>]*$" }, { "type": "null" }] },
+            "tracks": { "anyOf": [{ "type": "array", "maxItems": 8, "items": { "type": "string", "maxLength": 300 } }, { "type": "null" }] },
+            "verified": { "anyOf": [{ "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}Z$" }, { "type": "null" }] }
+          }
+        }
+      }
+    },
+    "node.text": {
+      "x-group": "content",
+      "description": "Sets title and/or body of one language. Stamps that language at the new contentRev; the other side goes stale unless both languages are set in the same request or syncs is true (a translation of the other side's current text: both stamps move, syncSha is re-taken). lang may be left out only with syncs (re-seal both as they are).",
+      "type": "object", "additionalProperties": false, "required": ["op", "id"],
+      "properties": {
+        "op": { "const": "node.text" }, "id": { "$ref": "document.json#/$defs/id" },
+        "lang": { "enum": ["vi", "en"] },
+        "title": { "$ref": "document.json#/$defs/text80" },
+        "body": { "type": "string", "minLength": 1, "maxLength": 1500, "pattern": "^[^<>]*$", "description": "vi.body is capped at 600 by the document schema after apply." },
+        "syncs": { "type": "boolean" }
+      }
+    },
+    "edge.add": {
+      "x-group": "content", "description": "409 conflict on an existing id, 409 id_retired on an id used earlier; both ends must exist after the whole request (else 400 dangling_edge).",
+      "type": "object", "additionalProperties": false, "required": ["op", "edge"],
+      "properties": { "op": { "const": "edge.add" }, "edge": { "$ref": "document.json#/$defs/edge" } }
+    },
+    "edge.remove": {
+      "x-group": "content", "type": "object", "additionalProperties": false, "required": ["op", "id"],
+      "properties": { "op": { "const": "edge.remove" }, "id": { "$ref": "document.json#/$defs/id" } }
+    },
+    "edge.set": {
+      "x-group": "content", "x-new": true, "description": "Label and dash of one edge; an empty string clears a label. Ends never change (remove and add a new id instead).",
+      "type": "object", "additionalProperties": false, "required": ["op", "id"],
+      "properties": {
+        "op": { "const": "edge.set" }, "id": { "$ref": "document.json#/$defs/id" },
+        "dashed": { "type": "boolean" },
+        "vi": { "type": "string", "maxLength": 40, "pattern": "^[^<>]*$" },
+        "en": { "type": "string", "maxLength": 60, "pattern": "^[^<>]*$" }
+      }
+    },
+    "region.add": {
+      "x-group": "content", "x-new": true, "type": "object", "additionalProperties": false, "required": ["op", "region"],
+      "properties": { "op": { "const": "region.add" }, "region": { "$ref": "document.json#/$defs/region" } }
+    },
+    "region.remove": {
+      "x-group": "content", "x-new": true, "description": "Refused 409 region_not_empty while any node names this region (move or remove them first, in the same request if wanted).",
+      "type": "object", "additionalProperties": false, "required": ["op", "id"],
+      "properties": { "op": { "const": "region.remove" }, "id": { "$ref": "document.json#/$defs/id" } }
+    },
+    "region.text": {
+      "x-group": "content", "x-new": true, "type": "object", "additionalProperties": false, "required": ["op", "id"],
+      "properties": {
+        "op": { "const": "region.text" }, "id": { "$ref": "document.json#/$defs/id" },
+        "kind": { "$ref": "document.json#/$defs/kind" },
+        "vi": { "$ref": "document.json#/$defs/text80" }, "en": { "$ref": "document.json#/$defs/text80" },
+        "viLead": { "type": "string", "maxLength": 200, "pattern": "^[^<>]*$" }
+      }
+    },
+    "title.text": {
+      "x-group": "content", "x-new": true, "type": "object", "additionalProperties": false, "required": ["op"],
+      "properties": { "op": { "const": "title.text" }, "title": { "$ref": "document.json#/$defs/pair80" }, "subtitle": { "$ref": "document.json#/$defs/pair600" } }
+    }
+  }
+}

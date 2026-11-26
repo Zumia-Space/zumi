@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "owner/device-revoke.json",
+  "title": "POST /api/v1/owner/devices/revoke: request body",
+  "description": "Owner-only (an owner device). Revokes one owner device, the current one included.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "device_id"
+  ],
+  "properties": {
+    "device_id": {
+      "type": "string",
+      "pattern": "^dv-[0-9]+$"
+    }
+  }
+}

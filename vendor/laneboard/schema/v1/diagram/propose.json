@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "diagram/propose.json",
+  "title": "data for diagram.propose",
+  "description": "An agent's change offered to the owner. Creates no revision. Exactly one of ops or restore_to (both: 400 bad_op). The ops (or the restore) are dry-run on expected_revision now (400 with the failing op when they do not apply). Stored as proposal dp-<n> (diagram/proposal.json), state open; at most 20 open proposals per task (429 too_many_proposals). ask_id, when given, must be an open ask on the same task (404 ask_not_found) that no other open proposal holds (409 ask_bound): the proposal binds it, so the ask now names this diagram and this change (the owner's ask card shows the bound proposal's summary, 5A.3). That ask is the blocking wait the owner sees, the only way a proposal waits on him, and the only evidence a coordinator accept can use (contract 3.3). Response: { ok, proposal_id }.",
+  "x-roles": ["coordinator"],
+  "x-target": "taskId",
+  "x-revision": "required",
+  "x-pinned": "allowed",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["why"],
+  "anyOf": [{ "required": ["ops"] }, { "required": ["restore_to"] }],
+  "properties": {
+    "ops": { "type": "array", "minItems": 1, "maxItems": 200, "items": { "$ref": "op.json" } },
+    "restore_to": { "type": "integer", "minimum": 1, "description": "Rev 2 (M1): propose a restore of the attached diagram to this rev (the coordinator's only restore route on a pinned diagram or for a bulk removal)." },
+    "why": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "^[^<>]*$" },
+    "ask_id": { "type": "string", "pattern": "^ask-[0-9]+(?:-[0-9]+)?$" }
+  }
+}

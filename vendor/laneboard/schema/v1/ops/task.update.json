@@ -101,6 +101,18 @@
         }
       ],
       "description": "Product structure diagram; null clears it."
+    },
+    "goal_check": {
+      "$ref": "../common.json#/$defs/goalCheck"
+    },
+    "phases": {
+      "$ref": "../common.json#/$defs/phases"
+    },
+    "replan_reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "description": "Required when phases change ids, labels or order (a replan); logged on the task as replans[]. A state-only change is progress and needs none."
     }
   }
 }

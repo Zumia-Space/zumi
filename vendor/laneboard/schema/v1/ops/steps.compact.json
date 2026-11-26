@@ -18,6 +18,10 @@
       "maximum": 45,
       "default": 10,
       "description": "How many of the most recently done steps stay live. Older done steps are eligible (default 10)."
+    },
+    "era": {
+      "type": "boolean",
+      "description": "Fold the done steps of an older phase plan (no phase of the task's current phases), whatever their age; keep_last does not apply. The board writes it itself after a new phase plan when the phase rules are on."
     }
   }
 }

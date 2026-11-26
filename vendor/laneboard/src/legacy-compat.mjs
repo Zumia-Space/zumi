@@ -12,8 +12,12 @@
 //   GET  /media/<name>            a file of the predecessor's media folder (read-only), byte ranges honoured;
 //   GET  /media/_w|_t/<name>.webp its size-reduced copies: answered with a redirect to the original, as the
 //                                 predecessor did whenever a copy could not be made
-//   POST /api/admin/reply         {task, step, text, kind:'ask'|'note'|'receipt', replyTo, close}  -> feedback.add / ask.raise
+//   POST /api/admin/reply         {task, step, text, kind:'ask'|'note'|'receipt'|'say'|'cos-report', replyTo, close}  -> feedback.add / ask.raise
 //                                 ('receipt' = the coordinator's "Nhận" on owner message replyTo: Đổi:/Lịch:/Bước tiếp: lines)
+//                                 (a body with `news` is 400 news_route: news has its own route, below)
+//   POST /api/admin/news          {text, news:'report'|'event', task?} (CLI `news`, T-31-MOBILE B2) -> feedback.add kind cos-<news> on
+//                                 the task or the NEWS thread, tasks [task]; no kind/replyTo/step/close beside it; > 8000 characters is
+//                                 400, never cut. Its own route so a board older than B2 answers 404 and writes nothing.
 //   POST /api/admin/asks          {code, text, by, lane?, step?} -> one open ask per (task, lane, step) (s21); without lane and
 //                                 step the task's one ask is replaced, like asks.json did (428 lane_required on a shared task) + a ping
 //   POST /api/admin/asks/clear    {id} | {code, lane, step} -> clears exactly that ask; anything less is 400 scope_required
@@ -49,19 +53,24 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { BoardError, REQUESTS_THREAD, BOARD_TARGET, resolveLane, askLane, openAskAt, HISTORY_STEP, compactPlan, COMPACT_DEFAULT_KEEP, STEP_CAP, AUTO_COMPACT_AT } from './ops.mjs';
+import { ownerWaitMessage, blockedOnOwner, goalQcMissing, GOAL_QC_MESSAGE, GUARDS_OFF_MESSAGE, isReplan, isNewEra, PHASES_AT_OPEN, PHASE_REQUIRED_MESSAGE, PHASES_REQUIRED_MESSAGE } from './guards.mjs';
+import { BoardError, REQUESTS_THREAD, BOARD_TARGET, NEWS_THREAD, resolveLane, askLane, openAskAt, HISTORY_STEP, compactPlan, COMPACT_DEFAULT_KEEP, STEP_CAP, AUTO_COMPACT_AT } from './ops.mjs';
 import { validateTasks } from './rules.mjs';
 import { normalizeGate } from './gates.mjs';
 import { normalizeRefs, splitRefs } from './refs.mjs';
 import '../public/measure.js'; // globalThis.LaneMeasure: rowWaitSince, the one age rule shared with the page
 import { validateArchitecture } from './architecture.mjs';
-import { legacyRowToRequests, legacyRegistryEntry, uniqueStepIds, badAskStep, rowAsks, hasAskMap } from './adapt-legacy.mjs';
+import { messageClass } from './views.mjs';
+import { stepStamps, stampsLocal, ownerWaiting, waitIndex, lintFreeTimes } from './times.mjs';
+import { legacyRowToRequests, legacyRegistryEntry, uniqueStepIds, badAskStep, rowAsks, hasAskMap, legacyStepState } from './adapt-legacy.mjs';
 
-const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', mp3: 'audio/mpeg', mp4: 'video/mp4' };
-const MEDIA_REF = /media\/([\w.-]+\.(?:png|jpe?g|webp|gif|mp3|mp4))/gi;
+const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', mp3: 'audio/mpeg', mp4: 'video/mp4', webm: 'video/webm' };
+const MEDIA_REF = /media\/([\w.-]+\.(?:png|jpe?g|webp|gif|mp3|mp4|webm))/gi;
 const STEP_FIELDS = ['label', 'sub', 'zone', 'state', 'detail', 'recommend', 'options'];
+// fields a row may leave out without clearing them: the phase, and the pause anh ordered (paused_by / pause_quote / pause_at)
+const OPTIONAL_STEP_FIELDS = ['phase', 'paused_by', 'pause_quote', 'pause_msg'];
 // The task's lane is not a pushable field: it belongs to the server's record and never changes (s21, 409 lane_immutable).
-const TASK_FIELDS = ['title', 'health', 'goal', 'now', 'next', 'context', 'order', 'dossier', 'draft_output', 'draft_outcome'];
+const TASK_FIELDS = ['title', 'health', 'goal', 'now', 'next', 'context', 'order', 'dossier', 'draft_output', 'draft_outcome', 'goal_check', 'phases'];
 const REF_FIELDS = ['now', 'next', 'needsAnh'];
 const PUSH_ORIGIN = 'compat push needsAnh';
 const MAX_BODY = 2 * 1024 * 1024;
@@ -123,21 +132,26 @@ function sendFile(req, res, file, type) {
     const end = range[1] !== '' && range[2] !== '' ? Math.min(Number(range[2]), size - 1) : size - 1;
     if (start > end || start >= size) { res.writeHead(416, { 'Content-Range': `bytes */${size}` }); return res.end(); }
     res.writeHead(206, { ...head, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1 });
-    return fs.createReadStream(file, { start, end }).pipe(res);
+    return pipeFile(res, file, { start, end });
   }
   res.writeHead(200, { ...head, 'Content-Length': size });
-  return fs.createReadStream(file).pipe(res);
+  return pipeFile(res, file);
+}
+/** Headers are already out: a read error (file gone after the stat) is logged by name and cuts the response instead of
+ *  being an uncaught exception that kills the process. */
+function pipeFile(res, file, range) {
+  return fs.createReadStream(file, range).on('error', e => { console.error('legacy media read failed', path.basename(file), e.code || e.message); res.destroy(); }).pipe(res);
 }
 
 /** The predecessor's media folder, read only: GET /api/media (list), /media/<file> (byte ranges) and the
  *  /media/_w|_t/<file>.webp derivatives (a redirect to the original). Used by the compat layer, and alone by a board
  *  that has no coordinator token (a read-only preview). handle() returns false for anything else. */
 export function createLegacyMedia(mediaDir) {
-  const mediaFiles = () => { try { return fs.readdirSync(mediaDir).filter(n => /\.(png|jpe?g|webp|gif|mp3|mp4)$/i.test(n)); } catch { return []; } };
+  const mediaFiles = () => { try { return fs.readdirSync(mediaDir).filter(n => /\.(png|jpe?g|webp|gif|mp3|mp4|webm)$/i.test(n)); } catch { return []; } };
   async function handle(req, res, p, send) {
     if (req.method !== 'GET' || !mediaDir) return false;
     if (p === '/api/media') {
-      send(res, 200, mediaFiles().map(n => { const st = fs.statSync(path.join(mediaDir, n)); return { name: n, size: st.size, mtime: st.mtimeMs, type: /\.mp4$/i.test(n) ? 'video' : /\.mp3$/i.test(n) ? 'audio' : 'image' }; }));
+      send(res, 200, mediaFiles().map(n => { const st = fs.statSync(path.join(mediaDir, n)); return { name: n, size: st.size, mtime: st.mtimeMs, type: /\.(mp4|webm)$/i.test(n) ? 'video' : /\.mp3$/i.test(n) ? 'audio' : 'image' }; }));
       return true;
     }
     const deriv = /^\/media\/(?:_w|_t)\/([\w.-]+\.(?:png|jpe?g|webp))\.webp$/i.exec(p);
@@ -146,7 +160,7 @@ export function createLegacyMedia(mediaDir) {
       res.writeHead(302, { Location: '../' + deriv[1] + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''), 'Cache-Control': 'no-store' });
       res.end(); return true;
     }
-    const media = /^\/media\/([\w.-]+\.(png|jpe?g|webp|gif|mp3|mp4))$/i.exec(p);
+    const media = /^\/media\/([\w.-]+\.(png|jpe?g|webp|gif|mp3|mp4|webm))$/i.exec(p);
     if (media) {
       const file = path.join(mediaDir, media[1]);
       if (!fs.existsSync(file)) { send(res, 404, { error: 'not_found' }); return true; }
@@ -158,7 +172,7 @@ export function createLegacyMedia(mediaDir) {
   return { handle, mediaFiles };
 }
 
-export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCompact = false }) {
+export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCompact = false, needsDerived = false }) {
   const token = fs.readFileSync(tokenFile, 'utf8').trim();
   const actor = board.authenticate(token);
   if (!actor || actor.role !== 'coordinator') throw new Error('legacy compat: the token file must hold a valid coordinator token');
@@ -173,7 +187,10 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
   const boardId = id => { if (toBoard.has(id)) return toBoard.get(id); const m = /^([fa])0000000-0000-4000-8000-(\d{12})$/.exec(id); return m ? `${m[1] === 'f' ? 'fb' : 'ask'}-${Number(m[2])}` : id; };
 
   const state = () => board.state;
-  const w = (op, target_id, data, extra = {}) => board.write(token, { version: 1, request_id: `compat-${op}-${crypto.randomUUID()}`, op, target_id, data, ...extra });
+  // While a row push writes (`pushing`), guard B1 was checked for the whole push up front (pushRows), the asks it raises after
+  // its step writes included; the per-op check would refuse the step write that comes before its own ask.
+  let pushing = false;
+  const w = (op, target_id, data, extra = {}) => board.write(token, { version: 1, request_id: `compat-${op}-${crypto.randomUUID()}`, op, target_id, data, ...extra }, { ownerAskChecked: pushing, phaseChecked: pushing, deferEra: pushing });
   /** Who asked, as the predecessor named it: a lane ask's lane, an imported record's original author, else the token. */
   const originAt = rec => (/^legacy \S+ (\S+)$/.exec(rec.attribution?.created_by?.origin || '') || [])[1];
   // askedBy existed only for a lane's ask (asks.json); an ask a row's needsAnh raised had none ('cos' on import).
@@ -181,7 +198,9 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
   // Oldest first; equal times by id, so every projection of "the asks" is the same on every read.
   const byAskTime = (a, b) => a.attribution.created_at.localeCompare(b.attribution.created_at) || a.id.localeCompare(b.id, 'en', { numeric: true });
   const openAsks = taskId => Object.values(state().asks).filter(a => a.task_id === taskId && a.status === 'open').sort(byAskTime);
-  const clearAsk = (a, note) => w('ask.clear', a.id, note ? { note } : {}, { expected_revision: a.rev });
+  /** Withdraws an ask. The op ends the ask's waiting owner step with it (src/ops.mjs ask.clear, one rule for every caller);
+   *  `keepStep` is for a replace or a row push that re-asks, where a new ask takes its place on the step. */
+  const clearAsk = (a, note, keepStep = false) => w('ask.clear', a.id, { ...(note ? { note } : {}), ...(keepStep ? { keep_step: true } : {}) }, { expected_revision: a.rev });
 
   // ---------- lanes (s21) ----------
   const taskLane = code => state().tasks[code]?.lane || '';
@@ -205,7 +224,7 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
    */
   function upsertAsk(code, lane, stepId, text, { origin, options } = {}) {
     const replaced = [], held = openAskAt(state(), code, lane, stepId);
-    if (held) { clearAsk(held, 'replaced by a newer ask'); replaced.push(held.id); }
+    if (held) { clearAsk(held, 'replaced by a newer ask', true); replaced.push(held.id); }
     const r = w('ask.raise', code, { text, ...(stepId ? { step_id: stepId } : {}), ...(options?.length ? { options } : {}), ...(lane && lane !== taskLane(code) ? { lane } : {}) }, origin ? { origin } : {});
     return { id: r.id, replaced };
   }
@@ -215,7 +234,10 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
   // Message kinds the predecessor never had travel as its 'note' (its readers know no other), with the kind kept in an
   // extra `msgKind` field and, for the owner's two, a word in front of the text so a reader of the text alone knows.
   const NEW_KIND_PREFIX = { redirect: 'Đổi hướng: ', askback: 'Hỏi lại: ' };
-  const LEGACY_NOTE_KINDS = new Set(['reply', 'report', 'redirect', 'askback', 'receipt']);
+  /** What this board stores beyond the predecessor's kinds, read by a client before it posts (cos-board.mjs `update`): an older
+   *  board would store a cos-report as a plain note, so the CLI refuses to post when the feature is missing. */
+  const LEGACY_FEATURES = ['cos-report', 'times', ...(needsDerived ? ['derived-needs'] : [])];
+  const LEGACY_NOTE_KINDS = new Set(['reply', 'report', 'redirect', 'askback', 'receipt', 'idle', 'nudge', 'cos-report']);
   /** A board feedback record in the predecessor's words. */
   function legacyText(f) {
     if (f.kind === 'goal-lock') { const g = goalVersion(f.task_id, f.goal_version); return g ? `Anh chốt mục tiêu v${f.goal_version}\nMục tiêu: ${g.goal}\nOutput mong muốn: ${g.output}\nOutcome mong muốn: ${g.outcome}` : f.text; }
@@ -239,6 +261,17 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
   const LEGACY_BY = { owner: 'anh', coordinator: 'cos', auto: 'auto' };
   const LEGACY_PING_KINDS = new Set(['routing', 'ask', 'goal-lock', 'rebrief']);
   const legacyPing = p => ({ id: p.legacy_id || p.id, note: pingNote(p), task: p.task_id || '', open: p.open, at: p.at, seenAt: p.seen_at || '', ...(LEGACY_PING_KINDS.has(p.kind) ? { kind: p.kind } : {}) });
+
+  /** The step's server-set moments, camelCase: ISO UTC and the owner's dd-mm HH:mm (src/times.mjs, the one rule). */
+  function legacyTimesOf(code, id, tz, idx) {
+    const x = stepStamps(state(), `${code}/${id}`, idx), l = stampsLocal(x, tz);
+    return { createdAt: x.created_at, stateAt: x.state_at, askedAt: x.asked_at, answeredAt: x.answered_at, createdLocal: l.created, stateLocal: l.state, askedLocal: l.asked, answeredLocal: l.answered };
+  }
+  /** What waits on the owner in a task: its open asks (the derived needsAnh, with ages) and the owner steps that wait with no ask. */
+  function legacyWaiting(code, tz, nowMs, idx) {
+    const w = ownerWaiting(state(), code, nowMs, tz, idx);
+    return { asks: w.asks.map(a => ({ id: a.ask_id, stepId: a.step_id, lane: a.lane, text: a.text, askedAt: a.asked_at, askedLocal: a.asked_local, ageMin: a.age_min })), stepsWithoutAsk: w.steps_without_ask };
+  }
 
   function legacyTimes(st) {
     const tasks = {};
@@ -272,13 +305,16 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
   /** The asks an owner message answered, as ids (answersAsks) and with their lane and step (answers): a note scoped to asks or sent
    *  on a step journals answers_asks; the page's answer button (ask.answer) links the feedback it writes through ask_id. */
   const answered = f => {
-    const ids = f.answers_asks?.length ? f.answers_asks : f.ask_id && f.kind !== 'askback' ? [f.ask_id] : [];
+    // Owner messages only: a supervisor nudge carries the ask it is ABOUT in ask_id (R3), which it never answered (13-11: the
+    // CLI told CoS "anh's note was sent from ask X's answer box" on four R3 receipts while the asks stayed open).
+    const owner = f.attribution.created_by.role === 'owner';
+    const ids = !owner ? [] : f.answers_asks?.length ? f.answers_asks : f.ask_id && f.kind !== 'askback' ? [f.ask_id] : [];
     return { answersAsks: ids, answers: ids.map(id => { const a = state().asks[id]; return { id, lane: a ? askLane(state(), a) : '', step_id: a?.step_id || '' }; }) };
   };
   /** `withStatus` (?v=2&status=1, opt-in so every pinned wire stays byte-identical) adds each row's task status: the `sweep` CLI skips paused and closed rows. */
   function legacyState(req, v2 = false, archived = false, withStatus = false) {
     if (isLoopbackDirect(req)) board.noteWatcher();
-    const view = board.view(token, { archived }), st = state(), staleBy = new Map(view.stale_text.map(s => [s.task_id, s.reason]));
+    const view = board.view(token, { archived, window: 'all' }), st = state(), staleBy = new Map(view.stale_text.map(s => [s.task_id, s.reason]));
     // The row's askAt is the board's one age rule (public/measure.js rowWaitSince): the oldest of the task's open asks (askSince,
     // same-step re-asks chained) and its waiting owner steps with no ask on them, worked out on each read and never stored. The rail,
     // Home and the reminder hook (which reads this field) therefore show the same number. The ask's own time is only the fallback
@@ -286,13 +322,15 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
     const rowAge = (taskId, fallback) => globalThis.LaneMeasure.rowWaitSince(view.attention.waiting.filter(w => w.task_id === taskId)) || fallback;
     // The CoS allowance for a row (op roles.override), with `expired` derived on this read: the record stays stored.
     const routeOverrideOf = code => { const o = st.route_override?.[code]; return o ? { ...o, expired: !(Date.parse(o.expires) > Date.parse(view.now)) } : null; };
+    const waitIdx = waitIndex(state()); // one pass for every step's stamps and each task's waiting list of this read
     const tasks = view.tasks.map(t => {
       const asks = openAsks(t.id), ask = asks.at(-1);
       const steps = t.steps.map(s => {
         const sid = stepShort(s.id), stepAsk = asks.filter(a => a.step_id === sid).at(-1);
         const options = s.options?.length ? s.options : stepAsk?.options;
         return { id: sid, label: s.label, sub: s.sub ?? '', state: s.state, zone: s.zone === 'owner' ? 'anh' : s.zone, ...(s.detail !== undefined ? { detail: s.detail } : {}),
-          ...(s.recommend !== undefined ? { recommend: s.recommend } : {}), ...(options?.length ? { options } : {}) };
+          ...(s.recommend !== undefined ? { recommend: s.recommend } : {}), ...(options?.length ? { options } : {}), ...(s.phase ? { phase: s.phase } : {}),
+          ...(s.paused_by ? { pausedBy: s.paused_by, pauseQuote: s.pause_quote, pauseMsg: s.pause_msg, pauseAt: s.pause_at } : {}) };
       });
       const cur = t.current_step;
       // v2 (s21): the text and its refs line come apart (per field), every open ask is listed with its id and lane, and there is
@@ -301,7 +339,8 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
       const v2Fields = v2 ? {
         now: refsOf.now.text, next: refsOf.next.text, refs: { now: refsOf.now.refs, next: refsOf.next.refs },
         asks: asks.map(a => { const r = splitRefs(a.text); return { id: a.id, lane: askLane(state(), a), text: r.text, step_id: a.step_id || '', refs: r.refs, at: a.attribution.created_at }; }),
-        steps: steps.map(s => ({ ...s, lane: stepLane(t.id, s.id) })),
+        steps: steps.map(s => ({ ...s, lane: stepLane(t.id, s.id), times: legacyTimesOf(t.id, s.id, view.config.owner_tz, waitIdx) })),
+        waiting: legacyWaiting(t.id, view.config.owner_tz, Date.parse(view.now), waitIdx),
         routeOverride: routeOverrideOf(t.id),
         ...(t.coordinator ? { coordinator: t.coordinator, workerMachines: t.worker_machines, machinesBy: LEGACY_BY[t.machines_by] || t.machines_by } : {}),
         ...(t.pinned ? { pinned: true, pinnedAt: t.pinned_at } : {})
@@ -316,6 +355,10 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
         updated: t.last_activity_at, textAt: t.text_at ?? t.attribution.updated_at, ...(staleBy.has(t.id) ? { staleText: staleBy.get(t.id) } : {}), currentStep: cur ? { id: stepShort(cur.id), label: cur.label, state: cur.state } : null,
         ...(archived ? { archived_steps: t.archived_steps || [] } : {}), // ?archived=1 only: the default row is unchanged
         ...(v2 && withStatus ? { status: t.status } : {}),
+        // goal QC (J-05 W-42 B2): only on a task that has it, so every older row stays byte-identical
+        ...(t.goal_check ? { goalCheck: t.goal_check } : {}), ...(t.phases ? { phases: t.phases, progress: t.progress } : {}), ...(t.idle ? { idle: t.idle } : {}), ...(t.replans ? { replans: t.replans } : {}),
+        // phase rule R4: owner messages CoS handled with no CoS answer in the thread after them (legacy ids); only while flagged
+        ...(t.unanswered_on_board ? { unansweredOnBoard: t.unanswered_on_board.map(x => legacyId(x.feedback_id)) } : {}),
         ...v2Fields
       };
     });
@@ -323,11 +366,14 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
       const owner = f.attribution.created_by.role === 'owner';
       // A plan choice sat on the pseudo-step 'plan'; a coordinator reply carries its parent's step, as `reply` sent it.
       const planStep = f.plan_id || (f.reply_to && st.feedback[f.reply_to]?.plan_id);
-      return { id: legacyId(f.id), task: f.task_id, step: planStep ? 'plan' : f.step_id || '', text: legacyText(f), kind: LEGACY_NOTE_KINDS.has(f.kind) ? 'note' : f.kind, by: owner ? 'anh' : 'cos',
+      return { id: legacyId(f.id), task: f.task_id, step: planStep ? 'plan' : f.step_id || '', text: legacyText(f), kind: LEGACY_NOTE_KINDS.has(f.kind) ? 'note' : f.kind, by: f.kind === 'idle' || f.kind === 'nudge' ? 'board' : owner ? 'anh' : 'cos',
         // An informational note (the CoS allowance) reads as done: it is never an item to handle (J-05 round 2).
         status: f.status === 'open' && !f.info ? 'open' : 'done', at: originAt(f) || f.attribution.created_at, ...(f.reply_to ? { replyTo: legacyId(f.reply_to) } : {}),
         ...(f.kind === 'rebrief' ? { mode: f.mode || 'strategy', note: f.note || '' } : {}), ...(f.resolved ? { doneAt: f.resolved.at } : {}),
-        ...(['redirect', 'askback', 'receipt'].includes(f.kind) ? { msgKind: f.kind } : {}),
+        ...(['redirect', 'askback', 'receipt', 'idle', 'nudge', 'cos-report'].includes(f.kind) ? { msgKind: f.kind } : {}),
+        ...(v2 ? { cls: messageClass(f) } : {}), // J-05 17-11, v2: system / owner / cos / receipt / progress, the v1 messages[].class (one rule, views.mjs)
+        ...(f.kind === 'nudge' ? { rule: f.rule, level: f.level, lane: f.lane } : {}), // J-05 supervisor: who must receipt it
+        ...(v2 && f.kind === 'nudge' && (f.ask_id || f.ask_ids?.length) ? { askIds: f.ask_id ? [f.ask_id] : f.ask_ids } : {}), // the asks it is about
         // v2: the asks an owner message answered, by id (closed asks leave asks[], so lane and step come along for a receipt)
         ...(v2 ? answered(f) : {}),
         ...(f.attachments?.length ? { attachments: f.attachments.map(id => `api/v1/media/${id}`) } : {}) };
@@ -340,7 +386,7 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
     const plans = Object.fromEntries(Object.entries(st.plans || {}).map(([code, list]) => [code, list.map(p => ({
       id: p.legacy_id || p.id, reviewer: p.reviewer, verdict: p.verdict || '', eta: p.eta || '', body: p.body, at: p.written_at || p.posted_at, postedAt: p.posted_at, goalVersion: p.goal_version || 0 }))]));
     return {
-      tasks, feedback, meta: { ...(sum ? { summary: sum.items } : {}), updatedAt: lastPush || '' },
+      tasks, feedback, meta: { ...(sum ? { summary: sum.items } : {}), updatedAt: lastPush || '', ...(v2 ? { features: LEGACY_FEATURES, ownerTz: view.config.owner_tz } : {}) },
       pings: (st.pings || []).slice(-20).map(legacyPing),
       registry: (st.docs?.registry?.entries || []).map(e => ({ id: e.id, code: e.code || '', title: e.title, file: e.file || '', owner: e.owner || '', note: e.note || '', updated: e.updated || '',
         onBoard: !!e.on_board, status: e.status, ...(e.status_by ? { statusBy: e.status_by } : {}), ...(e.status_at ? { statusAt: e.status_at } : {}) })),
@@ -352,7 +398,28 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
   function needTask(code) { if (!state().tasks[code] && code !== REQUESTS_THREAD && code !== BOARD_TARGET) throw new BoardError(400, 'task_not_found', { task: code }); }
   const stepIdIf = (code, step) => (step && state().steps[`${code}/${step}`] ? { step_id: step } : {});
 
+  /** POST /api/admin/news (CLI `news`, T-31-MOBILE B2): the coordinator's news item. The kind is mapped here from the explicit `news` field
+   *  (report|event -> cos-report|cos-event), never taken from a body `kind`; on the task, or without one on the NEWS thread, with
+   *  tasks = [task]. Over 8000 characters is refused, never cut. */
+  function news(b) {
+    const text = String(b.text ?? '').trim();
+    if (!['report', 'event'].includes(b.news)) throw new BoardError(400, 'news_kind', { news: String(b.news), allowed: ['report', 'event'] });
+    if (b.kind !== undefined) throw new BoardError(400, 'news_with_kind', { message: 'send news: report|event, not a kind' });
+    const extra = ['replyTo', 'step', 'close', 'attachments'].filter(k => b[k] !== undefined);
+    if (extra.length) throw new BoardError(400, 'news_fields', { fields: extra });
+    if (!text) throw new BoardError(400, 'empty');
+    if (text.length > 8000) throw new BoardError(400, 'text_too_long', { length: text.length, max: 8000 });
+    const task = b.task === undefined || b.task === '' ? '' : String(b.task).slice(0, 40);
+    if (task && !state().tasks[task]) throw new BoardError(400, 'task_not_found', { task });
+    const kind = `cos-${b.news}`;
+    const r = w('feedback.add', task || NEWS_THREAD, { kind, text, ...(task ? { tasks: [task] } : {}) });
+    const f = state().feedback[r.id];
+    return { id: legacyId(r.id), task: task || NEWS_THREAD, step: '', text: f.text, kind: 'note', msgKind: kind, by: 'cos', status: 'open', replyTo: '', at: f.attribution.created_at };
+  }
+
   function reply(b) {
+    // One path for news (gate Delta 3): a board older than B2 ignored this field here and stored a plain note.
+    if (b.news !== undefined) throw new BoardError(400, 'news_route', { message: 'post news to /api/admin/news' });
     const task = String(b.task ?? '').slice(0, 40), text = String(b.text ?? '').trim();
     needTask(task);
     if (!text) throw new BoardError(400, 'empty');
@@ -367,13 +434,23 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
     // lines; it closes that message (the board checks the lines and that the parent is the owner's).
     const receipt = b.kind === 'receipt' || b.kind === 'nhan';
     if (receipt && !parent) throw new BoardError(400, 'receipt_needs_owner_message', { replyTo: String(b.replyTo || '') });
-    const r = w('feedback.add', task, { kind: receipt ? 'receipt' : parent ? 'reply' : 'note', text: text.slice(0, 8000), ...stepIdIf(task, b.step),
-      ...(parent ? { reply_to: parent.id, ...(b.close && !receipt ? { resolve_reply_to: true } : {}) } : {}) });
+    // kind 'say' (CLI `say`, J-05 phase rules R4): CoS's answer posted into the task's thread, a top-level reply (no parent).
+    const say = b.kind === 'say' && !parent;
+    // kind 'cos-report' (CLI `update`, J-05 17-11): CoS's progress post on the task (Cập nhật tiến độ). It names no message:
+    // a replyTo is refused here (as feedback.add refuses reply_to), never dropped into a plain note.
+    const report = b.kind === 'cos-report';
+    if (report && b.replyTo) throw new BoardError(400, 'cos_report_fields', { replyTo: String(b.replyTo) });
+    // ... and a text over the board's 8000-character limit is refused, never cut (gate S2; the other kinds keep the predecessor's cut).
+    if (report && text.length > 8000) throw new BoardError(400, 'text_too_long', { max: 8000, length: text.length });
+    // attachments (CLI `say --img`, J-05 10-11): ids of pictures/clips already uploaded to this task; feedback.add checks each one.
+    const attachments = Array.isArray(b.attachments) ? b.attachments.map(String).slice(0, 8) : [];
+    const r = w('feedback.add', task, { kind: receipt ? 'receipt' : report ? 'cos-report' : parent || say ? 'reply' : 'note', text: text.slice(0, 8000), ...stepIdIf(task, b.step),
+      ...(parent ? { reply_to: parent.id, ...(b.close && !receipt ? { resolve_reply_to: true } : {}) } : {}), ...(attachments.length ? { attachments } : {}) });
     const f = state().feedback[r.id];
     // A receipt answers as the predecessor's 'note' and says what it really is (msgKind, reply_to), so a caller does not
     // mistake it for a plain note.
     return { id: legacyId(r.id), task, step: b.step || '', text: f.text, kind: 'note', by: 'cos', status: 'open', replyTo: String(b.replyTo || ''), at: f.attribution.created_at,
-      ...(receipt ? { msgKind: 'receipt', reply_to: String(b.replyTo || '') } : {}) };
+      ...(receipt ? { msgKind: 'receipt', reply_to: String(b.replyTo || '') } : {}), ...(report ? { msgKind: 'cos-report' } : {}) };
   }
 
   /** POST /api/admin/close {code}: the one way a coordinator removes a task — it is closed (task.update status closed),
@@ -399,10 +476,10 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
     const named = namedLane(b.lane), stepGiven = 'step' in b || 'step_id' in b, stepId = String(b.step ?? b.step_id ?? '');
     if (!named && isShared(code)) throw laneRequired([code]);
     if (stepId && !state().steps[`${code}/${stepId}`]) throw new BoardError(400, 'step_not_found', { task: code, step: stepId });
-    const lane = named || taskLane(code), by = String(b.by || 'Pi CoS').slice(0, 40), origin = `lane-ask ${by}`;
+    const lane = named || taskLane(code), by = String(b.by || 'CoS').slice(0, 40), origin = `lane-ask ${by}`;
     let id, replaced = [];
     if (!named && !stepGiven) {
-      for (const a of openAsks(code)) { clearAsk(a, 'replaced by a newer ask'); replaced.push(a.id); }
+      for (const a of openAsks(code)) { clearAsk(a, 'replaced by a newer ask', true); replaced.push(a.id); }
       id = upsertAsk(code, lane, '', text, { origin }).id;
     } else ({ id, replaced } = upsertAsk(code, lane, stepId, text, { origin }));
     w('ping.send', 'board', { kind: 'ask', task_id: code, note: `${by} hỏi ${code}: ${text.slice(0, 80)}` });
@@ -523,7 +600,7 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
     for (const id of ids) {
       const s = state().steps[`${code}/${id}`], to = byId[id];
       if (!s) { pending.push({ kind: 'create', id }); continue; }
-      if (STEP_FIELDS.some(k => !eq(to[k], s[k]))) pending.push({ kind: 'update', id });
+      if (STEP_FIELDS.some(k => !eq(to[k], s[k])) || OPTIONAL_STEP_FIELDS.some(k => to[k] !== undefined && to[k] !== s[k])) pending.push({ kind: 'update', id });
     }
     // A lane's push removes only that lane's steps (and only with replace); a push that names no lane is the whole row's.
     // `lich-su` is never any lane's: a replace push cannot delete it (J-05 compaction).
@@ -571,6 +648,7 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
       if (!valid(cur.map(x => (x.id === op.id ? { ...x, state: state0 } : x)))) return false;
       if (dry) return true;
       const patch = Object.fromEntries(STEP_FIELDS.filter(k => !eq(to[k], s[k])).map(k => [k, to[k] ?? (k === 'options' ? [] : '')]));
+      for (const k of OPTIONAL_STEP_FIELDS) if (to[k] !== undefined && to[k] !== s[k]) patch[k] = to[k]; // a row without them keeps the board's (rows older than the field)
       if (op.via) patch.state = op.via;
       if (Object.keys(patch).length) { w('step.update', s.id, patch, { expected_revision: s.rev }); writes++; }
       return true;
@@ -599,6 +677,30 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
    * The steps of a task as they will be once a lane's push is applied -- creates appended, deletes (replace only, own lane only)
    * dropped, the pusher's steps in their places by Sol's rule, states from the row -- as [{id, state}] for the board rules.
    */
+  /**
+   * Phase rule R1 for one row of a push, decided before the first write (the row is refused whole): a NEW step of a task that
+   * will have phases names one of them; a task with no phases takes no new goal, and no new open step that leaves it with more
+   * than PHASES_AT_OPEN open steps. Steps already on the board are not checked: existing rows stay pushable.
+   */
+  function phaseRuleViolations(row, create, ids, byId, after, t, declared) {
+    const ownerPush = !t || !declared || declared === t.lane;
+    const phases = ((ownerPush && create.data.phases) || t?.phases || []).map(p => p.id);
+    const fresh = ids.filter(id => !state().steps[`${row.code}/${id}`]);
+    const out = [];
+    if (phases.length) {
+      for (const id of fresh) {
+        const ph = byId[id].phase;
+        if (!ph) out.push({ error: 'phase_required', task: row.code, step: id, phases, message: PHASE_REQUIRED_MESSAGE });
+        else if (!phases.includes(ph)) out.push({ error: 'phase_unknown', task: row.code, step: id, phase: ph, phases, message: PHASE_REQUIRED_MESSAGE });
+      }
+      return out;
+    }
+    if (t && ownerPush && create.data.goal !== undefined && (create.data.goal || '') !== (t.goal || '')) out.push({ error: 'phases_required', task: row.code, message: PHASES_REQUIRED_MESSAGE });
+    const open = after.filter(s => s.id !== HISTORY_STEP && s.state !== 'done').length;
+    if (open > PHASES_AT_OPEN && fresh.some(id => byId[id].state !== 'done')) out.push({ error: 'phases_required', task: row.code, open_steps: open, limit: PHASES_AT_OPEN, message: PHASES_REQUIRED_MESSAGE });
+    return out;
+  }
+
   function finalSteps(code, ids, byId, lane, replace) {
     const cur = state().tasks[code].step_ids;
     const isOwn = id => id !== HISTORY_STEP && (!lane || stepLane(code, id) === lane); // `lich-su` is never any lane's
@@ -611,9 +713,40 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
   }
 
   /**
+   * Guard B1 for one row of a push: the steps the row moves INTO an owner wait (waiting, zone anh) that will have no open ask
+   * once the push is written -- no ask is open on the step now, and the row does not raise one there (its needsAnh/askStep or
+   * `asks` map entry, or an open question of a new row). Steps that already wait are not checked: existing rows stay pushable.
+   */
+  function ownerWaitsWithoutAsk(row, create, ids, byId, declared) {
+    const code = row.code, t = state().tasks[code], lane = declared || t?.lane || create.data.lane || '';
+    const stepIds = new Map();
+    for (const [i, x] of (row.steps || []).entries()) if (!stepIds.has(x.id)) stepIds.set(x.id, ids[i]);
+    const ofLane = id => Object.values(state().asks).filter(x => x.task_id === code && (x.step_id || '') === id && askLane(state(), x) === lane).sort(byAskTime);
+    const mayAsk = id => !t || !declared || declared === t.lane || stepLane(code, id) === declared || !state().steps[`${code}/${id}`];
+    const raised = new Set((create.data.open_questions || []).map(q => q.step_id).filter(Boolean));
+    for (const a of rowAsks(row)) {
+      const id = a.step === undefined ? '' : stepIds.get(a.step);
+      // the push raises it unless the owner already answered this very text there (the ask loop below skips that one)
+      if (id && a.text && mayAsk(id) && !(ofLane(id).at(-1)?.status === 'answered' && ofLane(id).at(-1).text === a.text)) raised.add(id);
+    }
+    const taskAsked = raised.size > 0 || Object.values(state().asks).some(x => x.status === 'open' && x.task_id === code);
+    return ids.filter(id => {
+      const cur = t && state().steps[`${code}/${id}`];
+      // a row that leaves the pause fields out keeps the board's (a paused park rewritten by a row older than the fields stays paused)
+      const to = cur?.paused_by && byId[id].paused_by === undefined ? { ...byId[id], paused_by: cur.paused_by } : byId[id];
+      // A park that names the owner ("resume when ..; owner anh") is a wait on him too: it needs an open ask on the task. Only a park
+      // the row enters or rewrites is checked; one already on the board stays pushable and is reported in `warnings` instead.
+      if (blockedOnOwner(to)) return !taskAsked && !(cur && blockedOnOwner(cur) && cur.sub === to.sub);
+      if (to.state !== 'waiting' || to.zone !== 'owner' || (cur && cur.state === 'waiting' && cur.zone === 'owner')) return false;
+      return !raised.has(id) && !(t && Object.values(state().asks).some(x => x.status === 'open' && x.task_id === code && x.step_id === id));
+    }).map(id => ({ error: 'waiting_owner_without_ask', task: code, step: id, message: ownerWaitMessage }));
+  }
+
+  /**
    * A push of predecessor rows, as the board's own writes. A task missing from the push is left untouched — never
    * deleted or closed (`untouched` lists them); removing one is an explicit POST /api/admin/close. Refused whole (nothing
-   * written) when any row breaks the board rules or the lane rules below. The text fields lose duplicated refs lines first
+   * written) when any row breaks the board rules or the lane rules below -- except the phase rules (R1), which leave out only
+   * the rows they refuse, named in `refused`, unless every row is refused (then 400 as the others). The text fields lose duplicated refs lines first
    * (src/refs.mjs normalizeRefs), so a client that pushes back what /state returned cannot multiply them.
    *
    * Without `lane` (the predecessor's push): the row is the whole task as before -- steps missing from it are deleted, steps take
@@ -641,7 +774,16 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
     // history step (J-05): it is stripped the same way, so a row cannot create it, rename it, move it, reopen it or
     // blank its detail -- `isOwn` keeps it out of deletes and ordering, this keeps it out of updates and creates.
     const archivedNames = new Map();
+    const derivedRows = new Set(), derivedIgnored = [];
     const rows = b.tasks.map(({ currentStep: _ignored, ...row }) => {
+      // J-05 times-waiting: with needsDerived the board's open asks ARE the owner's list; the row's single hand-written needsAnh
+      // (and the askStep that points it) is dropped, reported under `ignored`, and the row then speaks for no ask. The per-step
+      // `asks` map stays: it is how the CLI's `ask` command raises one.
+      if (needsDerived && !hasAskMap(row) && (String(row.needsAnh ?? '').trim() || row.askStep)) {
+        derivedIgnored.push({ task: row.code, fields: ['needsAnh', 'askStep'].filter(k => String(row[k] ?? '').trim()), message: 'needsAnh is derived from the open asks; raise one with `ask` (or an asks map) and end it with `clear`' });
+        row.needsAnh = ''; delete row.askStep;
+      }
+      if (needsDerived && !hasAskMap(row)) derivedRows.add(row.code);
       for (const f of REF_FIELDS) if (typeof row[f] === 'string') row[f] = normalizeRefs(row[f]);
       row.steps = (row.steps || []).filter(s => s.id !== HISTORY_STEP);
       if (row.askStep === HISTORY_STEP) delete row.askStep;
@@ -663,7 +805,7 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
       if (hasAskMap(row)) for (const k of Object.keys(row.asks)) if (k === HISTORY_STEP || arch.has(k)) delete row.asks[k];
       return row;
     });
-    const plan = rows.map(row => {
+    let plan = rows.map(row => {
       const create = legacyRowToRequests(row, { prefix: 'compat' })[0];
       const ids = uniqueStepIds(row);
       const byId = Object.fromEntries((create.data.steps || []).map(s => [s.id, s]));
@@ -678,20 +820,32 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
     // The lane rules, all checked before the first write. Order of the refusals: lane, owner, step, board rules. A
     // non-owner lane's changed row field is NOT a refusal (J-05 step-owner): the field is ignored and named in `ignored`
     // below, while that lane's own step writes still apply -- so a lane can close its step on another lane's row.
-    const needLane = [], immutable = [], mismatch = [], conflict = [], badStep = [], overCap = [];
-    const ignored = [...archivedNames].map(([task, steps]) => ({ task, archived: steps })); // reported, never a refusal
+    const needLane = [], immutable = [], mismatch = [], conflict = [], badStep = [], overCap = [], noAsk = [], noQc = [], noReason = [], guardsOff = [], noPhase = [], junkQc = [];
+    const ignored = [...archivedNames].map(([task, steps]) => ({ task, archived: steps })).concat(derivedIgnored); // reported, never a refusal
     for (const { row, create, ids, byId } of plan) {
       // A row that NAMES an ask step the board cannot tie an ask to is refused whole (J-05 16-10): guessing the first waiting
       // owner step moved the ask onto another step and replaced the lane's open ask there. Checked for new rows too.
       const bad = badAskStep(row);
       if (bad) badStep.push({ task: row.code, ask_step: bad });
       const t = state().tasks[row.code];
+      if (board.guardsOn()) noAsk.push(...ownerWaitsWithoutAsk(row, create, ids, byId, declared));
+      // Guard B2: the first push of a new row opens the task with its goal QC; a phases replan on an existing row needs replanReason.
+      // An existing task whose goal check an older build stored as "[object Object]" (String() of an object goalCheck) has none:
+      // the owner's re-push must carry a readable one, which overwrites it below; the junk is never kept as "the row has none".
+      // Such a row is left out WHOLE like a phase-rule refusal (Opus gate F5 21-11): one junk row no longer refuses the other rows.
+      const junkGoal = t && t.goal_check === '[object Object]' && (!declared || declared === t.lane) && !create.data.goal_check;
+      const missing = !board.guardsOn() ? [] : !t ? goalQcMissing(create.data) : [];
+      if (missing.length) noQc.push({ task: row.code, missing });
+      if (junkGoal && board.guardsOn()) junkQc.push({ task: row.code, error: 'goal_qc_required', missing: ['goal_check'], message: GOAL_QC_MESSAGE });
+      if (!t && !board.guardsOn() && create.data.open_questions?.length) guardsOff.push({ task: row.code });
+      if (t && (!declared || declared === t.lane) && create.data.phases && isReplan(t.phases, create.data.phases) && !String(row.replanReason ?? '').trim()) noReason.push({ task: row.code });
       // The cap is decided before the first write, for a new row as well as an existing one (`task.create` carries a
       // schema cap of its own, but it is checked at write time, after earlier rows have landed). `ids` is exactly what a
       // create makes; `finalSteps` is the row as an existing task will hold it. Until J-05 auto-compact a row that grew
       // a task past the cap failed MID-push (the 50th landed, the 51st step.create answered 400 too_many_steps).
-      const after = t ? finalSteps(row.code, ids, byId, declared, replace) : ids.map(id => ({ id }));
+      const after = t ? finalSteps(row.code, ids, byId, declared, replace) : ids.map(id => ({ id, state: byId[id].state }));
       if (after.length > STEP_CAP) overCap.push({ task: row.code, steps: after.length, cap: STEP_CAP });
+      if (board.phaseRulesOn()) noPhase.push(...phaseRuleViolations(row, create, ids, byId, after, t, declared));
       if (!t) continue;
       if (!declared && isShared(row.code, { lanesOnly: true })) needLane.push(row.code);
       if (!blank(row.lane) && row.lane !== t.lane) immutable.push({ task: row.code, lane: t.lane, row_lane: row.lane });
@@ -710,8 +864,8 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
         if (fields.length) ignored.push({ task: row.code, fields }); // row-level fields stay the row owner's; this lane's steps still apply
       }
       for (const id of ids) if (!state().steps[`${row.code}/${id}`] && declared !== t.lane) byId[id].lane = declared; // a new step of another lane carries it
-      // The rows are valid alone; with the other lanes' steps kept in their places the task may not be (a Vesta step done behind a
-      // step of Pi that waits). The board's rules decide before anything is written, with the steps named.
+      // The rows are valid alone; with the other lanes' steps kept in their places the task may not be (a Workerb step done behind a
+      // step of Workera that waits). The board's rules decide before anything is written, with the steps named.
       const broken = validateTasks([{ id: row.code, steps: after }]);
       if (broken.length) conflict.push({ task: row.code, violations: broken });
     }
@@ -723,132 +877,161 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
     // The gate's message for an over-cap row. It is exact when nothing older is left to fold; when old done steps do
     // exist, folding mid-push is what condition 1 forbids -- the lane pushes the same row WITHOUT its new steps first
     // (that push folds at >= AUTO_COMPACT_AT and says so in `compacted`), then pushes the row with them.
+    if (guardsOff.length) throw new BoardError(400, 'guards_off', { ...guardsOff[0], message: GUARDS_OFF_MESSAGE, violations: guardsOff });
+    if (noQc.length) throw new BoardError(400, 'goal_qc_required', { ...noQc[0], message: GOAL_QC_MESSAGE, violations: noQc });
+    if (noReason.length) throw new BoardError(400, 'replan_reason_required', { ...noReason[0], message: 'the row changes its phases (ids, labels or order): send replanReason, it is logged on the task', violations: noReason });
+    if (noAsk.length) throw new BoardError(400, 'waiting_owner_without_ask', { ...noAsk[0], violations: noAsk });
+    // Phase rules R1 per row (gate finding 3): the rows of one push are separate tasks, so a row the phase rules refuse is left out
+    // WHOLE and the other rows land; `refused` names each row left out. When every row is refused the push is a 400, as before, so
+    // a one-row push (ask, clear) keeps its all-or-nothing answer. The refusals above stay whole-push: they guard lane ownership and
+    // the ask <-> step link across the rows a lane sends together.
+    // A row whose stored goal check is junk is left out the same way (Opus gate F5 21-11).
+    const refused = [...noPhase, ...junkQc], out = new Set(refused.map(v => v.task));
+    if (plan.every(p => out.has(p.row.code)) && refused.length) { const { error, ...first } = refused[0]; throw new BoardError(400, error, { ...first, violations: refused }); }
+    plan = plan.filter(p => !out.has(p.row.code));
+    const applied = plan.map(p => p.row);
+    overCap.splice(0, overCap.length, ...overCap.filter(x => !out.has(x.task)));
     if (overCap.length) throw new BoardError(400, 'too_many_steps', { ...overCap[0], message: 'không còn bước cũ đã xong để gộp; hãy đóng hoặc gộp tay', violations: overCap });
 
     let writes = 0;
-    const kept = [], compacted = [], touched = new Set();
-    const one = (...a) => { writes++; return w(...a); };
+    const kept = [], compacted = [], touched = new Set(), eras = [], folded = [];
     const untouched = Object.keys(state().tasks).filter(id => !rows.some(r => r.code === id));
-    for (const { row, create, ids, byId } of plan) {
-      const code = row.code;
-      if (!state().tasks[code]) { one('task.create', code, declared && !create.data.lane ? { ...create.data, lane: declared } : create.data); }
-      else {
-        const t = state().tasks[code], patch = {}, ownerPush = !declared || declared === t.lane;
-        for (const k of TASK_FIELDS) {
-          const want = create.data[k];
-          if (eq(want, t[k]) || (blank(want) && ['order', 'title', 'health'].includes(k))) continue; // kept when the row has none
-          if (!ownerPush) continue; // another lane's row sends no task field that differs (refused above); a blank one is not a clear
-          patch[k] = want ?? '';
+    pushing = true;
+    try {
+      const one = (...a) => { writes++; return w(...a); };
+      for (const { row, create, ids, byId } of plan) {
+        const code = row.code;
+        if (!state().tasks[code]) { one('task.create', code, declared && !create.data.lane ? { ...create.data, lane: declared } : create.data); }
+        else {
+          const t = state().tasks[code], patch = {}, ownerPush = !declared || declared === t.lane;
+          for (const k of TASK_FIELDS) {
+            const want = create.data[k];
+            if (eq(want, t[k]) || (blank(want) && ['order', 'title', 'health', 'goal_check', 'phases'].includes(k))) continue; // kept when the row has none
+            if (!ownerPush) continue; // another lane's row sends no task field that differs (refused above); a blank one is not a clear
+            patch[k] = want ?? '';
+          }
+          if (ownerPush && !same(create.data.worker || null, t.worker || null)) patch.worker = create.data.worker || null;
+          // architecture: a row WITHOUT the field keeps the board's (rows written before it existed must not wipe it); `null` clears.
+          if (ownerPush && create.data.architecture !== undefined && !same(create.data.architecture, t.architecture ?? null)) patch.architecture = create.data.architecture;
+          if (patch.phases && isReplan(t.phases, patch.phases)) patch.replan_reason = String(row.replanReason).trim().slice(0, 1000);
+          if (patch.phases && isNewEra(t.phases, patch.phases)) eras.push(code); // R2: folded after the last row, like auto-compact
+          if (Object.keys(patch).length) one('task.update', code, patch, { expected_revision: t.rev });
+          writes += syncSteps(code, ids, byId, { lane: declared, replace });
+          const t2 = state().tasks[code];
+          if (ownerPush && !eq(create.data.loops, t2.loops)) one('task.update', code, { loops: create.data.loops || [] }, { expected_revision: t2.rev });
+          // The predecessor's "Cập nhật" / stale / idle clocks read the row's own `updated`: a push that only bumps it
+          // (the coordinator saying "still moving") reset them. Same here: a row whose `updated` is newer than the
+          // task's last accepted change records one (server clock); a re-push of the same row writes nothing.
+          const rowAt = Date.parse(row.updated || ''), t3 = state().tasks[code];
+          if (ownerPush && rowAt > Date.parse(state().activity[code] || 0)) one('task.update', code, {}, { expected_revision: t3.rev });
         }
-        if (ownerPush && !same(create.data.worker || null, t.worker || null)) patch.worker = create.data.worker || null;
-        // architecture: a row WITHOUT the field keeps the board's (rows written before it existed must not wipe it); `null` clears.
-        if (ownerPush && create.data.architecture !== undefined && !same(create.data.architecture, t.architecture ?? null)) patch.architecture = create.data.architecture;
-        if (Object.keys(patch).length) one('task.update', code, patch, { expected_revision: t.rev });
-        writes += syncSteps(code, ids, byId, { lane: declared, replace });
-        const t2 = state().tasks[code];
-        if (ownerPush && !eq(create.data.loops, t2.loops)) one('task.update', code, { loops: create.data.loops || [] }, { expected_revision: t2.rev });
-        // The predecessor's "Cập nhật" / stale / idle clocks read the row's own `updated`: a push that only bumps it
-        // (the coordinator saying "still moving") reset them. Same here: a row whose `updated` is newer than the
-        // task's last accepted change records one (server clock); a re-push of the same row writes nothing.
-        const rowAt = Date.parse(row.updated || ''), t3 = state().tasks[code];
-        if (ownerPush && rowAt > Date.parse(state().activity[code] || 0)) one('task.update', code, {}, { expected_revision: t3.rev });
+        // Asks: one per (task, lane, step) -- the ask of the pushing lane (the task's lane when none is named). A row with an `asks` map
+        // says, for every step it names, the ask of this lane on that step; the legacy needsAnh+askStep form is the map's one-entry case
+        // (rowAsks decides its step: askStep when that waits for the owner, else the first waiting owner step when the row asks at all).
+        // Each entry is reconciled on its OWN step: a reword replaces there, the same text on another step is a new ask, and an ask on a
+        // step the row does not speak for is not the row's to replace or drop -- it ends when its step stops waiting. Nothing is compared
+        // across steps, so five waiting owner steps are five asks. Step-less asks (a row that asks with no owner step) follow the row.
+        const lane = declared || taskLane(code);
+        // The row's own step ids in order; a duplicated id (the predecessor accepted it) is the FIRST occurrence, as askStepIndex reads it.
+        const stepIds = new Map();
+        for (const [i, s] of (row.steps || []).entries()) if (!stepIds.has(s.id)) stepIds.set(s.id, ids[i]);
+        const desired = rowAsks(row)
+          .map(a => ({ ...a, step_id: a.step === undefined ? undefined : stepIds.get(a.step) }))
+          .filter(a => a.step === undefined || a.step_id);
+        const wants = new Map(desired.map(a => [a.step_id || '', a.text]));
+        const speaks = new Set(wants.keys());
+        if (!hasAskMap(row) && !derivedRows.has(code)) speaks.add(''); // the one legacy ask is the row's whether it names a step or not (not when the board derives it)
+        const waiting = id => state().steps[`${code}/${id}`]?.state === 'waiting';
+        const waitingOwner = id => { const st = state().steps[`${code}/${id}`]; return !!st && st.state === 'waiting' && st.zone === 'owner'; };
+        const mine = openAsks(code).filter(a => a.attribution.created_by.origin === PUSH_ORIGIN && askLane(state(), a) === lane);
+        // Only a map that is THIS pusher's own speaks with the whole row: its lane is the pusher's, or every key names a step the pusher
+        // owns. A lane in a shared rows dir pushes a row built by the row owner, and that map must never clear the pusher's own asks;
+        // such a row clears a key explicitly ({"<step>": ""}) instead, which says "no ask here" without claiming the rest of the row.
+        const ownMap = hasAskMap(row) && (!declared || row.lane === declared ||
+          (Object.keys(row.asks).length > 0 && Object.keys(row.asks).every(k => stepIds.has(k) && stepLane(code, stepIds.get(k)) === declared)));
+        const toClear = a => {
+          const id = a.step_id || '';
+          if (id && !waiting(id)) return true; // its step stopped waiting: the ask ends
+          // Still waiting: this row's own map is its whole answer for its own steps, so an entry it leaves out is that step's clear
+          // (`clear --step A` removes the key). A legacy row speaks only for the step it names (or the step-less ask it carries): a
+          // step it leaves out keeps its ask (S1/B1). A blank text on a named step clears, as it always was. A step-less ask left by
+          // an older client has no key in any map, so the lane's own map clears it too (review S2), as a legacy row's changed text did.
+          if (!speaks.has(id)) return ownMap && (!id || stepLane(code, id) === lane);
+          return a.text !== (wants.get(id) ?? '');
+        };
+        for (const a of mine.filter(toClear)) { writes++; clearAsk(a, 'row needsAnh changed', true); }
+        // A non-owner lane may only RAISE an ask on a step it owns (J-05 step-owner): a full-row push from a shared rows dir
+        // carries the row owner's asks, which must not be re-raised as this lane's ask. A new step in this lane's row is this
+        // lane's (syncSteps stamps it); an ask the lane already raised stays updateable/clearable via `mine` above.
+        const mayAsk = step => !declared || declared === taskLane(code) || (!!step && (stepLane(code, step) === declared || !state().steps[`${code}/${step}`]));
+        // A legacy row WITHOUT askStep cannot name its ask step: the board guesses it from the row's order, so the same question still
+        // open anywhere on the lane (or already answered there) is not asked a second time -- a reorder must not multiply it (review
+        // S1, and ce850a7's answer dedupe). A map, or a row that names its askStep, is reconciled per step only: there, the same text
+        // on another step is a different question.
+        const loose = !hasAskMap(row) && !row.askStep;
+        // Another writer's open ask on that identity already answers for it (the board's one-open-ask rule), and a legacy row that
+        // cannot name its step never raises a second ask where its guess points: for a no-lane push on a single-lane task any open ask
+        // on that step counts (an open lane ask wins over the row, as asks.json did); a named-ask row and a map are per step.
+        const heldAt = step => !!openAskAt(state(), code, lane, step) ||
+          (!declared && !hasAskMap(row) && openAsks(code).some(x => !x.step_id || !step || x.step_id === step));
+        for (const a of desired) {
+          const step = a.step_id || '', text = a.text;
+          if (!text || !mayAsk(step)) continue;
+          if (step && !waitingOwner(step)) continue; // a map naming a step the owner does not answer is refused above (badAskStep), never guessed
+          // The same question is still open on this very step: nothing to write. Another step's ask never blocks it (per-step identity),
+          // except for the guess above.
+          if (heldAt(step)) continue;
+          if (loose && mine.some(x => x.status === 'open' && x.text === text && (x.step_id || '') !== step)) continue;
+          // The owner already answered this very ask on this step (button or a note): the row does not raise it again. A changed
+          // text is a new question and is raised.
+          const ofLane = Object.values(state().asks).filter(x => x.task_id === code && askLane(state(), x) === lane);
+          const latest = (loose ? ofLane : ofLane.filter(x => (x.step_id || '') === step)).sort(byAskTime).at(-1);
+          if (latest?.status === 'answered' && latest.text === text) continue;
+          one('ask.raise', code, {
+            text, ...(a.step_id ? { step_id: a.step_id } : {}), ...(a.options?.length ? { options: a.options } : {}),
+            ...(lane !== taskLane(code) ? { lane } : {})
+          }, { origin: PUSH_ORIGIN });
+        }
+        touched.add(code); // a candidate for J-05 auto-compact, decided once EVERY row of this push has been written
       }
-      // Asks: one per (task, lane, step) -- the ask of the pushing lane (the task's lane when none is named). A row with an `asks` map
-      // says, for every step it names, the ask of this lane on that step; the legacy needsAnh+askStep form is the map's one-entry case
-      // (rowAsks decides its step: askStep when that waits for the owner, else the first waiting owner step when the row asks at all).
-      // Each entry is reconciled on its OWN step: a reword replaces there, the same text on another step is a new ask, and an ask on a
-      // step the row does not speak for is not the row's to replace or drop -- it ends when its step stops waiting. Nothing is compared
-      // across steps, so five waiting owner steps are five asks. Step-less asks (a row that asks with no owner step) follow the row.
-      const lane = declared || taskLane(code);
-      // The row's own step ids in order; a duplicated id (the predecessor accepted it) is the FIRST occurrence, as askStepIndex reads it.
-      const stepIds = new Map();
-      for (const [i, s] of (row.steps || []).entries()) if (!stepIds.has(s.id)) stepIds.set(s.id, ids[i]);
-      const desired = rowAsks(row)
-        .map(a => ({ ...a, step_id: a.step === undefined ? undefined : stepIds.get(a.step) }))
-        .filter(a => a.step === undefined || a.step_id);
-      const wants = new Map(desired.map(a => [a.step_id || '', a.text]));
-      const speaks = new Set(wants.keys());
-      if (!hasAskMap(row)) speaks.add(''); // the one legacy ask is the row's whether it names a step or not
-      const waiting = id => state().steps[`${code}/${id}`]?.state === 'waiting';
-      const waitingOwner = id => { const st = state().steps[`${code}/${id}`]; return !!st && st.state === 'waiting' && st.zone === 'owner'; };
-      const mine = openAsks(code).filter(a => a.attribution.created_by.origin === PUSH_ORIGIN && askLane(state(), a) === lane);
-      // Only a map that is THIS pusher's own speaks with the whole row: its lane is the pusher's, or every key names a step the pusher
-      // owns. A lane in a shared rows dir pushes a row built by the row owner, and that map must never clear the pusher's own asks;
-      // such a row clears a key explicitly ({"<step>": ""}) instead, which says "no ask here" without claiming the rest of the row.
-      const ownMap = hasAskMap(row) && (!declared || row.lane === declared ||
-        (Object.keys(row.asks).length > 0 && Object.keys(row.asks).every(k => stepIds.has(k) && stepLane(code, stepIds.get(k)) === declared)));
-      const toClear = a => {
-        const id = a.step_id || '';
-        if (id && !waiting(id)) return true; // its step stopped waiting: the ask ends
-        // Still waiting: this row's own map is its whole answer for its own steps, so an entry it leaves out is that step's clear
-        // (`clear --step A` removes the key). A legacy row speaks only for the step it names (or the step-less ask it carries): a
-        // step it leaves out keeps its ask (S1/B1). A blank text on a named step clears, as it always was. A step-less ask left by
-        // an older client has no key in any map, so the lane's own map clears it too (review S2), as a legacy row's changed text did.
-        if (!speaks.has(id)) return ownMap && (!id || stepLane(code, id) === lane);
-        return a.text !== (wants.get(id) ?? '');
-      };
-      for (const a of mine.filter(toClear)) { writes++; clearAsk(a, 'row needsAnh changed'); }
-      // A non-owner lane may only RAISE an ask on a step it owns (J-05 step-owner): a full-row push from a shared rows dir
-      // carries the row owner's asks, which must not be re-raised as this lane's ask. A new step in this lane's row is this
-      // lane's (syncSteps stamps it); an ask the lane already raised stays updateable/clearable via `mine` above.
-      const mayAsk = step => !declared || declared === taskLane(code) || (!!step && (stepLane(code, step) === declared || !state().steps[`${code}/${step}`]));
-      // A legacy row WITHOUT askStep cannot name its ask step: the board guesses it from the row's order, so the same question still
-      // open anywhere on the lane (or already answered there) is not asked a second time -- a reorder must not multiply it (review
-      // S1, and ce850a7's answer dedupe). A map, or a row that names its askStep, is reconciled per step only: there, the same text
-      // on another step is a different question.
-      const loose = !hasAskMap(row) && !row.askStep;
-      // Another writer's open ask on that identity already answers for it (the board's one-open-ask rule), and a legacy row that
-      // cannot name its step never raises a second ask where its guess points: for a no-lane push on a single-lane task any open ask
-      // on that step counts (an open lane ask wins over the row, as asks.json did); a named-ask row and a map are per step.
-      const heldAt = step => !!openAskAt(state(), code, lane, step) ||
-        (!declared && !hasAskMap(row) && openAsks(code).some(x => !x.step_id || !step || x.step_id === step));
-      for (const a of desired) {
-        const step = a.step_id || '', text = a.text;
-        if (!text || !mayAsk(step)) continue;
-        if (step && !waitingOwner(step)) continue; // a map naming a step the owner does not answer is refused above (badAskStep), never guessed
-        // The same question is still open on this very step: nothing to write. Another step's ask never blocks it (per-step identity),
-        // except for the guess above.
-        if (heldAt(step)) continue;
-        if (loose && mine.some(x => x.status === 'open' && x.text === text && (x.step_id || '') !== step)) continue;
-        // The owner already answered this very ask on this step (button or a note): the row does not raise it again. A changed
-        // text is a new question and is raised.
-        const ofLane = Object.values(state().asks).filter(x => x.task_id === code && askLane(state(), x) === lane);
-        const latest = (loose ? ofLane : ofLane.filter(x => (x.step_id || '') === step)).sort(byAskTime).at(-1);
-        if (latest?.status === 'answered' && latest.text === text) continue;
-        one('ask.raise', code, {
-          text, ...(a.step_id ? { step_id: a.step_id } : {}), ...(a.options?.length ? { options: a.options } : {}),
-          ...(lane !== taskLane(code) ? { lane } : {})
-        }, { origin: PUSH_ORIGIN });
+      if (Array.isArray(b.summary)) {
+        const items = b.summary.map(x => String(x).slice(0, 2000)).filter(Boolean).slice(0, 50), doc = state().docs?.summary;
+        if (!same(items, doc?.items)) one('summary.set', 'board', { items }, { expected_revision: doc?.rev || 0 });
       }
-      touched.add(code); // a candidate for J-05 auto-compact, decided once EVERY row of this push has been written
-    }
-    if (Array.isArray(b.summary)) {
-      const items = b.summary.map(x => String(x).slice(0, 2000)).filter(Boolean).slice(0, 50), doc = state().docs?.summary;
-      if (!same(items, doc?.items)) one('summary.set', 'board', { items }, { expected_revision: doc?.rev || 0 });
-    }
-    // J-05 auto-compact, AFTER every row of the push has been written -- a later row that fails (409 push_not_applicable,
-    // an invalid create) must leave no compact behind (GATE-auto Q1) -- and still inside the same synchronous section
-    // (the first await is attachMedia), so two lane pushes cannot interleave. The row is applied, so a step it reopened
-    // or edited is no longer done and cannot be archived; a step it edited but left done may be folded, its record kept
-    // whole in state.archive. Nothing is re-planned for the next push. A plan with nothing eligible writes NOTHING: a
-    // retried push never journals an empty compact (the manual op does). The compat coordinator the push already writes
-    // as does the compact, marked by origin; it is reported in `compacted`, never counted in `writes` (the row's own).
-    if (autoCompact) for (const code of touched) {
-      if (state().tasks[code].step_ids.length < AUTO_COMPACT_AT) continue;
-      const t4 = state().tasks[code], auto = compactPlan(state(), code, COMPACT_DEFAULT_KEEP);
-      if (!auto.moved.length) continue;
-      w('steps.compact', code, { keep_last: COMPACT_DEFAULT_KEEP }, { expected_revision: t4.rev, origin: `auto-compact lane=${declared || taskLane(code)}` });
-      compacted.push({ task: code, moved: auto.moved.length });
-    }
-    const attached = await attachMedia(rows);
+      // J-05 auto-compact, AFTER every row of the push has been written -- a later row that fails (409 push_not_applicable,
+      // an invalid create) must leave no compact behind (GATE-auto Q1) -- and still inside the same synchronous section
+      // (the first await is attachMedia), so two lane pushes cannot interleave. The row is applied, so a step it reopened
+      // or edited is no longer done and cannot be archived; a step it edited but left done may be folded, its record kept
+      // whole in state.archive. Nothing is re-planned for the next push. A plan with nothing eligible writes NOTHING: a
+      // retried push never journals an empty compact (the manual op does). The compat coordinator the push already writes
+      // as does the compact, marked by origin; it is reported in `compacted`, never counted in `writes` (the row's own).
+      // Phase rule R2: a new phase plan is a new era: the old plan's done steps fold into lich-su, as the board, once every row
+      // is written (a fold mid-push would archive steps a later write of the same row still names).
+      for (const code of eras) { const moved = board.foldEra(code); if (moved) folded.push({ task: code, moved }); }
+      if (autoCompact) for (const code of touched) {
+        if (state().tasks[code].step_ids.length < AUTO_COMPACT_AT) continue;
+        const t4 = state().tasks[code], auto = compactPlan(state(), code, COMPACT_DEFAULT_KEEP);
+        if (!auto.moved.length) continue;
+        w('steps.compact', code, { keep_last: COMPACT_DEFAULT_KEEP }, { expected_revision: t4.rev, origin: `auto-compact lane=${declared || taskLane(code)}` });
+        compacted.push({ task: code, moved: auto.moved.length });
+      }
+    } finally { pushing = false; }
+    // J-05 times-waiting: typed dates/times in now/next/sub are warned about (the board stamps the times itself), and so is a park that
+    // names the owner with no ask open on the task. A warning never blocks the push.
+    const warnings = applied.flatMap(r => {
+      const parks = (r.steps || []).filter(s => blockedOnOwner({ state: legacyStepState(s.state), sub: s.sub, paused_by: s.pausedBy || state().steps[`${r.code}/${s.id}`]?.paused_by }) && !Object.values(state().asks).some(x => x.status === 'open' && x.task_id === r.code));
+      return [...lintFreeTimes(r), ...parks.map(s => ({ task: r.code, field: 'sub', step: s.id, found: 'owner anh', message: ownerWaitMessage }))];
+    });
+    const { n: attached, skipped: mediaSkipped } = await attachMedia(applied);
     // `ignored` names, per row, the row-level fields this lane sent but does not own (applied: its steps; ignored: these);
     // the push is never refused for them, so a lane can always close its own step (J-05 step-owner).
-    return { ok: true, count: rows.length, writes, attached, kept, untouched, ...(declared ? { lane: declared } : {}), ...(ignored.length ? { ignored } : {}), ...(compacted.length ? { compacted } : {}) };
+    return { ok: true, count: applied.length, writes, attached, kept, untouched, ...(declared ? { lane: declared } : {}), ...(ignored.length ? { ignored } : {}), ...(warnings.length ? { warnings } : {}), ...(compacted.length ? { compacted } : {}), ...(folded.length ? { folded } : {}), ...(refused.length ? { refused } : {}), ...(mediaSkipped.length ? { media_skipped: mediaSkipped } : {}) };
   }
 
   /** Files of the predecessor media folder a row references and the task does not carry yet become attachments. */
   async function attachMedia(rows) {
-    if (!mediaDir) return 0;
+    const skipped = [];
+    if (!mediaDir) return { n: 0, skipped };
     let n = 0;
     for (const row of rows) {
       const names = new Set([...JSON.stringify(row).matchAll(MEDIA_REF)].map(m => m[1]));
@@ -857,19 +1040,22 @@ export function createLegacyCompat(board, { tokenFile, dataDir, mediaDir, autoCo
         const file = path.join(mediaDir, name);
         if (have.has(name) || !fs.existsSync(file)) continue;
         const size = fs.statSync(file).size;
-        await board.upload(token, { request_id: `compat-media-${row.code}-${name}-${size}`.slice(0, 120), task_id: row.code, name, mime: MIME[name.split('.').pop().toLowerCase()] },
-          fs.createReadStream(file), { contentLength: size });
-        n++;
+        // A clip over the video cap or the media budget is left out and named (the rows are applied already; the push stands).
+        try {
+          await board.upload(token, { request_id: `compat-media-${row.code}-${name}-${size}`.slice(0, 120), task_id: row.code, name, mime: MIME[name.split('.').pop().toLowerCase()] },
+            fs.createReadStream(file), { contentLength: size });
+          n++;
+        } catch (e) { if (!['video_too_large', 'media_budget_full'].includes(e.code)) throw e; skipped.push({ task: row.code, name, error: e.code }); }
       }
     }
-    return n;
+    return { n, skipped };
   }
 
   // ---------- routing ----------
   // A direct loopback call: the predecessor's admin check (nginx always adds X-Forwarded-For).
   function isLoopbackDirect(req) { return ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress) && !req.headers['x-forwarded-for']; }
   const ADMIN = {
-    'POST /api/admin/reply': [201, reply], 'POST /api/admin/asks': [200, setAsk], 'POST /api/admin/asks/clear': [200, clearAsks], 'POST /api/admin/asks/clear-all': [200, clearAllAsks],
+    'POST /api/admin/reply': [201, reply], 'POST /api/admin/news': [201, news], 'POST /api/admin/asks': [200, setAsk], 'POST /api/admin/asks/clear': [200, clearAsks], 'POST /api/admin/asks/clear-all': [200, clearAllAsks],
     'POST /api/admin/pings/seen': [200, markSeen], 'POST /api/admin/escalate': [200, escalate], 'POST /api/admin/override': [200, setOverride], 'POST /api/admin/plans': [201, addPlan],
     'PUT /api/admin/tasks': [200, pushRows], 'POST /api/admin/close': [200, closeTask], 'PUT /api/admin/registry': [200, setRegistry],
     'PUT /api/admin/stats': [200, setStats],

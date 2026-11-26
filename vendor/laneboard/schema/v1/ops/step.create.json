@@ -32,6 +32,26 @@
     "state": {
       "$ref": "../common.json#/$defs/stepState"
     },
+    "paused_by": {
+      "enum": ["anh"],
+      "description": "Who ordered this pause. Only the owner (anh) can: a blocked step with this field is a pause he ordered, legal with no open ask and never listed as waiting on him. paused_by, pause_quote and pause_msg come together and only on a blocked step; leaving blocked clears them."
+    },
+    "pause_msg": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The feedback id of the OWNER message that ordered the pause. The board checks that it exists, was written by the owner on this task and holds pause_quote verbatim in words he typed himself (not an ask text copied into his answer); the quote must order a pause: at least 10 characters, 3 words and a pause word; pause_at is taken from that message, never from the writer."
+    },
+    "pause_quote": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 500,
+      "description": "The owner's own words ordering the pause, verbatim."
+    },
+    "phase": {
+      "$ref": "../common.json#/$defs/stepId",
+      "description": "The task phase this step belongs to (a phase id of the task). With the phase rules on (BOARD_PHASE_RULES_SINCE) a new step on a task with phases must name one."
+    },
     "detail": {
       "type": "string",
       "maxLength": 16000

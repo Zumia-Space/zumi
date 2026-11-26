@@ -35,7 +35,7 @@
       ],
       "target": "taskId",
       "revision": "create",
-      "description": "Create a task, optionally with its steps."
+      "description": "Create a task, optionally with its steps. With the board guards on (BOARD_GUARDS_SINCE) a new task carries its goal QC: goal_check, phases and open_questions."
     },
     "task.update": {
       "schema": "ops/task.update.json",

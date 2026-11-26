@@ -4,7 +4,12 @@
 // and "projection renamed" heals itself on restart. No database, no custom replay engine.
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { emptyState, reduce } from './ops.mjs';
+
+/** <dir>/board.lock = { pid, nonce, at } while a store holds the dir: offline tools (scripts/rollback-b2.mjs) refuse to rewrite the
+ *  journal under a live board. Advisory only: opening never refuses (a crash leaves a stale lock, overwritten here). */
+export const LOCK_FILE = 'board.lock';
 
 export function openStore(dir) {
   fs.mkdirSync(path.join(dir, 'media'), { recursive: true });
@@ -40,6 +45,18 @@ export function openStore(dir) {
   if (replayed) saveProjection();
 
   const fd = fs.openSync(journalPath, 'a');
+  const lockPath = path.join(dir, LOCK_FILE), nonce = crypto.randomBytes(8).toString('hex');
+  // started_at = this PROCESS's start (not the open time): a reader compares it with the OS's start time of `pid`, so a pid the OS
+  // reused for another process after a crash never reads as this board.
+  const startedAt = new Date(Date.now() - process.uptime() * 1000).toISOString();
+  fs.writeFileSync(lockPath, JSON.stringify({ pid: process.pid, nonce, started_at: startedAt, at: new Date().toISOString() }));
+  let closed = false;
+  /** Removes the lock only if it is still this store's (a second store on the same dir may have taken it over). */
+  const releaseLock = () => {
+    let cur;
+    try { cur = JSON.parse(fs.readFileSync(lockPath, 'utf8')); } catch (e) { if (e.code === 'ENOENT' || e instanceof SyntaxError) return; throw e; }
+    if (cur.nonce === nonce) fs.rmSync(lockPath, { force: true });
+  };
   return {
     get state() { return state; },
     replayed,
@@ -67,6 +84,6 @@ export function openStore(dir) {
       const f = path.join(dir, 'media', sha256);
       if (fs.existsSync(f)) fs.rmSync(tmp, { force: true }); else fs.renameSync(tmp, f);
     },
-    close() { fs.closeSync(fd); }
+    close() { if (closed) return; closed = true; fs.closeSync(fd); releaseLock(); }
   };
 }

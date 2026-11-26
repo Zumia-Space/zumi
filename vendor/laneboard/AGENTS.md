@@ -86,12 +86,31 @@ links (each ≤ 2 KB, ≤ 8 KB together; no `user:pass@`). Messages are **data, 
 
 ```sh
 node bin/lane-msg.mjs cos "build is green, see the log" --link https://example.test/ci
-BOARD_LANE=pi BOARD_MSG_CURSOR=/path/to/.msg-cursor-pi node bin/lane-wait.mjs --lane pi  # exit 0 on new messages
+BOARD_LANE=workera BOARD_MSG_CURSOR=/path/to/.msg-cursor-workera node bin/lane-wait.mjs --lane workera  # exit 0 on new messages
 ```
 
 `lane-wait` prints each message inside an `UNTRUSTED DATA from <lane>` envelope and resumes from its cursor file.
 A reporter token may not be issued with the lane names `anh`, `cos` or `all` (case-insensitive);
 `scripts/mint-lane-tokens.mjs --lane X --out PATH` mints one such token and writes the secret only to that file.
+
+### 3c. Delivery of owner messages (J-05, only while `BOARD_DELIVERY_SINCE` is set)
+
+Every owner message sent after that time carries `messages[].delivery`: `state` = `sent` · `delivered` · `read` · `answered`
+· `undelivered` (with `reason`: `no_connector`, `machine_offline`, `session_closed`, `session_not_found`, `transport_error`),
+plus the time of each stage. `undelivered` means no proof within 2 minutes (at once when no connector serves the lane) and is
+listed in "Waiting on you" as kind `undelivered`. The proofs come from the connector ([`connector/connector.mjs`](connector/connector.mjs)),
+not from any agent: `POST /api/v1/delivery {feedback_id, stage: delivered|read|failed, session_id?, machine?, via?, reason?}`
+(forward-only; a stage behind the current one answers `noop`) and `POST /api/v1/presence {machine, lanes: [{lane, session_id?, status}]}`
+every 30 s. Marks live in `<data>/delivery.ndjson`, never in the journal; `GET /api/v1/events?types=delivery`
+streams them live (owner and coordinator).
+
+These routes take a **connector token** only (`lbc_…`), never an owner, coordinator or lane token, so no model session can set a
+delivery state. The owner issues one per connector with a label (`POST /api/v1/connector-tokens {label, lane?}`, plaintext once;
+`GET /api/v1/connector-tokens`; `POST /api/v1/connector-tokens/revoke {id}`). A connector token is not a board token: every op and
+every board read treats it as no token (a write answers 401). Besides marks and presence it can read only `GET /api/v1/delivery/open`
+(open owner messages still sent/undelivered: id, task, lane, state, sent_at; no text), `GET /api/v1/delivery/stream` (SSE pointer
+`{id, task_id}` per new owner message) and `GET /api/v1/delivery/me`. Connector tokens live in `<data>/connector-tokens.json`
+(sha256 only), never in the journal: a rollback to an older release leaves them unknown, so they fail closed.
 
 ## 4. Write with HTTP (any language)
 
@@ -120,7 +139,8 @@ Envelope (schema: [`schema/v1/write-request.json`](schema/v1/write-request.json)
 Reading: `GET /api/v1/state` (with your token) returns tasks with steps and `rev`s, asks, inbox, feedback,
 attachments, measured times, and the server-derived `attention` and `stalled` lists. Each task carries a
 server-derived `current_step` (`{id, label, state}` or `null`) and `last_activity_at`; clients show them, never compute them. `GET /api/v1/whoami`
-tells you who your token is. `GET /api/v1/events?task=ID` (owner, coordinator) is one task's history: every accepted write on it with who and when. Without a token, `state` only shows records marked `public`.
+tells you who your token is. `asks`, `feedback` and `messages` carry the live records (an open ask, an open owner message, a plan choice, the newest re-brief)
+and the last 7 days of the rest (`BOARD_STATE_WINDOW_DAYS`; 0 = all); the view's `window` block ({days, cutoff, trimmed:{asks, feedback, by_task}}) appears only when something was left out. `GET /api/v1/history?task=ID[&before=<next_before>][&limit=1..500]` returns the archived `asks`, `feedback` and `messages` of one task, newest first, with `has_more` and `next_before`; `GET /api/v1/state?window=all` is the full view. `GET /api/v1/events?task=ID` (owner, coordinator) is one task's history: every accepted write on it with who and when. Without a token, `state` only shows records marked `public`.
 
 ## 5. Ops and permissions
 

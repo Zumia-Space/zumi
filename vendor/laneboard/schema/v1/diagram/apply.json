@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "diagram/apply.json",
+  "title": "data for diagram.apply",
+  "description": "Apply ops to the current revision of the attached diagram: all or nothing, one new revision (rev+1; contentRev+1 when any content op is in it). Owner (UI credential, contract 3.5): any ops; the first owner apply on an unpinned diagram also pins it (pointer.pinned = {by, at, rev}). Coordinator on an unpinned diagram: any ops, except a bulk removal (contract 3.4: the request would bring the node or edge ids removed by coordinator lines since the last owner act above 10 nodes or 20 edges), which is 409 needs_owner_act. Coordinator on a pinned diagram: 409 diagram_pinned unless every op is a pinned-allowed upkeep op (node.text with syncs true, a lang and a title or body, setting only the stale language of a stale node; node.set of only verified or tracks) or the request carries fb evidence and holds no remove op (node.remove, edge.remove, region.remove: 409 needs_owner_act, DO: diagram.propose with a bound ask). An evidence-backed coordinator write never changes the pin. An owner apply that bumps contentRev also writes the pointer message (feedback kind diagram) on the task. Response: { ok, rev, content_rev, sha256, bytes, pinned, stale: [node ids], warnings: [{code, msg}] } where warnings is the full lint of the result (never a refusal). Rev 3: a write that removes more than 10 nodes or 20 edges (and, for decide, the accept of a restore_to proposal) is owner-only: an owner device, or for the coordinator a bound ask answered from an owner device (contract 3.3 clause 9, 3.7.1).",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-owner-ui": true,
+  "x-target": "taskId",
+  "x-revision": "required",
+  "x-pinned": "coordinator: upkeep ops only, or fb evidence without remove ops",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ops",
+    "note"
+  ],
+  "properties": {
+    "ops": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": {
+        "$ref": "op.json"
+      }
+    },
+    "note": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "pattern": "^[^<>]*$",
+      "description": "Why. For an owner content save it becomes the pointer message text, verbatim."
+    },
+    "evidence": {
+      "$ref": "#/$defs/evidence"
+    }
+  },
+  "$defs": {
+    "evidence": {
+      "type": "string",
+      "pattern": "^fb-[0-9]+$",
+      "description": "Rev 2 (M1): only an owner feedback fb-N on the same task, kind note, approve, choice or redirect (never diagram), written by an owner UI actor (contract 3.5), with N greater than pointer.owner_seq (the journal seq of the latest owner act on this diagram; fb ids are fb-<journal seq>, so the order is exact). It backs add, text, set and layout ops only; never a remove op, a bulk removal, a restore, a pin or an archive (409 evidence_too_weak). One record backs one accepted write (409 evidence_used). Kept in the side log with the write; auditable, not provable."
+    }
+  },
+  "x-owner-only": "bulk"
+}

@@ -26,9 +26,7 @@ html.b2 .rail-toggle { display: none; }
 html.b2 .rail-tasks:not(.open) { display: block; }
 html.b2 .main.tv-mode { padding: 0; }
 html.b2 .tv { display: grid; grid-template-columns: minmax(0, 1fr) var(--b2-insp, 340px); height: 100vh; }
-html.b2 .center { height: 100vh; padding: 16px 24px 12px; border-right: 1px solid var(--border); overflow-y: auto; } /* a short window scrolls the column, not the page */
-html.b2 .stream-scroll { overflow-y: auto; min-height: 80px; } /* shrinks before the column has to scroll */
-html.b2 .tv .composer { position: static; box-shadow: none; }
+html.b2 .center { height: 100vh; padding: 16px 24px 12px; border-right: 1px solid var(--border); overflow-y: auto; } /* the column is the one scroller, not the page */
 html.b2 .ctx { height: 100vh; overflow-y: auto; padding: 14px 16px 24px; }
 html.b2.ro .tv, html.b2.ro .center, html.b2.ro .ctx { height: calc(100vh - var(--top)); }
 
@@ -56,9 +54,6 @@ html.b2 .reader { container: reader / inline-size; }
 
 /* a preset reflows the column: keep the reader at the same scroll offset instead of letting scroll anchoring move it */
 html.b2 .reader-body { overflow-anchor: none; }
-
-/* a short window: the centre column is the one scroller (the stream grows inside it) instead of a scroller inside a scroller */
-@media (max-height: 700px) { html.b2 .stream-scroll { flex: none; overflow: visible; min-height: 0; } }
 
 /* a very narrow docked reader (Medium at ~950px leaves ~350px): a smaller title and tighter actions keep the header short */
 @container reader (max-width: 420px) {

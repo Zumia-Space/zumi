@@ -17,8 +17,11 @@
 // Dropped on purpose: `updated`/`askAt` (client-written times; v1 only trusts the server clock: the importer
 // carries their ages through times.import instead).
 
+import { goalCheckText, textOf } from './goal-text.mjs';
+
 const ZONE = { anh: 'owner', owner: 'owner', plan: 'plan', build: 'build', test: 'test', ship: 'ship' };
-const clip = (s, n) => (s == null ? undefined : String(s).slice(0, n));
+// Every legacy text field: a string (sliced) or a number/boolean as text; an object or array is no text (undefined), never "[object Object]".
+const clip = (s, n) => textOf(s)?.slice(0, n);
 // Legacy step-state spellings with a v1 equivalent. Only the label changes: the predecessor's clock never started
 // on 'doing' (its updateTimes set startedAt on 'active' only), and the imported started_at stays as it measured.
 const STEP_STATE = { doing: 'active' };
@@ -52,15 +55,18 @@ export const hasAskMap = row => !!row.asks && typeof row.asks === 'object' && !A
  * `step` is the row's own step id (undefined for a step-less ask), `text` is trimmed and clipped like needsAnh.
  */
 export function rowAsks(row) {
-  const text = s => clip(s == null ? '' : String(s).trim(), 2000);
+  const text = s => clip(textOf(s)?.trim() ?? '', 2000);
+  // An ask text that is not text (an object) is no ask at all: neither raised as "[object Object]" nor read as an empty clear.
+  const readable = s => s == null || textOf(s) !== undefined;
   const steps = row.steps || [];
   const at = id => steps.findIndex(s => s.id === id);
   const optionsOf = idx => (idx >= 0 && steps[idx].options?.length ? legacyOptions(steps[idx].options) : undefined);
   if (hasAskMap(row)) {
     // In the row's own step order (a JSON map's key order is the writer's, not the board's): the asks are raised and the legacy
     // needsAnh is joined in the order the steps read on the page.
-    return Object.keys(row.asks).sort((a, b) => at(a) - at(b)).map(step => ({ step, text: text(row.asks[step]), options: optionsOf(at(step)) }));
+    return Object.keys(row.asks).filter(step => readable(row.asks[step])).sort((a, b) => at(a) - at(b)).map(step => ({ step, text: text(row.asks[step]), options: optionsOf(at(step)) }));
   }
+  if (!readable(row.needsAnh)) return [];
   const want = text(row.needsAnh), named = askStepIndex(row);
   const idx = named >= 0 ? named : (row.askStep ? -1 : steps.findIndex(isWaitingOwner));
   // A row that names no step and asks nothing has nothing to say: a guess never clears another step's ask (review B1). One that
@@ -93,7 +99,11 @@ export function legacyRowToRequests(row, { prefix = 'legacy', status } = {}) {
   const steps = (row.steps || []).map((s, i) => clean({
     id: ids[i], label: clip(s.label, 200), sub: clip(s.sub, 200), zone: ZONE[s.zone] || 'build',
     state: legacyStepState(s.state), detail: clip(s.detail, 16000), recommend: clip(s.recommend, 2000),
-    options: s.options?.length ? legacyOptions(s.options) : undefined
+    options: s.options?.length ? legacyOptions(s.options) : undefined,
+    phase: s.phase === undefined || s.phase === null ? undefined : String(s.phase), // the task phase it belongs to (J-05 phase rules)
+    // a pause anh ordered (Opus gate G-PAUSE): the three fields come together
+    // (the time comes from the owner message pause_msg, set by the board: a row's pauseAt is read back, never written)
+    paused_by: s.pausedBy ? String(s.pausedBy) : undefined, pause_quote: s.pausedBy ? clip(s.pauseQuote, 500) : undefined, pause_msg: s.pausedBy ? String(s.pauseMsg ?? '') : undefined
   }));
   const reqs = [{
     version: 1, request_id: `${prefix}-${id}-task`, op: 'task.create', target_id: id,
@@ -105,6 +115,13 @@ export function legacyRowToRequests(row, { prefix = 'legacy', status } = {}) {
       architecture: row.architecture, // passed whole (null clears it): the board validates it (src/architecture.mjs), never clips it
       worker: row.worker ? clean({ model: row.worker.model, effort: row.worker.effort, reason: clip(row.worker.reason, 300) }) : undefined,
       loops: row.loops?.length ? row.loops.map(l => clean({ from: l.from, to: l.to, label: clip(l.label, 120) })) : undefined,
+      // Goal QC (J-05 W-42 B2): goalCheck, phases, openQuestions (a string or {text, step, options}; step = a row step id).
+      goal_check: clip(goalCheckText(row.goalCheck), 2000), // one shared formatter (src/goal-text.mjs), also used by the CLI
+      phases: Array.isArray(row.phases) && row.phases.length ? row.phases.map(p => ({ id: String(p.id), label: clip(p.label, 200), state: legacyStepState(p.state) })) : undefined,
+      open_questions: Array.isArray(row.openQuestions) ? row.openQuestions.map(q => {
+        const o = typeof q === 'string' ? { text: q } : q || {}, idx = o.step === undefined ? -1 : (row.steps || []).findIndex(s => s.id === o.step);
+        return clean({ text: clip(o.text, 2000), step_id: o.step === undefined ? undefined : idx >= 0 ? ids[idx] : String(o.step), options: o.options?.length ? legacyOptions(o.options) : undefined });
+      }) : undefined,
       steps
     })
   }];

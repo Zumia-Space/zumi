@@ -683,6 +683,15 @@ async function waitForListeners(pid) {
     ok(me.status === 200 && me.json?.role === 'owner', '10a-3 bridge: whoami through the bridge is the owner identity', me.json);
     ok(meHit && meHit.url === '/zumia/api/v1/whoami' && meHit.headers.authorization === expectedBasic && meHit.headers['x-laneboard-token'] === S.token, '10a-3 live: the upstream hop carries Basic + the RAW owner token, path prefix kept');
 
+    // T-31 supervisor port: the Board tab's supervisor read (public/app.js ensureSupervisor) is on the allow-list in the sidecar too.
+    const hs = mock.hits.length;
+    const svRead = await bridgeRequest(port, 'GET', '/api/v1/supervisor');
+    ok(svRead.status === 200 && mock.hits[hs]?.url === '/zumia/api/v1/supervisor' && mock.hits[hs]?.headers.authorization === expectedBasic && mock.hits[hs]?.headers['x-laneboard-token'] === S.token, '10a-3 bridge: GET /api/v1/supervisor is forwarded with Basic + the raw owner token', `${svRead.status} ${mock.hits[hs]?.url || 'no upstream hit'}`);
+
+    const hh = mock.hits.length;
+    const hist = await bridgeRequest(port, 'GET', '/api/v1/history?task=T-1&limit=500');
+    ok(hist.status === 200 && mock.hits[hh]?.url === '/zumia/api/v1/history?task=T-1&limit=500' && mock.hits[hh]?.headers['x-laneboard-token'] === S.token, '10a-3 bridge: GET /api/v1/history (the page "load older") is forwarded with its query and the raw owner token', `${hist.status} ${mock.hits[hh]?.url || 'no upstream hit'}`);
+
     // check-board-bridge §4: an allowed PAGE write reaches upstream with the CSRF header and a zumi-ui- request_id.
     const h1 = mock.hits.length;
     const write = await bridgeRequest(port, 'POST', '/api/v1/write', { body: { version: 1, request_id: 'page-status-1', op: 'task.update', target_id: 'T-1', data: { status: 'doing' } } });

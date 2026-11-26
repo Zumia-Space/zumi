@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "diagram/pointer.json",
+  "title": "Diagram pointer: tasks[id].diagram in GET /api/v1/state and the head of GET /api/v1/diagram/:task",
+  "description": "Derived at read time from the side store (<data>/diagrams.ndjson) and the journal's feedback; never journaled, never in state.json or rows/*.json, never written by cos-board push. Absent on a task with no attached diagram (none, archived, or created for an earlier task with the same id): the Diagram tab then draws the architecture graph as today. unreviewed is the replan gate (D7a): the task's feedback of kind diagram with no received; the dispatcher refuses the next dispatch while unreviewed_count is above 0. unreviewed lists the first 50 ids only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["diagram_id", "rev", "content_rev", "sha256", "bytes", "nodes", "edges", "regions", "updated_at", "updated_by", "pinned", "open_proposals", "stale", "unreviewed", "unreviewed_count", "coord_removed"],
+  "properties": {
+    "diagram_id": { "type": "string", "pattern": "^dg-[0-9]+$" },
+    "rev": { "type": "integer", "minimum": 1 },
+    "content_rev": { "type": "integer", "minimum": 1 },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Blob address of the current revision; also the ETag base of the GET view." },
+    "bytes": { "type": "integer", "minimum": 1 },
+    "nodes": { "type": "integer", "minimum": 0 },
+    "edges": { "type": "integer", "minimum": 0 },
+    "regions": { "type": "integer", "minimum": 0 },
+    "updated_at": { "$ref": "../common.json#/$defs/timestamp" },
+    "updated_by": { "$ref": "../common.json#/$defs/actor" },
+    "owner_at": { "$ref": "../common.json#/$defs/timestamp", "description": "Time of the latest owner act on this diagram (owner revision, pin, unpin, accept). Display only." },
+    "owner_seq": { "type": "integer", "minimum": 0, "description": "journal_seq of the latest owner act on this diagram (absent: the create line's journal_seq). fb evidence must be fb-N with N > owner_seq (contract 3.3)." },
+    "pinned": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object", "additionalProperties": false, "required": ["by", "at", "rev"],
+          "properties": { "by": { "$ref": "../common.json#/$defs/actor" }, "at": { "$ref": "../common.json#/$defs/timestamp" }, "rev": { "type": "integer", "minimum": 1 } }
+        }
+      ],
+      "description": "null = agent draft; set = the owner's source of truth since rev. Only an owner UI line sets or clears it."
+    },
+    "coord_removed": {
+      "type": "object", "additionalProperties": false, "required": ["nodes", "edges"],
+      "description": "The removal window (contract 3.4, gate MF-A): node and edge ids removed in the last 24 h by every write made without an owner device (coordinator, Basic login, un-stepped device/ui token, a bound-ask accept not answered from an owner device), since the latest owner-device line. A write without an owner device that would take nodes above 10 or edges above 20 is refused: owner 403 owner_device_required (503 owner_2fa_off while 2FA is off), coordinator 409 needs_owner_act. The field keeps its rev-2 name.",
+      "properties": { "nodes": { "type": "integer", "minimum": 0 }, "edges": { "type": "integer", "minimum": 0 } }
+    },
+    "open_proposals": { "type": "integer", "minimum": 0 },
+    "stale": { "type": "integer", "minimum": 0, "description": "Nodes whose VI and EN are out of sync (viAt != enAt or syncSha mismatch)." },
+    "unreviewed": { "type": "array", "maxItems": 50, "items": { "type": "string", "pattern": "^fb-[0-9]+$" }, "description": "The first 50 unreviewed ids, oldest first." },
+    "unreviewed_count": { "type": "integer", "minimum": 0 }
+  }
+}

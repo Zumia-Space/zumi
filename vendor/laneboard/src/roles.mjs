@@ -28,9 +28,21 @@ export const ESCALATE_AFTER = 2;
 // an unknown model falls through to 'opus' as the reviewer above it.
 export const GEMINI_EFFORTS = ['low', 'medium', 'high']; // agy rejects xhigh and max
 export const isGemini = model => /^gemini-/.test(model || '');
+// Antigravity worker group (J-05 agy-models-1911): every model agy runs, with the efforts it accepts. xhigh exists only on Gemini 4 Neon and
+// Hydrogen, GPT-OSS only has medium, agy rejects max everywhere. Mirrors the dispatcher's agy route table (dispatch-agy.mjs MODELS) and public/app.js AGY_EFFORTS.
+// A board route {model, effort} on one of these ids is run by supervise-worker.mjs through agy-worker.mjs.
+// No agy-run Claude ids (claude-opus-5-5 ...): they would equal a Claude seat's model string (review rule a compares strings; stats key by model), Opus gate M1 19-11.
+const AGY_LMH = ['low', 'medium', 'high'];
+export const AGY_MODEL_EFFORTS = {
+  'gemini-3.8-flash': AGY_LMH, 'gemini-4-argon': AGY_LMH, 'gemini-4-carbon': AGY_LMH, 'gemini-4-hydrogen': [...AGY_LMH, 'xhigh'], 'gemini-4-neon': [...AGY_LMH, 'xhigh'],
+  'gpt-oss-120b': ['medium']
+};
+export const isAgyModel = model => Object.hasOwn(AGY_MODEL_EFFORTS, model);
+/** The efforts agy accepts for a model, or null when agy does not run it. Unlisted gemini-* ids keep the old low/medium/high rule. */
+const agyEfforts = model => AGY_MODEL_EFFORTS[model] || (isGemini(model) ? GEMINI_EFFORTS : null);
 const GEMINI_NEXT = { 'gemini-3.8-flash': 'gemini-4-argon', 'gemini-4-argon': 'opus' };
-/** Refusal text when a gemini-* model is paired with an effort agy cannot run; null when the pair is fine. */
-export const effortError = (model, effort) => isGemini(model) && !GEMINI_EFFORTS.includes(effort) ? `${model} accepts only ${GEMINI_EFFORTS.join(', ')} (agy rejects ${effort})` : null;
+/** Refusal text when an agy-run model is paired with an effort agy cannot run; null when the pair is fine. */
+export const effortError = (model, effort) => { const ok = agyEfforts(model); return ok && !ok.includes(effort) ? `${model} accepts only ${ok.join(', ')} (agy rejects ${effort})` : null; };
 const EFFORT_RANK = ['low', 'medium', 'high', 'xhigh', 'max'];
 
 const slot = (s, by, extra = {}) => ({ model: s.model, effort: s.effort, by, ...extra });

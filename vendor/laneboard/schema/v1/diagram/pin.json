@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "diagram/pin.json",
+  "title": "data for diagram.pin",
+  "description": "Rev 2 (M1): owner only, from an owner UI credential (contract 3.5: ownerUi). Make the current revision the owner's source of truth (pinned true) or hand the diagram back to the agents as a draft (pinned false). An unpin is itself the owner act that names this diagram: the request targets one task and its attached diagram_id, so no owner note, ask or other record can stand in for it, and no coordinator write ever changes the pin (403 forbidden_for_role for a coordinator; 403 owner_ui_only for an owner bearer that is not a UI credential). Changes the pointer only, no revision; written as a side-log line so the history shows it. Not the board's row pin (pin.set): the two are independent. Idempotent: pinning a pinned diagram keeps the first {by, at, rev}. Rev 3 (contract 3.7): owner-only, needs an owner device (TOTP step-up once per device); otherwise 403 owner_device_required.",
+  "x-roles": [
+    "owner"
+  ],
+  "x-owner-ui": true,
+  "x-target": "taskId",
+  "x-revision": "none",
+  "x-pinned": "n/a (owner only)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "pinned"
+  ],
+  "properties": {
+    "pinned": {
+      "type": "boolean"
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 300,
+      "pattern": "^[^<>]*$"
+    }
+  },
+  "x-owner-only": true
+}

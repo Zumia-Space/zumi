@@ -17,6 +17,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { notRun } from './lib/check-outcome.cjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SIDECAR = path.join(ROOT, 'tauri', 'sidecar', 'main.mjs');
@@ -25,8 +26,7 @@ const helper = process.env.ZUMI_VAULT_EXE
   ? path.resolve(process.env.ZUMI_VAULT_EXE)
   : ['release', 'debug'].map((p) => path.join(TARGET, p, 'zumi-vault.exe')).find((p) => fs.existsSync(p));
 if (!helper || process.platform !== 'win32' || !fs.existsSync(helper)) {
-  console.log('SKIP check-board-pin-toggle-ipc - no zumi-vault.exe (set ZUMI_VAULT_EXE or build the host)');
-  process.exit(0);
+  notRun('precondition', 'check-board-pin-toggle-ipc: no zumi-vault.exe (set ZUMI_VAULT_EXE or build the host)');
 }
 
 let pass = 0, fail = 0;

@@ -63,7 +63,8 @@
         "ping.send",
         "ping.seen",
         "pings.import",
-        "turn.report"
+        "turn.report",
+        "dossier.mark"
       ]
     },
     "target_id": {

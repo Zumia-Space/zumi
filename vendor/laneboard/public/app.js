@@ -9,7 +9,7 @@ const CHOICES = { theme: ['system', 'dark', 'light'], accent: ['neutral', 'blue'
 const SECTIONS = ['general', 'appearance', 'notifications', 'agents', 'zumi', 'about'];
 // The name of the token the Zumi desktop app signs in with (owner-only, settings → "Create a key for the Zumi app").
 const ZUMI_TOKEN = 'zumi-desktop';
-const S = { token: '', lang: 'en', dict: {}, en: {}, data: null, drafts: {}, prefs: { ...PREF_DEFAULTS }, prefsFrom: '', seenAsks: null, loadedAt: 0, open: {}, errors: {}, history: {}, offline: false, compose: {}, composeFiles: {}, galleryNavs: {}, hl: null, askOpen: '', leftFilter: '', leftQuery: '', ctxTab: '', libFilter: 'all', regFilter: 'live', regQuery: '', legacyMedia: null, lightbox: null, reader: null, diagramFull: null, wkPop: '', stats: undefined, statsAt: 0, statWin: 'w7', statMWin: 'w7', quota: undefined, quotaAt: 0, quotaErr: null };
+const S = { token: '', lang: 'en', dict: {}, en: {}, data: null, drafts: {}, prefs: { ...PREF_DEFAULTS }, prefsFrom: '', seenAsks: null, loadedAt: 0, open: {}, errors: {}, history: {}, hist: {}, histBusy: {}, offline: false, compose: {}, composeFiles: {}, galleryNavs: {}, hl: null, askOpen: '', leftFilter: '', leftQuery: '', ctxTab: '', libFilter: 'all', regFilter: 'live', regQuery: '', legacyMedia: null, lightbox: null, reader: null, diagramFull: null, wkPop: '', stats: undefined, statsAt: 0, statWin: 'w7', statMWin: 'w7', quota: undefined, quotaAt: 0, quotaErr: null };
 const store = {
   get: k => { try { return localStorage.getItem('laneboard.' + k) || ''; } catch { return ''; } },
   set: (k, v) => { try { v ? localStorage.setItem('laneboard.' + k, v) : localStorage.removeItem('laneboard.' + k); } catch { /* private mode */ } }
@@ -73,14 +73,27 @@ async function adoptServerPrefs(me) {
   store.set('prefs', JSON.stringify(S.prefs));
   applyPrefs();
 }
+/** J-05 delivery: the server's state of one owner message as one line (Đã gửi · Đã tới agent · Đã đọc · Đã trả lời, times on
+ *  hover), or the red "not delivered — why". Read from m.delivery as given, never recomputed here. */
+const DELIVERY_STEPS = ['sent', 'delivered', 'read', 'answered'];
+function deliveryLine(d) {
+  if (!d) return '';
+  if (d.state === 'undelivered') return `<div class="ev-delivery bad" role="status">${esc(t('delivery.undelivered', { reason: t('delivery.reason.' + d.reason) }))}</div>`;
+  const reached = DELIVERY_STEPS.indexOf(d.state);
+  return `<div class="ev-delivery">${DELIVERY_STEPS.map((s, i) => (at => `<span class="st ${i <= reached ? 'on' : ''}"${at ? ` title="${esc(fmtTime(at))}"` : ''}>${esc(t('delivery.' + s))}</span>`)(d[s + '_at'])).join('<span class="sep" aria-hidden="true">·</span>')}</div>`;
+}
 /** Browser notification for each owner ask that appears after the first load. Owner only, opt-in. */
 function notifyNewAsks() {
   const waiting = S.data?.attention?.waiting || [];
-  const ids = new Set(waiting.filter(w => w.kind !== 'step').map(w => w.id));
-  const fresh = S.seenAsks ? waiting.filter(w => ids.has(w.id) && !S.seenAsks.has(w.id)) : [];
+  const key = w => (w.kind === 'undelivered' ? 'dl-' : '') + w.id; // dl-: one message can be unreceived and undelivered apart
+  const items = waiting.filter(w => w.kind !== 'step'), ids = new Set(items.map(key));
+  const fresh = S.seenAsks ? items.filter(w => !S.seenAsks.has(key(w))) : [];
   S.seenAsks = ids;
   if (!isOwner() || !S.prefs.notify_owner_asks || !('Notification' in window) || Notification.permission !== 'granted') return;
-  for (const w of fresh) new Notification(t('notify.newAsk', { task: w.task_id }), { body: w.text, tag: w.id });
+  for (const w of fresh) {
+    const dl = w.kind === 'undelivered';
+    new Notification(t(dl ? 'notify.undelivered' : 'notify.newAsk', { task: w.task_id }), { body: dl ? `${t('delivery.reason.' + w.reason)}\n${w.text}` : w.text, tag: key(w) });
+  }
 }
 
 async function loadLocale(lang) {
@@ -120,6 +133,9 @@ const healthDot = h => `<span class="dot ${esc(h)}" title="${esc(t('health.' + h
 function currentStepText(task) {
   const c = task.current_step;
   if (!c) return t('task.allDone');
+  // A task with phases names the phase, never a board-wide step number (owner 09-11: "Bước 22 · Chặng 1+4" mixed two plans).
+  const ph = (task.phases || []).find(p => p.id === task.steps.find(s => s.id === c.id)?.phase);
+  if (ph) return t('task.currentPhaseValue', { phase: ph.label, label: c.label || c.id.split('/')[1], state: t('state.' + c.state) });
   const i = task.steps.findIndex(s => s.id === c.id);
   return t('task.currentValue', { n: i >= 0 ? i + 1 : '?', label: c.label || c.id.split('/')[1], state: t('state.' + c.state) });
 }
@@ -131,6 +147,159 @@ function staleHours(task) {
   if (!u) return 0;
   const h = Math.floor((serverNow() - u) / 3600000);
   return h >= STALE_HOURS ? h : 0;
+}
+/** Phase progress (J-05 W-42 B3): the server's done/total as a small bar and "n/m"; '' for a task without phases. */
+function progressBar(task, short = false) {
+  const p = task.progress;
+  if (!p) return '';
+  const label = t('task.progress', { done: p.done, total: p.total });
+  return `<span class="prog" role="progressbar" aria-valuemin="0" aria-valuemax="${p.total}" aria-valuenow="${p.done}" aria-label="${esc(label)}" title="${esc(label)}"><progress max="${p.total}" value="${p.done}" aria-hidden="true"></progress><span class="prog-n">${short ? `${p.done}/${p.total}` : esc(t('task.progressShort', { done: p.done, total: p.total }))}</span></span>`;
+}
+/** The task header's progress (J-05 phase rules R3): done phases / phases, "x/y chặng". A task without phases says so: a step
+ *  count is never shown as progress (owner 09-11: "22/27 bước xong" told him nothing). */
+function headProgress(task) {
+  return task.progress ? progressBar(task) : `<span class="muted no-phases">${esc(t('task.noPhases'))}</span>`;
+}
+/**
+ * The Bước tab of a task with phases: one group per phase in plan order, its steps in board order; the steps naming no phase
+ * of the plan (the folded history, an older plan's open step) under "Khác / Lịch sử" last. A group is open while its phase is
+ * active or holds the current step (S.open wins once the owner toggles it). [] for a task without phases: the flat list stays.
+ */
+function phaseGroups(task) {
+  const phases = task.phases || [];
+  if (!phases.length) return [];
+  const ids = new Set(phases.map(p => p.id)), cur = task.current_step?.id;
+  const all = task.steps.map((s, i) => ({ s, i }));
+  const group = (id, label, state, steps) => {
+    const key = `ph-${task.id}/${id || 'other'}`;
+    return { id, label, state, steps, key, open: S.open[key] ?? (state === 'active' || steps.some(x => x.s.id === cur || S.open['sd-' + x.s.id] === true)) };
+  };
+  // Inside a phase the steps read in time order (earliest added first, unknown times last): the board's own order stays the wire order.
+  const inTime = list => { const o = LM.timeOrder(list.map(x => x.s)); return o.map(s => list.find(x => x.s === s)); };
+  const out = phases.map(p => group(p.id, p.label, p.state, inTime(all.filter(x => x.s.phase === p.id))));
+  const rest = inTime(all.filter(x => !ids.has(x.s.phase)));
+  if (rest.length) out.push(group('', t('phase.other'), '', rest));
+  return out;
+}
+/** Guard B4: the server marked the task idle (open steps, nothing waits on the owner, nobody running): a red badge. `compact`
+ *  (the rail row, too narrow for the word): a red mark that carries the same words as its label and tooltip. */
+function idleBadge(task, compact = false) {
+  if (!task.idle) return '';
+  const tip = `${t('task.idle')} · ${t('task.idleTitle', { steps: task.idle.steps.join(', ') })}`;
+  return compact ? `<span class="idle-dot" role="img" aria-label="${esc(tip)}" title="${esc(tip)}"></span>`
+    : `<span class="chip bad idle-badge" title="${esc(tip)}">${esc(t('task.idle'))}</span>`;
+}
+/** Home: the tasks the server marked idle, "đang đứng, không chờ anh" -- the gap the owner queue cannot show. '' when none. */
+function idleList(tasks) {
+  const idle = (tasks || []).filter(x => x.idle);
+  if (!idle.length) return '';
+  const row = x => `<a class="idle-row" href="#/task/${esc(encodeURIComponent(x.id))}"><span class="code">${esc(x.id)}</span><span class="idle-ttl">${esc(x.title)}</span><span class="muted idle-step">${esc(x.current_step?.label || '')}</span>${idleBadge(x)}</a>`;
+  return `<section class="card idle-list"><h2>${esc(t('home.idle'))} <span class="badge">${idle.length}</span></h2><div class="rows">${idle.map(row).join('')}</div></section>`;
+}
+/** J-05 working status: the chip tone per state (src/work.mjs); nobody turns red only with the server's alarm (30 min). */
+const WORK_TONE = { working: 'ok', stale: 'warn', nobody: 'bad', unmeasured: '' };
+/** The glyph each state's words start with (locales work.short.*), alone where a row has room for one character. */
+const WORK_GLYPH = { working: '▶', stale: '⏸', nobody: '✕', unmeasured: '?' };
+/** Home, above the fold: how many tasks run, sit quiet, have nobody, or are not measured; '' without a work field. */
+function workStrip() {
+  const tasks = Object.values(S.data?.work?.tasks || {});
+  if (!S.data?.work) return '';
+  const n = st => tasks.filter(x => x.state === st).length;
+  const part = (st, k) => `<span class="work-count" data-work="${st}"><span class="chip ${WORK_TONE[st]}">${WORK_GLYPH[st]} ${n(st)}</span> ${esc(t(k))}</span>`;
+  return `<button type="button" class="card work-strip" data-action="work-jump" title="${esc(t('home.sessions'))}">${part('working', 'work.count.working')}${part('stale', 'work.count.stale')}${part('nobody', 'work.count.nobody')}${n('unmeasured') ? part('unmeasured', 'work.count.unmeasured') : ''}</button>`;
+}
+/** A short duration in the page's words for the narrow chips: 18p / 3h / 2 ngày (vi), 18m / 3h / 2d (en). */
+function workDur(ms) {
+  const min = Math.max(1, Math.round(ms / 60000));
+  return min < 60 ? t('work.dur.m', { n: min }) : min < 2880 ? t('work.dur.h', { n: Math.floor(min / 60) }) : t('work.dur.d', { n: Math.floor(min / 1440) });
+}
+/** The run-state badge from the server's work.tasks, rendered as given. No work field (older board, delivery off) or no state: ''.
+ *  mode 'full' (task header), 'short' (rail line 2): a chip whose words say what is measured, the full line in its tooltip.
+ *  A live run on a task whose state word is "bị chặn" / "chờ anh" reads "vẫn chạy" (still running), so the two never contradict. */
+function workBadge(task, mode = 'full') {
+  const w = S.data?.work?.tasks?.[task.id];
+  if (!w || (w.state === 'nobody' && !w.alarm && mode !== 'full')) return '';
+  const ms = w.since ? serverNow() - Date.parse(w.since) : 0, dur = w.since ? fmtDur(ms) : '';
+  // who always names lane AND machine (a task's "Làm: Máy 2" pick and the machine actually running it can differ)
+  const who = [w.lane && w.machine ? `${w.lane}@${w.machine}` : w.lane, w.model].filter(Boolean).join(' · ');
+  const label = t('work.' + w.state, { who, dur: w.since ? workDur(ms) : '' });
+  const tip = t('work.tip.' + w.state, { machine: w.machine || '', runs: w.runs || 0, dur });
+  const tone = w.state === 'nobody' && !w.alarm ? '' : WORK_TONE[w.state];
+  const held = w.state === 'working' && ['blocked', 'owner'].includes(taskState(task));
+  const text = mode === 'full' ? label : mode === 'mark' ? WORK_GLYPH[w.state] : t('work.short.' + (held ? 'workingHeld' : w.state), { dur: w.since ? workDur(ms) : '' });
+  return `<span class="chip ${tone} work-badge" data-work="${esc(w.state)}" role="status" aria-label="${esc(`${label} · ${tip}`)}" title="${esc(`${label} · ${tip}`)}">${esc(text)}</span>`;
+}
+/** Runs (and sessions with none newer) silent this long fold into "Phiên cũ": a killed run never ends on its own. */
+const WORK_OLD_MS = 24 * 3600000;
+/** "opus · high" from the seat name worker-opus-high (+ model); anything else: the model, else the kind as given. */
+function seatLabel(r) {
+  const effort = /-(low|medium|high|xhigh|max)$/.exec(r.kind || '')?.[1];
+  return r.model ? [r.model, effort].filter(Boolean).join(' · ') : r.kind || '';
+}
+/** Home: "Phiên đang chạy": each session a connector serves (machine, lane) with its runs of the last 24 h; its chip says what
+ *  its runs do (đang chạy N / lặng), else the session's own status. Older runs and sessions fold into "Phiên cũ (n)". '' when off. */
+function workPanel() {
+  const w = S.data?.work;
+  if (!w?.sessions) return '';
+  const where = s => `<b>${esc(s.lane)}</b><span class="muted">@${esc(s.machine)}</span>`;
+  const runRow = r => `<div class="work-run" title="${esc(r.kind || '')}"><span class="code">${r.task ? `<a href="#/task/${esc(encodeURIComponent(r.task))}">${esc(r.task)}</a>` : esc(t('work.untagged'))}</span>`
+    + `<span class="muted">${esc(seatLabel(r))}</span>`
+    + `<span class="chip ${WORK_TONE[r.state]}">${esc(r.state === 'working' ? t('work.runFor', { dur: workDur(serverNow() - Date.parse(r.started_at || r.last_seen)) }) : t('work.runQuiet', { dur: workDur(r.age_ms) }))}</span></div>`;
+  const recent = w.runs.filter(r => r.age_ms <= WORK_OLD_MS), old = w.runs.filter(r => r.age_ms > WORK_OLD_MS);
+  const runsOf = (s, list) => list.filter(r => r.machine === s.machine && r.session_id === s.session_id);
+  const chipOf = (s, runs) => {
+    const live = runs.filter(r => r.state === 'working').length;
+    if (!s.online) return `<span class="chip">${esc(t('work.offline'))}</span>`;
+    if (live) return `<span class="chip ok">${esc(t('work.sessionLive', { n: live }))}</span>`;
+    if (runs.length) return `<span class="chip warn">${esc(t('work.sessionQuiet'))}</span>`;
+    return `<span class="chip">${esc(t('work.session.' + s.status))}</span>`;
+  };
+  const session = s => {
+    const runs = runsOf(s, recent);
+    const body = !s.measured ? `<p class="muted">${esc(t('work.notMeasured'))}</p>` : runs.length ? runs.map(runRow).join('') : `<p class="muted">${esc(t('work.noRuns'))}</p>`;
+    return `<div class="work-session"><div class="work-sh">${where(s)}${chipOf(s, runs)}</div>${body}</div>`;
+  };
+  const isOld = s => (!s.online || ['closed', 'none'].includes(s.status)) && !runsOf(s, recent).length;
+  const current = w.sessions.filter(s => !isOld(s)), oldSessions = w.sessions.filter(isOld);
+  const oldN = old.length + oldSessions.length;
+  const oldBlock = oldN ? `<details class="work-old" data-open="work-old" ${S.open?.['work-old'] ? 'open' : ''}><summary class="muted">${esc(t('work.old', { n: oldN }))}</summary>`
+    + oldSessions.map(s => `<div class="work-sh">${where(s)}${chipOf(s, [])}</div>`).join('')
+    + old.map(r => `<div class="work-old-run"><span class="muted">${esc(`${r.lane}@${r.machine}`)}</span>${runRow(r)}</div>`).join('') + '</details>' : '';
+  const untagged = recent.filter(r => !r.task).length, live = current.filter(s => runsOf(s, recent).some(r => r.state === 'working')).length;
+  const sum = untagged ? `<p class="muted work-sum">${esc(t('work.untaggedN', { n: untagged, total: recent.length }))}</p>` : '';
+  return `<section class="card work-panel" id="work-panel"><h2>${esc(t('home.sessions'))} <span class="badge">${live}</span></h2>${sum}${current.length ? current.map(session).join('') : `<p class="empty">${esc(t('work.noConnector'))}</p>`}${oldBlock}</section>`;
+}
+/** J-05 supervisor: GET /api/v1/supervisor once a minute (owner and coordinator; anything else: no strip). Rendered as given. */
+async function ensureSupervisor() {
+  if (S.svAt && Date.now() - S.svAt < 60000) return;
+  let res; try { res = await fetch('api/v1/supervisor', { headers: authHeaders(), cache: 'no-store' }); } catch { return; }
+  S.svAt = Date.now();
+  S.sv = res.ok ? await res.json().catch(() => null) : null;
+}
+/** Home: "Giám sát" -- the board's open nudges, owner level first, then oldest; each opens its task, where the lane receipts it.
+ *  One metrics line (sent / receipted / escalated, median time to receipt). '' when the supervisor is off or nothing is open. */
+function supervisorStrip() {
+  const sv = S.sv;
+  if (!sv?.on || !sv.open?.length) return '';
+  const open = [...sv.open].sort((a, b) => b.level - a.level || a.at.localeCompare(b.at));
+  const row = n => `<a class="sv-row lvl${n.level}" href="#/task/${esc(encodeURIComponent(n.task_id === '*' ? '' : n.task_id))}"><span class="code">${esc(n.task_id)}</span><span class="chip">${esc(n.rule)} · L${n.level}</span><span class="muted">${esc(n.lane)} · ${esc(fmtDur(Date.now() - Date.parse(n.since || n.at)))}</span><span class="sv-text">${esc(n.text)}</span></a>`;
+  const tot = sv.metrics?.total || { sent: 0, receipted: 0, escalated: 0 }; // the server's totals, never summed here
+  const p50 = sv.metrics?.time_to_receipt_ms?.p50;
+  const line = t('supervisor.metrics', { sent: tot.sent, receipted: tot.receipted, escalated: tot.escalated, ttr: p50 == null ? '—' : fmtDur(p50) });
+  return `<section class="card supervisor-strip"><h2>${esc(t('supervisor.title'))} <span class="badge">${open.length}</span></h2><p class="muted">${esc(line)}</p><div class="rows">${open.map(row).join('')}</div></section>`;
+}
+/** Task header: this task's open supervisor nudges as given by GET /api/v1/supervisor (S.sv), one chip each ("R1 · 26h", the
+ *  chain's age, `since` = its first nudge, as the strip shows it). On an open owner-level (L3) nudge the owner gets a close button: the server refuses an
+ *  owner kind:"receipt" (coordinator_only_kind), so it sends feedback.resolve at the nudge's rev from the board view. */
+function svBadge(task) {
+  const sv = S.sv;
+  if (!sv?.on || !sv.open?.length) return '';
+  return sv.open.filter(n => n.task_id === task.id).map(n => {
+    const rec = n.level >= 3 && isOwner() && (S.data.feedback || []).find(f => f.id === n.id && f.status === 'open');
+    const btn = rec ? `<button type="button" class="btn sv-receipt" data-action="sv-receipt" data-id="${esc(n.id)}" data-rev="${rec.rev}">${esc(t('supervisor.receipt'))}</button>` : '';
+    const tip = t('supervisor.chipTitle', { rule: n.rule, level: n.level, lane: n.lane, text: n.text });
+    return `<span class="chip sv-badge lvl${n.level}${n.level >= 3 ? ' bad' : ''}" title="${esc(tip)}">${esc(n.rule)} · ${esc(shortDur(Date.now() - Date.parse(n.since || n.at)))}</span>${btn}`;
+  }).join('');
 }
 function staleBadge(task) {
   const h = staleHours(task);
@@ -158,7 +327,8 @@ function workerChip(w, taskId) {
 /** Owner feedback on a task the coordinator has not handled yet. */
 const openOwnerFeedback = taskId => (S.data.feedback || []).filter(f => f.task_id === taskId && f.status === 'open' && !f.info && f.attribution.created_by.role === 'owner');
 const goalOf = taskId => S.data.goals?.[taskId] || null;
-const fmtTime = iso => { try { return new Date(iso).toLocaleString(document.documentElement.lang, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
+// J-05 times-waiting: every moment is shown as dd-mm HH:mm in the owner's zone (config.owner_tz), not the browser's: the same number the CLI and the agent readers show.
+const fmtTime = iso => LM.formatLocal(iso, S.data?.config?.owner_tz) || '';
 /** Who raised an ask: a lane relayed through the coordinator names itself in the request origin. */
 const askedBy = from => (/^(?:lane-ask|legacy) (\S+)/.exec(from.origin || '') || [])[1] || from.label || from.name;
 const liveTask = task => !['paused', 'closed'].includes(task.status);
@@ -169,17 +339,23 @@ const STEP_STATES = ['todo', 'active', 'waiting', 'blocked', 'done'];
 /** Steps lists (stepsByRecency) and the history card show this many rows before their "show older" toggle. */
 const STEPS_SHOWN = 6;
 const stepPin = s => (s.state === 'waiting' && s.zone === 'owner' ? 0 : s.state === 'active' ? 1 : s.state === 'waiting' || s.state === 'blocked' ? 2 : 3);
+/** Legacy task statuses still found on old rows (not in the schema any more) and the status each one means. They share its
+ *  label (status.active = status.doing), so a select shows the legacy value in that status's place: one option, selected. */
+const LEGACY_STATUS = { active: 'doing' };
+/** A status select's values: `list`, the task's legacy status standing in for the status it means (the stored value is
+ *  kept until someone picks another), plus the current status if it is still not there. */
+const statusOptions = (list, status) => [...new Set([...list.map(st => (LEGACY_STATUS[status] === st ? status : st)), status])];
 /** Owner/coordinator control for a task's status (task page and overview cards); the change handler writes task.update. */
-const taskStatusSelect = task => `<select class="state-select status-${esc(task.status)}" data-task-status="${esc(task.id)}" data-rev="${task.rev}" aria-label="${esc(t('task.statusLabel'))}">${TASK_STATUS.map(st => `<option value="${st}" ${task.status === st ? 'selected' : ''}>${esc(t('status.' + st))}</option>`).join('')}</select>`;
+const taskStatusSelect = task => `<select class="state-select status-${esc(task.status)}" data-task-status="${esc(task.id)}" data-rev="${task.rev}" aria-label="${esc(t('task.statusLabel'))}">${statusOptions(TASK_STATUS, task.status).map(st => `<option value="${st}" ${task.status === st ? 'selected' : ''}>${esc(t('status.' + st))}</option>`).join('')}</select>`;
 /** The owner's five task statuses: Active / Waiting on owner / Blocked / Paused / Done → doing / waiting / blocked / paused / closed. */
 const OWNER_STATUSES = ['doing', 'waiting', 'blocked', 'paused', 'closed'];
 /** The task status as a visible select (owner): the five statuses (+ the current one if it is another). Written with
  *  task.update through board.write, so the board rules apply; a refusal is listed under the header. */
-const headStatusSelect = task => `<select class="state-select head-status status-${esc(task.status)}" data-task-status="${esc(task.id)}" data-rev="${task.rev}" aria-label="${esc(t('task.statusLabel'))}">${[...new Set([...OWNER_STATUSES, task.status])].map(st => `<option value="${st}" ${task.status === st ? 'selected' : ''}>${esc(t('status.' + st))}</option>`).join('')}</select>`;
+const headStatusSelect = task => `<select class="state-select head-status status-${esc(task.status)}" data-task-status="${esc(task.id)}" data-rev="${task.rev}" aria-label="${esc(t('task.statusLabel'))}">${statusOptions(OWNER_STATUSES, task.status).map(st => `<option value="${st}" ${task.status === st ? 'selected' : ''}>${esc(t('status.' + st))}</option>`).join('')}</select>`;
 const statusChip = st => `<span class="chip ${({ doing: 'info', waiting: 'q', blocked: 'bad', closed: 'ok' })[st] || ''}">${esc(t('status.' + st))}</span>`;
 
 // ---------- agent-written text: safe Markdown (public/markdown.js), short link labels, show more/less ----------
-const MD = window.LaneMarkdown, LR = window.LaneReading, DG = window.LaneDiagram;
+const MD = window.LaneMarkdown, LR = window.LaneReading, DG = window.LaneDiagram, DV = window.LaneDiagramView, LaneNews = window.LaneNews;
 /** ![..](media/name) in a task's text shows that task's attachment of the same file name. */
 const mediaOf = taskId => name => (S.data?.attachments || []).find(a => a.task_id === taskId && a.name === name)?.id || null;
 /** A local .md path in agent text ("Chi tiết: `D:/…/file.md`") becomes a reader button when the board holds a copy of it (cos-board md-attach); otherwise it stays text. */
@@ -237,20 +413,27 @@ function stepRefs(step) {
 }
 /** The thumbnails and link chips of one text. `nav` names its lightbox order (several strips can share a page). */
 function refsHtml(taskId, refs, nav) {
-  const items = refs.images.map(im => {
+  // A video in the refs line (cos-board --img clip.mp4: a media URL like a picture's) plays right here, never as a thumbnail.
+  const isClip = name => /\.(mp4|webm)$/i.test(name);
+  const items = refs.images.filter(im => !isClip(im.name)).map(im => {
     const att = (S.data?.attachments || []).find(a => a.task_id === taskId && a.name === im.name);
     return { im, it: att ? { att: { id: att.id, mime: att.mime, name: att.name, caption: im.caption } } : { legacy: { name: im.name, type: 'image' } } };
   });
   S.galleryNavs[nav] = items.map(x => x.it);
+  const clips = refs.images.filter(im => isClip(im.name)).map(im => {
+    const att = (S.data?.attachments || []).find(a => a.task_id === taskId && a.name === im.name);
+    return videoFigure(att ? { id: att.id, keep: `clip-${nav}-${att.id}` } : { src: 'media/' + im.name }, im.caption);
+  });
   const thumbs = items.map(({ im, it }, i) => `<button type="button" class="ref-img" data-action="lightbox" data-nav="${esc(nav)}" data-i="${i}" title="${esc(im.caption)}"><img alt="${esc(im.caption)}" loading="lazy" ${it.att ? `data-att="${esc(it.att.id)}" data-w="480"` : `src="${esc('media/' + im.name)}"`}><span class="ref-cap">${esc(im.caption)}</span></button>`).join('');
   // A local file the board holds a copy of (J-05 link-attach) opens from its chip: .md in the reader, a picture in the
-  // lightbox, an .mp4 in a <video controls> right here (it streams through /media/:id/link, which serves Range). The
+  // lightbox. A clip (.mp4/.webm) is a player right here, shown at once (owner 10-11: the clip behind a small "▶" chip next to
+  // its path read as "only a path", so he could not play it); it streams through /media/:id/link, which serves Range. The
   // copy-path chip stays as the secondary action, so a path can still be pasted into a terminal.
   const files = refs.links.map(l => (l.local ? LR.pickAttachment(S.data?.attachments, taskId, l.url) : null));
   const shots = files.filter(a => a && LR.attKind(a.mime) === 'image');
   S.galleryNavs[nav + ':open'] = shots.map(a => ({ att: a }));
-  // A player belongs to one refs block: the same clip can sit on the Needs-you card and in the stream, and opening it
-  // in one must not open it in the other.
+  // A player belongs to one refs block: the same clip can sit on the Needs-you card and in the stream; its key keeps its
+  // position across a repaint (mediaState) without touching the other one.
   const playerKey = a => `file-${nav}-${a.id}`;
   // `own` = the board holds a copy, so the chip no longer claims a browser cannot open the file.
   const copyChip = (l, own) => `<span class="chip ref-link local" title="${esc(own ? t('refs.copy') : t('refs.localTip'))}"><span class="ref-path">${esc(l.url)}</span><button type="button" class="ref-copy" data-action="copy-path" data-path="${esc(l.url)}">${esc(t('refs.copy'))}</button></span>`;
@@ -263,8 +446,8 @@ function refsHtml(taskId, refs, nav) {
     const att = files[i], kind = att && LR.attKind(att.mime);
     // An image the board copied opens in the lightbox, where "open original" and the arrows work as for any other picture.
     if (kind === 'image') return `<button type="button" class="chip ref-link local open" data-action="lightbox" data-nav="${esc(nav + ':open')}" data-i="${shots.indexOf(att)}" title="${esc(l.url)}" aria-haspopup="dialog">▣ ${esc(l.label)}</button>${copyChip(l, true)}`;
-    // An .mp4 the board copied: this chip shows the player inline (loadImages fills its src from /media/:id/link).
-    if (kind === 'video') return `<button type="button" class="chip ref-link local open" data-action="file-open" data-key="${esc(playerKey(att))}" title="${esc(l.url)}" aria-expanded="${!!S.open[playerKey(att)]}">▶ ${esc(l.label)}</button>${copyChip(l, true)}`;
+    // A clip the board copied: its player is in the row below (loadImages fills its src from /media/:id/link); the path stays copyable.
+    if (kind === 'video') return copyChip(l, true);
     // A local .md that cos-board attached to the task opens in the reader (TL;DR first), in the web and in the app alike.
     const doc = kind === 'md' ? docButton(taskId, l.label, l.url, 'chip ref-link local doc', '▤ ') : null;
     if (doc) return doc + copyChip(l, true);
@@ -273,11 +456,26 @@ function refsHtml(taskId, refs, nav) {
     return copyChip(l);
   };
   const chips = refs.links.map(chip).filter(Boolean).join('');
-  // A player appears once its chip is open; it keeps a row of its own below the chips. One player per chip key: a path
+  // The players keep a row of their own below the chips, captioned with the link's label. One player per clip: a path
   // drawn twice (the old duplicate-ref rows) must not stream the clip twice.
-  const players = LOCAL_LINKS === 'hide' ? '' : [...new Map(files.filter(a => a && LR.attKind(a.mime) === 'video' && S.open[playerKey(a)]).map(a => [playerKey(a), a])).values()]
-    .map(a => `<video controls playsinline preload="metadata" data-media="${esc(a.id)}" data-keep="${esc(playerKey(a))}"></video>`).join('');
-  return thumbs || chips ? `<div class="refs">${thumbs ? `<div class="ref-imgs">${thumbs}</div>` : ''}${chips ? `<div class="ref-links">${chips}</div>` : ''}${players ? `<div class="ref-videos">${players}</div>` : ''}</div>` : '';
+  const linked = LOCAL_LINKS === 'hide' ? [] : [...new Map(refs.links.map((l, i) => [files[i], l]).filter(([a]) => a && LR.attKind(a.mime) === 'video').map(([a, l]) => [playerKey(a), { a, l }])).values()]
+    .map(({ a, l }) => videoFigure({ id: a.id, keep: playerKey(a) }, l.label));
+  const players = [...clips, ...linked].join('');
+  return thumbs || chips || players ? `<div class="refs">${thumbs ? `<div class="ref-imgs">${thumbs}</div>` : ''}${chips ? `<div class="ref-links">${chips}</div>` : ''}${players ? `<div class="ref-videos">${players}</div>` : ''}</div>` : '';
+}
+/** One inline player, mobile-friendly: controls, plays inline on iOS, fetches only the metadata until played. The first
+ *  frame is its poster (firstFrame, run by loadImages). `v` = { id, keep } (a board attachment) or { src } (a media URL the
+ *  board has no attachment for yet). */
+function videoFigure(v, caption) {
+  const tag = v.id ? `<video controls playsinline preload="metadata" data-media="${esc(v.id)}" data-keep="${esc(v.keep)}"></video>` : `<video controls playsinline preload="metadata" src="${esc(v.src)}"></video>`;
+  return `<figure class="ref-video">${tag}${caption ? `<figcaption>${esc(caption)}</figcaption>` : ''}</figure>`;
+}
+/** A message's pasted pictures (lightbox thumbnails, pushed onto the stream's `images` nav) and its clips (inline players). */
+function msgMedia(m, images) {
+  const atts = m.attachments || [];
+  const pics = atts.filter(a => LR.attKind(a.mime) !== 'video').map(a => { images.push({ att: { id: a.id, mime: a.mime, name: a.name } }); return `<button type="button" class="ev-img" data-action="lightbox" data-nav="stream" data-i="${images.length - 1}" title="${esc(a.name)}"><img data-att="${esc(a.id)}" data-w="480" alt="${esc(a.name)}"></button>`; }).join('');
+  const clips = atts.filter(a => LR.attKind(a.mime) === 'video').map(a => videoFigure({ id: a.id, keep: `msg-${m.id}-${a.id}` }, '')).join('');
+  return `${pics ? `<div class="ev-imgs">${pics}</div>` : ''}${clips ? `<div class="ref-videos">${clips}</div>` : ''}`;
 }
 /** The reader button for a local .md the task carries a copy of (the newest text/markdown attachment captioned with that path), or null. */
 function docButton(taskId, label, filePath, cls, prefix) {
@@ -336,8 +534,8 @@ async function write(op, target_id, data, expected_revision, errorKey) {
 // The page may be newer than the server it reads (the Zumi app pins this page and reads the live board): ask ages and
 // a task's measured time are recomputed from asks/times/task_times, so the current rules show without a server release.
 const LM = window.LaneMeasure;
-/** Since when the owner has been asked `a` (a re-asked question keeps the first ask's time: measure.js askSince). */
-const askSinceOf = a => LM.askSince(a, S.data?.asks || [], S.data?.messages || [], S.data?.times || {});
+/** Since when the owner has been asked `a`: its own raise time, a re-ask restarts it (measure.js askSince). */
+const askSinceOf = a => LM.askSince(a);
 /** The view with every Needs-you ask's `since`/`age_ms` from askSince, oldest first again (the server's order). */
 function withAskAges(data) {
   const w = data.attention?.waiting;
@@ -345,10 +543,42 @@ function withAskAges(data) {
   const byId = new Map(data.asks.map(a => [a.id, a])), nowMs = Date.parse(data.now);
   for (const x of w) {
     const a = x.kind === 'ask' && byId.get(x.id);
-    if (a) { x.since = LM.askSince(a, data.asks, data.messages || [], data.times || {}); x.age_ms = Math.max(0, nowMs - Date.parse(x.since)); }
+    if (a) { x.since = LM.askSince(a); x.age_ms = Math.max(0, nowMs - Date.parse(x.since)); }
   }
   w.sort((a, b) => a.since.localeCompare(b.since));
   return data;
+}
+
+/** The default state leaves out the old closed asks and feedback (state.window); a task's archive, once loaded here, is merged into
+ *  every later poll so the thread keeps showing it. Records are matched by id: a record the state serves again is not doubled. */
+function mergeHistory(data) {
+  for (const h of Object.values(S.hist)) {
+    for (const k of ['asks', 'feedback', 'messages']) {
+      if (!Array.isArray(data[k])) continue;
+      const have = new Set(data[k].map(x => x.id));
+      data[k] = data[k].concat((h[k] || []).filter(x => !have.has(x.id)));
+    }
+  }
+  return data;
+}
+/** Loads a task's archive from GET /api/v1/history, page by page (500 records), and merges it into the view. */
+async function loadHistory(taskId) {
+  if (S.histBusy[taskId]) return;
+  S.histBusy[taskId] = true; render();
+  const acc = { asks: [], feedback: [], messages: [] };
+  let before = '', ok = false;
+  for (let page = 0; page < 40; page++) {
+    const r = await api(`api/v1/history?task=${encodeURIComponent(taskId)}&limit=500${before ? '&before=' + encodeURIComponent(before) : ''}`);
+    if (r.offline || r.failed || r.unauthorized) break;
+    for (const k of Object.keys(acc)) acc[k].push(...(r[k] || []));
+    if (!r.has_more) { ok = true; break; }
+    before = r.next_before;
+  }
+  S.histBusy[taskId] = false;
+  if (!ok) { toast(t('stream.historyFailed')); return render(); }
+  S.hist[taskId] = { ...acc, done: true };
+  S.data = withAskAges(mergeHistory(S.data));
+  render();
 }
 
 async function refresh() {
@@ -359,7 +589,7 @@ async function refresh() {
   if (S.token !== token) return;
   if (data.offline || data.failed) return render(); // keep the last board on screen; the banner says we are offline
   if (data.unauthorized) { S.token = ''; store.set('token', ''); S.data = null; return render(); }
-  S.data = withAskAges(data); S.loadedAt = Date.now();
+  S.data = withAskAges(mergeHistory(data)); S.loadedAt = Date.now();
   await adoptServerPrefs(data.me);
   notifyNewAsks();
   render();
@@ -405,7 +635,16 @@ function findStep(ref) {
   return task ? { task, sid: ref } : null;
 }
 /** Put a step's report on screen at the next paint: the Steps tab, the step expanded (and not folded away), scrolled to. */
-function showStepReport(taskId, sid) { setCtxTab('steps'); S.open['sd-' + taskId + '/' + sid] = true; S.open['steps-all-' + taskId] = true; S.stepFocus = sid; }
+function showStepReport(taskId, sid) {
+  setCtxTab('steps'); S.open['sd-' + taskId + '/' + sid] = true; S.open['steps-all-' + taskId] = true; S.stepFocus = sid;
+  // A stored "closed" (the owner shut the phase or its "N đã xong" fold earlier) beats the open the render derives from the step, so
+  // the phase and the fold that hold the step are opened here, the same keys phaseGroups / phaseBody read.
+  const task = S.data?.tasks?.find(x => x.id === taskId), step = task?.steps.find(s => s.id === `${taskId}/${sid}`);
+  if (!step || !task.phases?.length) return;
+  const key = `ph-${taskId}/${task.phases.some(p => p.id === step.phase) ? step.phase : 'other'}`;
+  S.open[key] = true;
+  if (step.state === 'done') S.open['df-' + key] = true;
+}
 /** Is a step's detail showing: the user's choice if they made one, else expanded while it is a fresh report. */
 const stepIsOpen = s => S.open['sd-' + s.id] ?? LM.freshReport(s, S.data?.times?.[s.id], serverNow());
 const go = hash => { if (location.hash !== hash) location.hash = hash; else render(); };
@@ -416,7 +655,7 @@ const LEFT_FILTERS = ['live', 'paused', 'all'];
 function taskState(task) {
   if (task.status === 'closed') return 'closed';
   if (task.status === 'paused') return 'paused';
-  if ((S.data.attention?.waiting || []).some(w => w.task_id === task.id && w.kind !== 'unreceived')) return 'owner';
+  if ((S.data.attention?.waiting || []).some(w => w.task_id === task.id && !msgWait(w))) return 'owner';
   if ((S.data.messages || []).some(m => m.task_id === task.id && m.needs_receipt)) return 'receipt';
   if (task.health === 'red' || task.steps.some(s => s.state === 'blocked')) return 'blocked';
   if (task.steps.length && task.steps.every(s => s.state === 'done')) return 'done';
@@ -424,19 +663,19 @@ function taskState(task) {
 }
 /** Tooltip of the "needs you" word: how many items wait on the owner, and that the task status is unchanged. */
 function needsTip(task) {
-  const n = (S.data.attention?.waiting || []).filter(w => w.task_id === task.id && w.kind !== 'unreceived').length;
+  const n = ownerOpenAsks(task).length; // the one count of the page: the open asks (also the Bước tab's chip and block)
   return n ? t(n === 1 ? 'left.needsTip.one' : 'left.needsTip.other', { n, status: t('status.' + task.status) }) : '';
 }
 const STATE_TONE = { owner: 'q', receipt: 'q', blocked: 'bad', done: 'ok', paused: 'grey', closed: 'grey', doing: '' };
-const stepsDone = task => `${task.steps.filter(s => s.state === 'done').length}/${task.steps.length}`;
 /** The pin outline, drawn like GEAR and the menu icon (24 px grid, stroke 2, round caps: the lucide shape family the board and
  *  the Zumi app icons share). CSS fills it when the task is pinned. Owner 08-11: no emoji pin. */
 const PIN_ICON = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>';
-/** The owner's pin toggle (pin.set); a read-only reader gets nothing — the "Đang ghim" strip is the read. */
-function pinButton(task) {
+/** The owner's pin toggle (pin.set); a read-only reader gets nothing — the "Đang ghim" strip is the read. `labelled`: the task
+ *  header's toggle also says "Ghim" / "Đã ghim" (owner 14-11: the bare icon was not found); the rail keeps the compact icon. */
+function pinButton(task, labelled = false) {
   if (!isOwner()) return '';
   const on = !!task.pinned, label = t(on ? 'pin.unpin' : 'pin.pin');
-  return `<button type="button" class="pin-btn${on ? ' on' : ''}" data-action="pin" data-task="${esc(task.id)}" aria-pressed="${on}" aria-label="${esc(label)}" title="${esc(label)}">${PIN_ICON}</button>`;
+  return `<button type="button" class="pin-btn${labelled ? ' labelled' : ''}${on ? ' on' : ''}" data-action="pin" data-task="${esc(task.id)}" aria-pressed="${on}" aria-label="${esc(label)}" title="${esc(label)}">${PIN_ICON}${labelled ? `<span>${esc(t(on ? 'pin.labelOn' : 'pin.label'))}</span>` : ''}</button>`;
 }
 /** A moment on the Vietnam clock (UTC+7), the clock the server's override note prints ("… giờ VN"). */
 const VN_MS = 7 * 3600000;
@@ -458,20 +697,31 @@ function overrideBadge(task, compact = false) {
   return `<span class="chip info ovr" data-override="${esc(o.model)}" title="${esc(title)}">${esc(full)}</span>`;
 }
 /** "4/6 steps done"; a one-step task reads "1/1 step done" (the locale's `.one` key — English has no other plural rule). */
-function headSteps(task) {
-  const total = task.steps.length, done = task.steps.filter(s => s.state === 'done').length;
-  const key = total === 1 ? 'head.steps.one' : 'head.steps.other';
-  return t(key, { n: `${done}/${total}` });
-}
 /** 43h · 3d · 25m: the wait on a left row. */
 const shortDur = ms => (ms >= 172800000 ? Math.floor(ms / 86400000) + 'd' : ms >= 3600000 ? Math.floor(ms / 3600000) + 'h' : Math.max(1, Math.round(ms / 60000)) + 'm');
 /** Where a "Chờ bạn" item opens: its task, with the composer scoped to the ask (or that unacknowledged answer shown). */
-const askHref = w => `#/task/${encodeURIComponent(w.task_id)}${w.kind === 'ask' ? '?ask=' + encodeURIComponent(w.id) : w.kind === 'unreceived' ? '?msg=' + encodeURIComponent(w.id) : ''}`;
+const askHref = w => `#/task/${encodeURIComponent(w.task_id)}${w.kind === 'ask' ? '?ask=' + encodeURIComponent(w.id) : msgWait(w) ? '?msg=' + encodeURIComponent(w.id) : ''}`;
+/** A wait about one owner message (its answer not picked up, or it never reached the agent), not a question for the owner. */
+const msgWait = w => w.kind === 'unreceived' || w.kind === 'undelivered';
+/** The owner's pinned tasks in pin order (oldest pin first): the sidebar list and the Home strip read the same order. */
+function pinnedTasks() {
+  return (S.data.tasks || []).filter(x => x.pinned).sort((a, b) => (Date.parse(a.pinned_at) || 0) - (Date.parse(b.pinned_at) || 0) || a.id.localeCompare(b.id));
+}
+/** "Đang ghim (n)" above Cần anh, the same row (code, age since the pin, title); a row opens the task. Hidden at 0. A pinned
+ *  task that waits on the owner stays under Cần anh too: this list does not filter that one. */
+function railPinned(here) {
+  const pins = pinnedTasks();
+  if (!pins.length) return '';
+  return `<div class="lane-h pin-h">${esc(t('pin.title'))} <span class="badge">${pins.length}</span></div>` + pins.map(task => {
+    const cur = here === task.id;
+    return `<a class="lrow pinned${cur ? ' here' : ''}" href="#/task/${esc(encodeURIComponent(task.id))}"${cur ? ' aria-current="page"' : ''} title="${esc(`${task.id} ${task.title}`)}"><span class="tid">${esc(task.id)}</span><span class="wait">${esc(shortDur(Math.max(0, serverNow() - (Date.parse(task.pinned_at) || serverNow()))))}</span><span class="ttl">${esc(task.title)}</span></a>`;
+  }).join('');
+}
 function renderRail() {
   const d = S.data, r = route(), here = r.view === 'task' ? r.id : '';
   const nav = (hash, label, active, extra = '') => `<button class="nav-item" data-go="${esc(hash)}" ${active ? 'aria-current="page"' : ''}><span class="label">${label}</span>${extra}</button>`;
   const waiting = d.attention?.waiting || [];
-  let h = nav('#/home', esc(t('nav.home')), ['home', 'overview', 'summary'].includes(r.view), waiting.length ? `<span class="badge q">${waiting.length}</span>` : '');
+  let h = nav('#/home', esc(t('nav.home')), ['home', 'overview', 'summary'].includes(r.view), waiting.length ? `<span class="badge q ${waiting.some(w => w.kind === 'undelivered') ? 'bad' : ''}">${waiting.length}</span>` : '');
   if (canReadTurns()) h += nav('#/reports', esc(t('nav.reports')), r.view === 'reports');
   if (d.me) h += nav('#/quota', esc(t('nav.quota')), r.view === 'quota');
   if (d.me) { // secondary pages behind one "…" entry; Hộp thư only when it holds something
@@ -481,12 +731,13 @@ function renderRail() {
       + ((d.inbox || []).length ? nav('#/inbox', esc(t('nav.inbox')), r.view === 'inbox', openInbox ? `<span class="badge">${openInbox}</span>` : '') : '');
     h += `<details class="more-nav" data-open="more" ${S.open.more || sec.includes(r.view) ? 'open' : ''}><summary class="nav-item"><span class="label">${esc(t('nav.more'))}</span><span class="caret" aria-hidden="true">…</span></summary>${items}</details>`;
   }
+  h += railPinned(here);
   // CẦN ANH: what waits on the owner, longest wait first; a row opens the task scoped to that ask.
   if (d.me && waiting.length) {
     const need = LM.needRows(waiting); // one row per task: its oldest ask, with a ×N count when more wait
     h += `<div class="lane-h need-h">${esc(t('left.need'))} <span class="badge q">${need.length}</span></div>` + need.map(w => {
       const task = d.tasks.find(x => x.id === w.task_id);
-      return `<a class="lrow need ${here === w.task_id ? 'here' : ''}" href="${esc(askHref(w))}" title="${esc(w.items.map(x => `${x.task_id} · ${x.text}`).join(' | '))}"><span class="tid">${esc(w.task_id)}</span><span class="wait ${waitTone(w.age_ms)}">${esc(shortDur(w.age_ms))}</span><span class="ttl">${esc(w.kind === 'unreceived' ? t('left.unreceived') : task?.title || w.text)}</span>${w.count > 1 ? `<span class="n-asks">×${w.count}</span>` : ''}</a>`;
+      return `<a class="lrow need ${here === w.task_id ? 'here' : ''}" href="${esc(askHref(w))}" title="${esc(w.items.map(x => `${x.task_id} · ${x.text}`).join(' | '))}"><span class="tid">${esc(w.task_id)}</span><span class="wait ${waitTone(w.age_ms)}">${esc(shortDur(w.age_ms))}</span><span class="ttl">${esc(w.kind === 'unreceived' ? t('left.unreceived') : w.kind === 'undelivered' ? t('left.undelivered') : task?.title || w.text)}</span>${w.count > 1 ? `<span class="n-asks">×${w.count}</span>` : ''}${task ? workBadge(task, 'mark') : ''}</a>`;
     }).join('');
   }
   // Tasks by lane: one row each — dot, code, title, done/total, the state in two words, ⏱ when stalled, ✎ with a draft.
@@ -498,12 +749,13 @@ function renderRail() {
   const row = task => {
     const st = taskState(task), idle = stalled.get(task.id), n = d.me ? openOwnerFeedback(task.id).length : 0;
     // For the owner the state word is a button: a popover sets the task status (same five as the task header).
-    const word = st === 'doing' ? '' : `<span class="st ${STATE_TONE[st]}"${st === 'owner' ? ` title="${esc(needsTip(task))}"` : ''}>${esc(t('left.state.' + st))}</span>`;
+    const askN = st === 'owner' ? ownerOpenAsks(task).length : 0;
+    const word = st === 'doing' ? '' : `<span class="st ${STATE_TONE[st]}"${st === 'owner' ? ` title="${esc(needsTip(task))}"` : ''}>${esc(t('left.state.' + st))}${askN ? ` <span class="st-n">${askN}</span>` : ''}</span>`;
     const stBtn = isOwner() ? `<button type="button" class="st-btn" data-action="st-pop" data-task="${esc(task.id)}" aria-haspopup="menu" aria-expanded="${S.stPop === task.id}" title="${esc(t('task.statusLabel'))}: ${esc(t('status.' + task.status))}">${word || '<span class="st caret">▾</span>'}</button>` : word;
     const pop = isOwner() && S.stPop === task.id ? `<div class="st-pop" role="menu" aria-label="${esc(t('task.statusLabel'))}">${OWNER_STATUSES.map(x => `<button type="button" role="menuitemradio" aria-checked="${task.status === x}" data-action="set-status" data-task="${esc(task.id)}" data-status="${x}" data-rev="${task.rev}">${esc(t('status.' + x))}</button>`).join('')}</div>` : '';
     return `<div class="lrow task ${here === task.id ? 'here' : ''}"><a class="lmain" href="#/task/${esc(encodeURIComponent(task.id))}" ${here === task.id ? 'aria-current="page"' : ''} title="${esc(`${task.id} ${task.title}`)}">${healthDot(task.status === 'paused' ? 'grey' : task.health)}<span class="tid">${esc(task.id)}</span><span class="ttl">${esc(task.title)}</span>`
-      + `<span class="lmeta">${hasDraft(task.id) ? `<span class="draft-mark" title="${esc(t('compose.draft'))}">✎</span>` : ''}${freshLabel(task) ? `<span class="idle" title="${esc(freshLabel(task))}">⚠</span>` : ''}${idle ? `<span class="idle" title="${esc(t('left.idle', { dur: fmtDur(idle) }))}">⏱${esc(shortDur(idle))}</span>` : ''}<span class="n">${esc(stepsDone(task))}</span></span></a>`
-      + `<span class="lmeta">${pinButton(task)}${stBtn}${overrideBadge(task, true)}${n ? `<span class="badge" title="${esc(t('rail.openFeedback', { n }))}">${n}</span>` : ''}</span>${pop}</div>`;
+      + `<span class="lmeta">${hasDraft(task.id) ? `<span class="draft-mark" title="${esc(t('compose.draft'))}">✎</span>` : ''}${freshLabel(task) ? `<span class="idle" title="${esc(freshLabel(task))}">⚠</span>` : ''}${idle ? `<span class="idle" title="${esc(t('left.idle', { dur: fmtDur(idle) }))}">⏱${esc(shortDur(idle))}</span>` : ''}${idleBadge(task, true)}${progressBar(task, true)}</span></a>`
+      + `<span class="lmeta">${pinButton(task)}${stBtn}${workBadge(task, 'short')}${overrideBadge(task, true)}${n ? `<span class="badge notes" title="${esc(t('rail.openFeedback', { n }))}"><span aria-hidden="true">✉</span> ${n}</span>` : ''}</span>${pop}</div>`;
   };
   const chip = (k, label) => `<button type="button" class="chip-btn" data-action="left-filter" data-k="${k}" aria-pressed="${f === k}">${esc(label)}</button>`;
   const railOpen = !!S.open.rail; // 641–960 px: the task list folds behind one button
@@ -576,9 +828,9 @@ function railFoot(whoHtml, accountBtn = '') {
 // ---------- owner attention + stalled ----------
 function attentionRow(w, home = false, label = '') {
   const task = S.data.tasks.find(x => x.id === w.task_id);
-  const kind = w.kind === 'step' ? t('attention.kind.step') : t(`attention.kind.${w.kind}`, { from: askedBy(w.from) });
+  const kind = w.kind === 'step' ? t('attention.kind.step') : t(`attention.kind.${w.kind}`, { from: askedBy(w.from), ...(w.reason ? { reason: t('delivery.reason.' + w.reason) } : {}) });
   let actions = '';
-  if (isOwner() && w.kind !== 'step' && w.kind !== 'unreceived') {
+  if (isOwner() && w.kind !== 'step' && !msgWait(w)) {
     // Options to pick; an ask without options can be approved or rejected outright (the answer box adds a reason).
     const verdicts = w.options.length ? '' : `<button class="btn primary" data-action="answer" data-kind="${w.kind}" data-id="${esc(w.id)}" data-rev="${w.rev}" data-task="${esc(w.task_id)}" data-verdict="approve">${esc(t('answer.approve'))}</button><button class="btn" data-action="answer" data-kind="${w.kind}" data-id="${esc(w.id)}" data-rev="${w.rev}" data-task="${esc(w.task_id)}" data-verdict="reject">${esc(t('answer.reject'))}</button>`;
     actions = `<div class="actions">${w.options.map(o => `<button class="btn option" data-action="answer" data-kind="${w.kind}" data-id="${esc(w.id)}" data-rev="${w.rev}" data-task="${esc(w.task_id)}" data-choice="${esc(o.key)}" ${o.desc ? `title="${esc(o.desc)}"` : ''}><b>${esc(o.key)}</b> ${esc(o.label)}</button>`).join('')}${verdicts}</div>
@@ -599,7 +851,7 @@ function attentionRow(w, home = false, label = '') {
   return `<div class="row ask">${head}
     ${sameAsLabel ? '' : `<div class="text md-line clamp3 ${open ? 'open' : ''}" data-clamp>${mdInline(refs.body, w.task_id)}</div><button type="button" class="more" data-action="more" data-key="ask-${esc(w.id)}" aria-expanded="${open}">${esc(t(open ? 'common.showLess' : 'common.showMore'))}</button>`}
     ${refsHtml(w.task_id, refs, 'ask-' + w.id)}
-    ${home && !label && task?.now && w.kind !== 'unreceived' ? `<div class="sit md-line"><span class="muted">${esc(t('situation.now'))}:</span> ${mdInline(refsOf(task.now).body.split('\n')[0].slice(0, 240), task.id)}</div>` : ''}
+    ${home && !label && task?.now && !msgWait(w) ? `<div class="sit md-line"><span class="muted">${esc(t('situation.now'))}:</span> ${mdInline(refsOf(task.now).body.split('\n')[0].slice(0, 240), task.id)}</div>` : ''}
     <div class="sub"><span>${esc(kind)}</span>${w.asked_back_at ? `<span class="sep"></span><span class="chip info">${esc(t('attention.askedBack'))}</span>` : ''}<span class="sep"></span><span class="${waitTone(w.age_ms)}">${esc(t('attention.age', { dur: fmtDur(w.age_ms) }))}</span>${task ? `<span class="sep"></span><a href="${esc(href)}">${esc(t('attention.openTask'))}</a>` : ''}</div>
     ${w.kind === 'proposal' && isOwner() ? `<div class="sub">${esc(t('attention.proposalHint'))}</div>` : ''}
     ${actions}</div>`;
@@ -608,8 +860,8 @@ function attentionRow(w, home = false, label = '') {
  *  the task row ("3 việc", the oldest wait), and a click opens one line per ask with its own label, age and actions. */
 function needGroupHtml(g) {
   const task = S.data.tasks.find(x => x.id === g.task_id);
-  const head = `<span class="code">${esc(g.task_id)}</span>${task ? `<span class="ask-title">${esc(task.title)}</span>` : ''}${g.count > 1 ? `<span class="badge q">${esc(t('home.nAsks', { n: g.count }))}</span>` : ''}<span class="need-age ${waitTone(g.age_ms)}">${esc(t('attention.age', { dur: fmtDur(g.age_ms) }))}</span>`;
-  const sit = task?.now && g.items.some(w => w.kind !== 'unreceived') ? `<div class="sit md-line"><span class="muted">${esc(t('situation.now'))}:</span> ${mdInline(refsOf(task.now).body.split('\n')[0].slice(0, 240), task.id)}</div>` : '';
+  const head = `<span class="code">${esc(g.task_id)}</span>${task ? `<span class="ask-title">${esc(task.title)}</span>${workBadge(task, 'short')}` : ''}${g.count > 1 ? `<span class="badge q">${esc(t('home.nAsks', { n: g.count }))}</span>` : ''}<span class="need-age ${waitTone(g.age_ms)}">${esc(t('attention.age', { dur: fmtDur(g.age_ms) }))}</span>`;
+  const sit = task?.now && g.items.some(w => !msgWait(w)) ? `<div class="sit md-line"><span class="muted">${esc(t('situation.now'))}:</span> ${mdInline(refsOf(task.now).body.split('\n')[0].slice(0, 240), task.id)}</div>` : '';
   const body = sit + g.items.map(w => attentionRow(w, true, w.label)).join('');
   if (g.count === 1) return `<div class="need-group"><a class="need-head" href="${esc(askHref(g.items[0]))}">${head}</a>${body}</div>`;
   const key = 'need-' + g.task_id;
@@ -625,6 +877,16 @@ function fitClamps() {
 const REG_STATUS = ['open', 'doing', 'paused', 'closed'];
 
 // ---------- task page ----------
+/** The step's server-set moments in the owner's zone: added / changed, and for an ask step when it was asked and answered. '' when the view carries none. */
+function stepStamps(step) {
+  const l = step.stamps_local;
+  if (!l) return '';
+  const parts = [];
+  if (l.created || l.state) parts.push(t('step.stamps', { created: l.created || '—', state: l.state || '—' }));
+  if (l.asked) parts.push(t('step.stampsAsked', { asked: l.asked }));
+  if (l.answered) parts.push(t('step.stampsAnswered', { answered: l.answered }));
+  return parts.join(' · ');
+}
 function stepTime(task, step) {
   const tr = S.data.times?.[step.id];
   if (!tr) return '';
@@ -804,7 +1066,7 @@ const homeView = () => (store.get('homeView') === 'list' ? 'list' : 'map');
  *  and the owner-wait count. A box is a link to the task. The map/list choice is remembered in this browser only. */
 function overviewCard(d) {
   const tasks = (d.tasks || []).filter(t => t.status !== 'closed');
-  const waiting = d.attention?.waiting || [], waitSet = new Set(waiting.filter(w => w.kind !== 'unreceived').map(w => w.task_id));
+  const waiting = d.attention?.waiting || [], waitSet = new Set(waiting.filter(w => !msgWait(w)).map(w => w.task_id));
   const c = DG.healthCounts(tasks, waiting.length), view = homeView();
   const seg = ['map', 'list'].map(k => `<button type="button" role="tab" aria-checked="${view === k}" data-action="home-view" data-view="${k}">${esc(t('diagram.view.' + k))}</button>`).join('');
   const counts = `<div class="diag-counts">${['green', 'yellow', 'red', 'grey'].map(h => `<span class="diag-count"><span class="dot ${h}" aria-hidden="true"></span><b>${c[h]}</b>${esc(t('health.' + h))}</span>`).join('')}<span class="diag-count wait"><b>${c.waiting}</b>${esc(t('diagram.waiting'))}</span></div>`;
@@ -826,12 +1088,12 @@ function overviewCard(d) {
 /** "Đang ghim": the owner's pinned tasks, oldest pin first; hidden when nothing is pinned. A red mark = an open ask
  *  waits on the owner (the same attention list the rail and the queue read). Click opens the task. */
 function pinStrip() {
-  const pins = (S.data.tasks || []).filter(x => x.pinned).sort((a, b) => (Date.parse(a.pinned_at) || 0) - (Date.parse(b.pinned_at) || 0) || a.id.localeCompare(b.id));
+  const pins = pinnedTasks();
   if (!pins.length) return '';
   const waiting = S.data.attention?.waiting || [];
   const items = pins.map(task => {
-    const ask = waiting.some(w => w.task_id === task.id && w.kind !== 'unreceived'), step = task.current_step?.label || t('task.allDone');
-    return `<a class="pin-item" href="#/task/${esc(encodeURIComponent(task.id))}"><span class="pin-code">${esc(task.id)}</span><span class="pin-title">${esc(task.title)}</span>${ask ? `<span class="pin-ask" role="img" aria-label="${esc(t('diagram.waitingOne'))}" title="${esc(t('diagram.waitingOne'))}"></span>` : ''}<span class="pin-now">${task.now ? esc(task.now) : '—'}</span><span class="pin-step">${esc(step)}</span></a>`;
+    const ask = waiting.some(w => w.task_id === task.id && !msgWait(w)), step = task.current_step?.label || t('task.allDone');
+    return `<a class="pin-item" href="#/task/${esc(encodeURIComponent(task.id))}"><span class="pin-code">${esc(task.id)}</span><span class="pin-title">${esc(task.title)}</span>${ask ? `<span class="pin-ask" role="img" aria-label="${esc(t('diagram.waitingOne'))}" title="${esc(t('diagram.waitingOne'))}"></span>` : ''}${(b => (b ? `<span class="pin-work">${b}</span>` : ''))(workBadge(task, 'short'))}<span class="pin-now">${task.now ? esc(task.now) : '—'}</span><span class="pin-step">${esc(step)}</span></a>`;
   }).join('');
   return `<section class="card pin-strip" aria-label="${esc(t('pin.title'))}"><h2>${esc(t('pin.title'))}</h2><div class="pin-items">${items}</div></section>`;
 }
@@ -844,11 +1106,20 @@ function renderHome() {
     ${a.answered.length ? `<h2 class="mt">${esc(t('home.answered'))}</h2><div class="rows">${a.answered.map(answeredRow).join('')}</div>` : ''}</section>`;
   const edit = isLead() ? `<details data-open="sum-edit" ${S.open['sum-edit'] ? 'open' : ''}><summary class="muted">${esc(t('docs.edit'))}</summary><form data-form="summary" data-rev="${sum?.rev || 0}"><textarea name="text" rows="6" data-draft="summary">${esc(S.drafts.summary ?? items.join('\n'))}</textarea><div class="sub muted">${esc(t('docs.summaryHint'))}</div><div class="actions"><button class="btn primary">${esc(t('docs.save'))}</button></div></form></details>` : '';
   const notes = `<section class="card"><h2>${esc(t('summary.notes'))}${sum ? ` <span class="muted">· ${esc(fmtTime(sum.attribution.updated_at))}</span>` : ''}</h2>${items.length ? `<ul class="doc-list">${items.map(i => `<li class="md-line">${mdInline(i, '')}</li>`).join('')}</ul>` : `<p class="empty">${esc(t('docs.summaryEmpty'))}</p>`}${edit}</section>`;
-  return pinStrip() + head + `<div class="stack">${queue}${overviewCard(d)}${notes}${statsModelsCard()}${statsCard()}${workersTable()}</div>`;
+  return workStrip() + pinStrip() + head + `<div class="stack">${queue}${newsCard()}${supervisorStrip()}${workPanel()}${idleList(d.tasks)}${overviewCard(d)}${notes}${statsModelsCard()}${statsCard()}${workersTable()}</div>`;
+}
+/** Home: "Tin quan trọng" (T-31 15-11) -- the canonical news reader (public/news.js) over this view, newest first; status re-briefs
+ *  and "không đổi" receipts stay hidden until the viewer turns on "Hiện cả nhắc trạng thái" (kept for the session). A row opens its task. */
+function newsCard() {
+  const showStatus = !!S.open['news-status'];
+  return LaneNews.html(LaneNews.items(S.data, { showStatus, limit: 30 }), { showStatus, labels: {
+    title: t('news.title'), toggle: t('news.toggle'), empty: t('news.empty'), when: iso => fmtTime(iso),
+    kind: k => t('feedback.kind.' + k)
+  } });
 }
 /** One owner answer on Home's "answered" list: its task, the answer, and whether the coordinator has received it. */
 function answeredRow(x) {
-  const state = x.received_at ? t('attention.receivedNext', { next: x.next || '—' }) : x.handled_at ? t('attention.handled') : t('attention.answeredWait');
+  const state = x.replied ? t('attention.replied') : x.received_at ? t('attention.receivedNext', { next: x.next || '—' }) : x.handled_at ? t('attention.handled') : t('attention.answeredWait');
   return `<div class="row"><a class="code" href="#/task/${encodeURIComponent(x.task_id)}${x.feedback_id ? '?msg=' + encodeURIComponent(x.feedback_id) : ''}">${esc(x.task_id)}</a><div><div class="text muted">${esc(x.text)}</div><div class="sub"><span class="chip ${x.received_at ? 'ok' : 'q'}">${esc(x.choice || (x.kind ? t('feedback.kind.' + x.kind) : '✓'))}</span>${esc(state)}</div></div></div>`;
 }
 /** Signed out: the tasks marked public, one row each. */
@@ -859,20 +1130,32 @@ function renderPublic() {
 /** "Thợ theo task": model and effort as selects for the owner; a change is written at once (routing.set). */
 const EFFORTS = ['low', 'medium', 'high', 'xhigh'];
 const GEMINI_EFFORTS = ['low', 'medium', 'high']; // mirrors src/roles.mjs: agy rejects xhigh/max
-const GEMINI_DEFAULT_EFFORT = { 'gemini-3.8-flash': 'medium', 'gemini-4-argon': 'high' };
-const effortsFor = (model, cur) => /^gemini-/.test(model) ? GEMINI_EFFORTS : [...new Set([...EFFORTS, cur])].filter(Boolean);
-const fixEffort = (model, effort) => /^gemini-/.test(model) && !GEMINI_EFFORTS.includes(effort) ? (GEMINI_DEFAULT_EFFORT[model] || 'high') : effort;
-const workerText = w => `${modelName(w.model)} · ${w.effort}`;
+const GEMINI_DEFAULT_EFFORT = { 'gemini-3.8-flash': 'medium', 'gemini-4-argon': 'high', 'gemini-4-carbon': 'high', 'gemini-4-hydrogen': 'medium', 'gemini-4-neon': 'high', 'gpt-oss-120b': 'medium' };
+// The Antigravity (agy) worker group: id -> accepted efforts. Mirrors src/roles.mjs AGY_MODEL_EFFORTS and the dispatcher's agy route table (the server refuses a pair outside it).
+const AGY_EFFORTS = { 'gemini-3.8-flash': GEMINI_EFFORTS, 'gemini-4-argon': GEMINI_EFFORTS, 'gemini-4-carbon': GEMINI_EFFORTS, 'gemini-4-hydrogen': [...GEMINI_EFFORTS, 'xhigh'], 'gemini-4-neon': [...GEMINI_EFFORTS, 'xhigh'], 'gpt-oss-120b': ['medium'] };
+const AGY_LABELS = { 'gemini-3.8-flash': 'Gemini 3.8 Flash', 'gemini-4-argon': 'Gemini 4 Argon', 'gemini-4-carbon': 'Gemini 4 Carbon', 'gemini-4-hydrogen': 'Gemini 4 Hydrogen', 'gemini-4-neon': 'Gemini 4 Neon', 'gpt-oss-120b': 'GPT-OSS 120B' };
+const AGY_MODELS = Object.keys(AGY_EFFORTS);
+const agyEffortsOf = model => AGY_EFFORTS[model] || (/^gemini-/.test(model) ? GEMINI_EFFORTS : null);
+const effortsFor = (model, cur) => agyEffortsOf(model) || [...new Set([...EFFORTS, cur])].filter(Boolean);
+const fixEffort = (model, effort) => agyEffortsOf(model) && !agyEffortsOf(model).includes(effort) ? (GEMINI_DEFAULT_EFFORT[model] || 'high') : effort;
+const workerModelName = id => AGY_LABELS[id] || modelName(id);
+const workerText = w => `${workerModelName(w.model)} · ${w.effort}`;
+/** Model options of a worker picker: the Claude, DeepSeek and other seats first, then the Antigravity group (every id agy runs) as one option group. */
+function modelOptions(models, cur) {
+  const opt = m => `<option value="${esc(m)}" ${cur === m ? 'selected' : ''}>${esc(workerModelName(m))}</option>`;
+  const agy = models.filter(m => AGY_EFFORTS[m]);
+  return models.filter(m => !AGY_EFFORTS[m]).map(opt).join('') + (agy.length ? `<optgroup label="${esc(t('worker.group.agy'))}">${agy.map(opt).join('')}</optgroup>` : '');
+}
 function workerSelects(task) {
   const w = task.worker || {}, def = task.worker_default;
   const models = [...new Set([w.model, def?.model, ...(S.data.config.models || [])].filter(Boolean))];
   const efforts = effortsFor(w.model, w.effort);
-  return `<select data-route="${esc(task.id)}" data-field="model" aria-label="${esc(t('worker.model'))}">${models.map(m => `<option value="${esc(m)}" ${w.model === m ? 'selected' : ''}>${esc(modelName(m))}</option>`).join('')}</select>`
+  return `<select data-route="${esc(task.id)}" data-field="model" aria-label="${esc(t('worker.model'))}">${modelOptions(models, w.model)}</select>`
     + `<select data-route="${esc(task.id)}" data-field="effort" aria-label="${esc(t('worker.effort'))}">${efforts.map(e => `<option ${w.effort === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select>`;
 }
 /** The four role slots of a task (ADR 2026-10-09). code goes through routing.set, the others through roles.set; either way the owner's pick is binding (by = owner). */
 const ROLE_SLOTS = ['plan', 'code', 'review', 'scout'];
-const SLOT_MODELS = ['opus', 'sonnet', 'deepseek', 'haiku', 'gemini-3.8-flash', 'gemini-4-argon'];
+const SLOT_MODELS = ['opus', 'sonnet', 'deepseek', 'haiku', ...AGY_MODELS];
 function slotCell(task, role, own) {
   const s = task.roles?.[role] || (role === 'code' ? task.worker : null);
   if (!s) return '<td></td>';
@@ -880,7 +1163,7 @@ function slotCell(task, role, own) {
   const models = [...new Set([...SLOT_MODELS, s.model])], efforts = effortsFor(s.model, s.effort);
   const hint = [s.reason, s.note, role === 'scout' ? t('worker.scoutNoVerdict') : '', s.adjusted_from ? t('worker.reviewAdjusted', { from: workerText(s.adjusted_from) }) : ''].filter(Boolean).join(' · ');
   const sel = own
-    ? `<span class="wk-sel"><select ${tag} data-field="model" aria-label="${esc(t('worker.role.' + role))} · ${esc(t('worker.model'))}">${models.map(m => `<option value="${esc(m)}" ${s.model === m ? 'selected' : ''}>${esc(modelName(m))}</option>`).join('')}</select>`
+    ? `<span class="wk-sel"><select ${tag} data-field="model" aria-label="${esc(t('worker.role.' + role))} · ${esc(t('worker.model'))}">${modelOptions(models, s.model)}</select>`
       + `<select ${tag} data-field="effort" aria-label="${esc(t('worker.role.' + role))} · ${esc(t('worker.effort'))}">${efforts.map(e => `<option ${s.effort === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></span>`
     : esc(workerText(s));
   return `<td class="wk-slot" data-role-box="${role}"${hint ? ` title="${esc(hint)}"` : ''}>${sel} <span class="chip ${s.by === 'owner' ? 'info' : s.by === 'auto' ? 'warn' : ''}">${esc(t('worker.by.' + s.by))}</span>${s.conflict ? ` <span class="chip warn">${esc(t('worker.reviewConflict'))}</span>` : ''}</td>`;
@@ -890,8 +1173,8 @@ function slotCell(task, role, own) {
  *  by the existing handler (routing.set for code, roles.set for the rest; by = owner). Provenance is a marker, not text:
  *  a solid dot = the owner chose it, "auto" = escalated, nothing = default / coordinator. A chip equal to the default is dimmed. */
 const ROLE_DEFAULTS = { plan: { model: 'opus', effort: 'high' }, code: { model: 'sonnet', effort: 'high' }, review: { model: 'opus', effort: 'high' }, scout: { model: 'haiku', effort: 'low' } }; // mirrors src/roles.mjs DEFAULTS
-const REVIEW_MODELS = ['opus', 'sonnet', 'fable', 'deepseek', 'gemini-4-argon']; // review never offers haiku: the scout does not rule pass/fail (the server refuses it too)
-const MODEL_SHORT = { opus: 'Opus', sonnet: 'Sonnet', deepseek: 'DeepSeek', haiku: 'Haiku', fable: 'Fable', gpt: 'GPT', gemini: 'Gemini', 'gemini-3.8-flash': 'Gemini 3.8 Flash', 'gemini-4-argon': 'Gemini 4 Argon' };
+const REVIEW_MODELS = ['opus', 'sonnet', 'fable', 'deepseek', 'gemini-4-argon', 'gemini-4-carbon', 'gemini-4-neon']; // review never offers haiku: the scout does not rule pass/fail (the server refuses it too)
+const MODEL_SHORT = { opus: 'Opus', sonnet: 'Sonnet', deepseek: 'DeepSeek', haiku: 'Haiku', fable: 'Fable', gpt: 'GPT', gemini: 'Gemini', ...AGY_LABELS };
 const shortModel = id => MODEL_SHORT[id] || String(id).charAt(0).toUpperCase() + String(id).slice(1);
 const chipText = s => `${shortModel(s.model)} · ${s.effort}`;
 function wkChip(task, role, own) {
@@ -906,7 +1189,7 @@ function wkChip(task, role, own) {
   const warn = s.conflict ? `<span class="wk-warn" role="img" tabindex="0" title="${esc(t('worker.reviewConflictTip'))}" aria-label="${esc(t('worker.reviewConflictTip'))}">!</span>` : '';
   const tag = role === 'code' ? `data-route="${esc(task.id)}"` : `data-role-slot="${esc(task.id)}" data-role="${role}"`;
   const models = role === 'review' ? [...new Set([...REVIEW_MODELS, ...(s.model === 'haiku' ? [] : [s.model])])] : [...new Set([...SLOT_MODELS, s.model])], efforts = effortsFor(s.model, s.effort);
-  const pop = open ? `<div class="wk-pop" role="dialog" aria-label="${esc(t('worker.role.' + role))}"><label><span>${esc(t('worker.model'))}</span><select ${tag} data-field="model">${models.map(m => `<option value="${esc(m)}" ${s.model === m ? 'selected' : ''}>${esc(modelName(m))}</option>`).join('')}</select></label>`
+  const pop = open ? `<div class="wk-pop" role="dialog" aria-label="${esc(t('worker.role.' + role))}"><label><span>${esc(t('worker.model'))}</span><select ${tag} data-field="model">${modelOptions(models, s.model)}</select></label>`
     + `<label><span>${esc(t('worker.effort'))}</span><select ${tag} data-field="effort">${efforts.map(e => `<option ${s.effort === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></label></div>` : '';
   const cls = `wk-chip${same ? ' dim' : ''}${own ? '' : ' ro'}`;
   const chip = own ? `<button type="button" class="${cls}" data-action="wk-pop" data-key="${esc(key)}" aria-haspopup="dialog" aria-expanded="${open}" title="${esc(tip)}">${body}</button>` : `<span class="${cls}" title="${esc(tip)}">${body}</span>`;
@@ -974,8 +1257,8 @@ function renderTask(id) {
   if (!task) return `<p class="empty pad">${esc(t('task.notFound'))}</p>`;
   S.curTask = task.id;
   const st = taskState(task), w = task.worker;
-  const head = `<header class="tv-head"><div class="tv-ids"><span class="code">${esc(task.id)}</span>${pinButton(task)}${healthDot(task.status === 'paused' ? 'grey' : task.health)}<span class="st ${STATE_TONE[st]}"${st === 'owner' ? ` title="${esc(needsTip(task))}"` : ''}>${esc(t('left.state.' + st))}</span>${isOwner() ? headStatusSelect(task) : ''}${task.lane ? `<span class="muted">${esc(t('lane.name', { lane: task.lane }))}</span>` : ''}<span class="muted">${esc(headSteps(task))}</span>${w ? `<button type="button" class="linkish muted" data-action="ctx-tab" data-tab="worker">${esc(workerText(w))}</button>` : ''}${d.me ? machineLine(task) : ''}${overrideBadge(task)}${staleBadge(task)}</div><h1>${esc(task.title)}</h1>${isOwner() ? violationsBox('task:' + task.id) : ''}</header>`;
-  const center = `<section class="center">${head}${situationCard(task)}${d.me ? `<div class="stream-scroll" id="stream-scroll" aria-label="${esc(t('stream.title'))}">${streamEntries(task)}</div>` : ''}${isLead() ? composer(task) : ''}</section>`;
+  const head = `<header class="tv-head"><div class="tv-ids"><span class="code">${esc(task.id)}</span>${pinButton(task, true)}${healthDot(task.status === 'paused' ? 'grey' : task.health)}${isOwner() && st === task.status ? '' : `<span class="st ${STATE_TONE[st]}"${st === 'owner' ? ` title="${esc(needsTip(task))}"` : ''}>${esc(t('left.state.' + st))}</span>`}${isOwner() ? headStatusSelect(task) : ''}${task.lane ? `<span class="muted">${esc(t('lane.name', { lane: task.lane }))}</span>` : ''}${headProgress(task)}${w ? `<button type="button" class="linkish muted" data-action="ctx-tab" data-tab="worker">${esc(workerText(w))}</button>` : ''}${d.me ? machineLine(task) : ''}${overrideBadge(task)}${staleBadge(task)}${idleBadge(task)}${svBadge(task)}</div>${(b => (b ? `<div class="tv-work">${b}</div>` : ''))(workBadge(task))}<h1>${esc(task.title)}</h1>${isOwner() ? violationsBox('task:' + task.id) : ''}</header>`;
+  const center = `<section class="center">${head}${situationCard(task)}${d.me ? progressBlock(task) : ''}${d.me ? `<div class="stream-scroll" id="stream-scroll" aria-label="${esc(t('stream.title'))}">${streamEntries(task)}</div>` : ''}${isLead() ? composer(task) : ''}</section>`;
   return `<div class="tv">${center}<aside class="ctx" id="ctx">${ctxTabs(task)}</aside></div>`;
 }
 /** Tình hình: the six lines the owner reads first. Long lines are cut to two; one toggle opens them. A long "Hiện tại"
@@ -997,14 +1280,20 @@ function situationCard(task) {
   // (askCards), so a row with eight asks no longer merges their files into this line.
   // Folded: Bước, Hiện tại, Cần anh (two lines each). Opened: all six, in full. The stream keeps the room.
   const more = open ? `${line('situation.next', task.next, '', 'next-' + task.id)}${line('situation.milestone', receipt?.receipt?.schedule || '')}${line('situation.updated', upd)}` : '';
-  return `<section class="situation ${open ? 'open' : ''}" id="situation">${freshLabel(task) ? `<p class="fresh">${freshBadge(task)}</p>` : ''}<dl class="kv">${line('situation.step', currentStepText(task))}${nowLine()}${d.me ? `<dt class="needs">${esc(t('situation.needs'))}</dt><dd class="needs">${esc(needsOwnerLine(task))}</dd>` : ''}${more}</dl>
+  // CoS's latest answer in this thread (a `say` or a reply), first lines + time, one click from its entry (owner 09-11: the
+  // answers written in the terminal were missing here, so he could not answer fast).
+  const cos = d.me ? msgsOf(task.id).filter(m => m.author.role === 'coordinator' && ['reply', 'note'].includes(m.kind) && !m.info && !m.receipt).at(-1) : null;
+  const cosLine = cos ? `<dt>${esc(t('situation.cos'))}</dt><dd class="md-line cos-line"><button type="button" class="linkish muted" data-action="jump-msg" data-task="${esc(task.id)}" data-id="${esc(cos.id)}">${esc(fmtTime(cos.ts))}</button> ${mdInline(String(refsOf(cos.body).body || cos.body).slice(0, 400), task.id)}</dd>` : '';
+  const unans = (task.unanswered_on_board || []).length;
+  const flags = `${freshLabel(task) ? freshBadge(task) : ''}${unans ? `<span class="chip bad unanswered">${esc(t('cos.unanswered', { n: unans }))}</span>` : ''}`;
+  return `<section class="situation ${open ? 'open' : ''}" id="situation">${flags ? `<p class="fresh">${flags}</p>` : ''}<dl class="kv">${line('situation.step', currentStepText(task))}${nowLine()}${cosLine}${d.me ? `<dt class="needs">${esc(t('situation.needs'))}</dt><dd class="needs">${esc(needsOwnerLine(task))}</dd>` : ''}${more}</dl>
     ${d.me ? askCards(task) : ''}
     <button type="button" class="more" data-action="more" data-key="sit-${esc(task.id)}" aria-expanded="${open}">${esc(t(open ? 'common.showLess' : 'common.showMore'))}</button></section>`;
 }
 function ctxTabs(task) {
   const d = S.data, TABS = d.me ? ['steps', 'diagram', 'goal', 'plans', 'files', 'worker', 'stats'] : ['steps', 'diagram', 'files'];
   const tab = TABS.includes(S.ctxTab) ? S.ctxTab : 'steps';
-  const count = { steps: stepsDone(task), plans: (d.plans?.[task.id] || []).length || '', files: (d.attachments || []).filter(a => a.task_id === task.id).length || '' };
+  const count = { steps: task.steps.filter(s => s.state !== 'done').length || '', plans: (d.plans?.[task.id] || []).length || '', files: (d.attachments || []).filter(a => a.task_id === task.id).length || '' };
   const bar = `<div class="tabs" role="tablist" aria-label="${esc(t('ctx.label'))}">${TABS.map(k => `<button type="button" role="tab" class="tab" aria-selected="${k === tab}" data-action="ctx-tab" data-tab="${k}">${esc(t('ctx.tab.' + k))}${count[k] ? ` <span class="muted">${esc(count[k])}</span>` : ''}${k === 'goal' && !goalOf(task.id) && d.me ? ' <span class="dot yellow" aria-hidden="true"></span>' : ''}</button>`).join('')}</div>`;
   const panel = tab === 'diagram' ? diagramPanel(task) : tab === 'goal' ? goalPanel(task) : tab === 'plans' ? plansCard(task) : tab === 'files' ? filesPanel(task) : tab === 'worker' ? workerPanel(task) : tab === 'stats' ? statsPanel(task) : stepsPanel(task);
   return bar + `<div class="tabpanel" role="tabpanel">${panel}</div>`;
@@ -1022,19 +1311,35 @@ function stepsPanel(task) {
   const stateSel = s => `<select class="state-select ${esc(s.state)}" data-step-state="${esc(s.id)}" data-rev="${s.rev}" aria-label="${esc(t('step.stateLabel', { step: s.label }))}">${STEP_STATES.map(x => `<option value="${x}" ${s.state === x ? 'selected' : ''}>${esc(t('state.' + x))}</option>`).join('')}</select>`;
   const order = stepsByRecency(task), all = !!S.open['steps-all-' + task.id];
   const shownN = Math.max(STEPS_SHOWN, order.filter(x => x.pin < 3).length), shown = all ? order : order.slice(0, shownN);
-  const done = task.steps.filter(s => s.state === 'done').length, waitOwner = task.steps.filter(s => s.state === 'waiting' && s.zone === 'owner').length;
-  const head = `<div class="steps-head"><span>${esc(t('steps.count', { done, total: task.steps.length }))}</span>${waitOwner ? `<span class="chip q">${esc(t('steps.waitingOwner', { n: waitOwner }))}</span>` : ''}</div>`;
-  const toggle = order.length > shownN ? `<button type="button" class="more" data-action="steps-all" data-task="${esc(task.id)}" aria-expanded="${all}">${esc(all ? t('common.showLess') : t('steps.older', { n: order.length - shownN }))}</button>` : '';
-  const rows = shown.map(({ s, i }) => {
+  // The count is the open asks, not the steps whose state still says "waiting on the owner": an answered or cleared ask leaves its
+  // step waiting until a lane pushes the row (owner 19-11: "3 waiting on you" with one open ask).
+  const openN = task.steps.filter(s => s.state !== 'done').length, waitOwner = ownerOpenAsks(task).length;
+  const head = `<div class="steps-head"><span>${esc(t('steps.open', { n: openN }))}</span>${waitOwner ? `<span class="chip q">${esc(t('steps.waitingOwner', { n: waitOwner }))}</span>` : ''}</div>`;
+  const groups = task.phases?.length ? phaseGroups(task) : [];
+  const toggle = !groups.length && order.length > shownN ? `<button type="button" class="more" data-action="steps-all" data-task="${esc(task.id)}" aria-expanded="${all}">${esc(all ? t('common.showLess') : t('steps.older', { n: order.length - shownN }))}</button>` : '';
+  const row = ({ s, i }, n = i + 1) => {
     const sid = s.id.split('/')[1], open = stepIsOpen(s);
-    return `<div class="srow ${esc(s.state)} ${s.id === cur ? 'cur' : ''} ${open ? 'open' : ''}" id="step-${esc(sid)}"><button type="button" class="srow-main" data-action="step-open" data-step="${esc(s.id)}" aria-expanded="${open}" title="${esc(s.label)}"><span class="si" aria-hidden="true">${STEP_ICON[s.state] || '○'}</span><span class="sn">${i + 1}</span><span class="sl">${esc(s.label)}</span>${String(s.detail || '').trim() ? `<span class="srep">📄 ${esc(t('step.report'))}</span>` : ''}<span class="sr">${esc(t('state.' + s.state))}</span></button>${isLead() ? `<span class="srow-edit">${stateSel(s)}</span>` : ''}</div>
+    return `<div class="srow ${esc(s.state)} ${s.id === cur ? 'cur' : ''} ${open ? 'open' : ''}" id="step-${esc(sid)}"><button type="button" class="srow-main" data-action="step-open" data-step="${esc(s.id)}" aria-expanded="${open}" title="${esc(s.label)}"><span class="si" aria-hidden="true">${STEP_ICON[s.state] || '○'}</span><span class="sn">${n}</span><span class="sl">${esc(s.label)}</span>${String(s.detail || '').trim() ? `<span class="srep">📄 ${esc(t('step.report'))}</span>` : ''}<span class="sr">${esc(t('state.' + s.state))}</span></button>${isLead() ? `<span class="srow-edit">${stateSel(s)}</span>` : ''}</div>
       ${violationsBox('step:' + s.id)}
-      ${open ? `<div class="sdetail"><div class="sub muted"><span class="chip">${esc(t('zone.' + s.zone))}</span>${s.sub ? ` ${esc(s.sub)}` : ''}${stepTime(task, s) ? ` · ${esc(stepTime(task, s))}` : ''}</div>${s.detail ? mdRead(s.detail, 'step-' + s.id, task.id, 'detail', { kind: 'step', ref: '', step: s.id }) : ''}${options(s)}${s.recommend ? `<div class="detail rec md-line"><b>${esc(t('step.recommend'))}</b> ${mdInline(s.recommend, task.id)}</div>` : ''}${stepHistory(task, sid)}</div>` : ''}`;
-  }).join('');
+      ${open ? `<div class="sdetail"><div class="sub muted"><span class="chip">${esc(t('zone.' + s.zone))}</span>${s.sub ? ` ${esc(s.sub)}` : ''}${stepTime(task, s) ? ` · ${esc(stepTime(task, s))}` : ''}${stepStamps(s) ? ` · ${esc(stepStamps(s))}` : ''}</div>${s.detail ? mdRead(s.detail, 'step-' + s.id, task.id, 'detail', { kind: 'step', ref: '', step: s.id }) : ''}${options(s)}${s.recommend ? `<div class="detail rec md-line"><b>${esc(t('step.recommend'))}</b> ${mdInline(s.recommend, task.id)}</div>` : ''}${stepHistory(task, sid)}</div>` : ''}`;
+  };
+  // Phases: one folded group each (a step keeps its number inside its phase), so the owner follows the plan phase by phase.
+  // Owner 19-11: inside a phase the open / active / waiting steps come first and expanded; its done steps fold into one line that
+  // gives only their count (a phase holding nothing else shows them as before). The fold opens when the owner opens it or a step
+  // inside it (a deep link, a click on a step link).
+  const phaseBody = g => {
+    const rowsN = g.steps.map((x, k) => ({ x, n: k + 1 })), done = rowsN.filter(e => e.x.s.state === 'done'), live = rowsN.filter(e => e.x.s.state !== 'done');
+    const html = e => row(e.x, e.n);
+    if (!done.length || !live.length) return rowsN.map(html).join('');
+    const key = 'df-' + g.key;
+    return `${live.map(html).join('')}<details class="done-fold" data-open="${esc(key)}" ${S.open[key] ?? done.some(e => S.open['sd-' + e.x.s.id] === true) ? 'open' : ''}><summary>${esc(t('steps.doneFold', { n: done.length }))}</summary>${done.map(html).join('')}</details>`;
+  };
+  const phaseHtml = g => `<details class="phase ph-${esc(g.state || 'other')}" data-open="${esc(g.key)}" ${g.open ? 'open' : ''}><summary class="phase-head"><span class="si" aria-hidden="true">${g.state ? STEP_ICON[g.state] || '○' : '…'}</span><span class="phase-label">${esc(g.label)}</span>${g.state ? stateChip(g.state) : ''}<span class="muted">${esc(t('phase.steps', { n: g.steps.length }))}</span></summary>${phaseBody(g)}</details>`;
+  const rows = groups.length ? groups.map(phaseHtml).join('') : shown.map(x => row(x)).join('');
   const label = sid => { const s = task.steps.find(x => x.id === `${task.id}/${sid}`); return s ? s.label : sid; };
   const loops = (task.loops || []).length ? `<ul class="loops">${task.loops.map(l => `<li>↻ ${esc(l.label || t('loop.unnamed'))} <span class="muted">· ${esc(label(l.from))} → ${esc(label(l.to))}</span></li>`).join('')}</ul>` : '';
   const statusCtl = isLead() ? `<div class="actions state-ctl"><label><span class="muted">${esc(t('task.statusLabel'))}</span><span class="hov-wrap"><span class="cur-st">${statusChip(task.status)}</span>${taskStatusSelect(task)}</span></label>${measured(task) ? `<span class="muted">${esc(t('task.measured'))}: ${esc(measured(task))}</span>` : ''}</div>${isOwner() ? '' : violationsBox('task:' + task.id)}` : '';
-  return `${statusCtl}<div class="slist ${all ? 'all' : ''}">${head}${rows}</div>${toggle}${loops}${historyCard(task)}`;
+  return `${ownerFirstBlock(task)}${statusCtl}<div class="slist ${all || groups.length ? 'all' : ''} ${groups.length ? 'phased' : ''}">${head}${rows}</div>${toggle}${loops}${historyCard(task)}`;
 }
 /** The messages scoped to this step (a note, a verdict, the CoS override note): the step's own history. Every one of
  *  them already sits in the task stream; this panel showed none, so a note written on a step was invisible beside it. */
@@ -1050,8 +1355,166 @@ const DIAGRAM_HISTORY_SHOWN = 50;
  *  #/task/ID?step=…, which route() turns into showStepReport: the step opens on the Steps tab with its detail, exactly
  *  as clicking that row does. Sizes and colours come from SVG attributes and CSS classes (the CSP blocks style=""). */
 function diagramPanel(task) {
+  if (task.diagram) return docDiagramPanel(task); // W-42 5A.3: the task has a diagram/1 document (pointer in the state)
   // Top: what the PRODUCT is made of (task.architecture), never the plan. Below: the plan steps. Either may be absent.
   return `<section class="card diag-card"><div class="diag-sec arch-sec"><div class="diag-sec-head"><h3>${esc(t('diagram.arch.title'))}</h3>${architectureFullButton(task)}</div>${architectureBlock(task)}</div><div class="diag-sec plan-sec"><h3>${esc(t('diagram.steps.title'))}</h3>${planFlowBlock(task)}</div></section>`;
+}
+// ---------- W-42 5A.3: the diagram/1 viewer (read only for structure; a comment box on a node, contract rev 3 R3-6) ----------
+// The document comes from GET /api/v1/diagram/:task only when this tab shows it, and again when the pointer sha or the task's
+// message count changes. Pan and zoom live in S.dgv per task and survive the page's repaints.
+S.dgv = {};
+const dgvSig = task => `${task.diagram.sha256}|${(S.data?.feedback || []).filter(f => f.task_id === task.id).length}`;
+async function ensureDiagramView(id) {
+  const task = (S.data?.tasks || []).find(x => x.id === id);
+  if (!task?.diagram) return;
+  const v = S.dgv[id] ||= { zoom: 0, x: 0, y: 0, sel: '', lang: S.lang === 'vi' ? 'vi' : 'en', sig: '', view: null, failed: false, full: false };
+  const sig = dgvSig(task);
+  if (v.sig === sig && v.view) return;
+  const out = await api(`api/v1/diagram/${encodeURIComponent(id)}`);
+  v.failed = !out || !!out.offline || !!out.unauthorized || !!out.failed;
+  if (!v.failed) { v.view = out; v.sig = sig; }
+}
+/** Zoom in / out / fit. They sit in the head row, outside the map: drawn over the stage they covered the nodes and region titles under them. */
+const dgvZoombar = tid => `<span class="dgv-zoombar"><button type="button" class="btn" data-action="dgv-zoom" data-task="${tid}" data-d="1" aria-label="${esc(t('diagram.doc.zoomIn'))}">+</button><button type="button" class="btn" data-action="dgv-zoom" data-task="${tid}" data-d="-1" aria-label="${esc(t('diagram.doc.zoomOut'))}">−</button><button type="button" class="btn" data-action="dgv-fit" data-task="${tid}">${esc(t('diagram.doc.fit'))}</button></span>`;
+/** The human label of the region a node sits in (regions are boxes; a node belongs to the one that contains its centre). */
+function dgvRegionTitle(doc, n, lang) {
+  const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
+  const r = doc.regions.find(b => cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h);
+  return r ? (lang === 'en' ? (r.en || r.vi) : (r.vi || r.en)) || '' : '';
+}
+function docDiagramPanel(task) {
+  const v = S.dgv[task.id], p = task.diagram;
+  const badge = p.pinned ? t('diagram.doc.pinned', { rev: p.rev, at: fmtTime(p.pinned.at) }) : t('diagram.doc.draft', { rev: p.rev });
+  const tid = esc(task.id);
+  const head = `<div class="dgv-head"><span class="chip dgv-badge${p.pinned ? ' pinned' : ''}">${esc(badge)}</span><span class="dgv-tools">${v?.view ? dgvZoombar(tid) : ''}<button type="button" class="btn" data-action="dgv-lang" data-task="${tid}">${esc(v?.lang === 'en' ? t('diagram.doc.showVi') : t('diagram.doc.showEn'))}</button><button type="button" class="btn" data-action="dgv-full" data-task="${tid}" aria-pressed="${v?.full ? 'true' : 'false'}">${esc(v?.full ? t('diagram.doc.exitFull') : t('diagram.doc.full'))}</button></span></div>`;
+  const steps = `<div class="diag-sec plan-sec"><h3>${esc(t('diagram.steps.title'))}</h3>${planFlowBlock(task)}</div>`;
+  if (!v?.view) return `<section class="card diag-card dgv-card">${head}<p class="empty">${esc(v?.failed ? t('diagram.doc.failed') : t('diagram.doc.loading'))}</p>${steps}</section>`;
+  const { document: doc, comments, removed_comments: removed, proposals } = v.view;
+  const counts = DV.openCounts(comments);
+  const stage = `<div class="dgv-stage lod-${DV.lodOf(v.zoom || 0.1)}" data-dgv-stage="${tid}"><div class="dgv-canvas">${DV.svg(doc, { lang: v.lang, counts, selected: v.sel, aria: t('diagram.doc.aria', { task: task.id }) })}</div></div>`;
+  const foot = `<p class="sub muted">${esc(t('diagram.doc.hint'))}</p>${proposals.length ? `<p class="dgv-foot">${esc(t('diagram.doc.proposals', { n: proposals.length }))}</p>` : ''}${removed.length ? `<details class="dgv-removed"><summary>${esc(t('diagram.doc.removed', { n: removed.length }))}</summary>${removed.map(dgvThread).join('')}</details>` : ''}`;
+  return `<section class="card diag-card dgv-card${v.full ? ' full' : ''}">${head}${dgvLegend(doc)}${stage}${foot}${dgvNodePanel(task, doc, comments, v)}${steps}</section>`;
+}
+/** One row of swatches: what a box colour means (kinds used in this document, and the faded "not running" state). */
+function dgvLegend(doc) {
+  const kinds = DV.KINDS.filter(k => doc.nodes.some(n => (DV.KINDS.includes(n.kind) ? n.kind : 'service') === k));
+  const muted = doc.nodes.some(n => n.state && n.state !== 'live');
+  return `<div class="dgv-legend" role="list">${kinds.map(k => `<span role="listitem" class="dgv-key k-${k}">${esc(t('diagram.kind.' + k))}</span>`).join('')}${muted ? `<span role="listitem" class="dgv-key muted">${esc(t('diagram.kind.muted'))}</span>` : ''}</div>`;
+}
+const DGV_STATE = { live: 'diagram.doc.stateLive', planned: 'diagram.doc.statePlanned', 'built-not-on': 'diagram.doc.stateBuilt' };
+function dgvThread(th) {
+  const m = x => `<li class="dgv-msg${x.by.role === 'owner' ? ' owner' : ''}"><span class="dgv-msg-by">${esc(x.by.role === 'owner' ? t('stream.owner') : x.by.name)}</span> <span class="muted"><time title="${esc(x.at)}">${esc(fmtTime(x.at))}</time></span><div class="dgv-msg-t">${esc(x.text)}</div></li>`;
+  return `<ul class="dgv-thread">${m(th.root)}${th.replies.map(m).join('')}</ul>`;
+}
+function dgvNodePanel(task, doc, comments, v) {
+  const n = v.sel && doc.nodes.find(x => x.id === v.sel);
+  if (!n) return v.full ? '' : `<div class="dgv-panel"><p class="muted">${esc(t('diagram.doc.pick'))}</p></div>`;
+  const side = v.lang, other = side === 'vi' ? 'en' : 'vi', txt = n[side] || n[other], tid = esc(task.id);
+  const threads = comments.filter(th => th.node_id === n.id);
+  const meta = [n.state && DGV_STATE[n.state] ? `<span class="chip">${esc(t(DGV_STATE[n.state]))}</span>` : '', n.src ? `<span class="muted">${esc(t('diagram.doc.src'))}: ${esc(n.src)}</span>` : '', n.enforcedBy ? `<span class="muted">${esc(t('diagram.doc.enforced'))}: ${esc(n.enforcedBy)}</span>` : ''].filter(Boolean).join(' ');
+  const box = isLead() && !readOnly() ? `<div class="dgv-compose"><textarea data-dgv-comment="${tid}" rows="3" maxlength="8000" placeholder="${esc(t('diagram.doc.commentPh'))}" aria-label="${esc(t('diagram.doc.commentPh'))}"></textarea><button type="button" class="btn primary" data-action="dgv-comment" data-task="${tid}" data-node="${esc(n.id)}">${esc(t('diagram.doc.send'))}</button></div>` : '';
+  return `<div class="dgv-panel" aria-live="polite"><div class="dgv-panel-head"><span class="muted" title="${esc(n.id)}">${esc(dgvRegionTitle(doc, n, side))}</span><button type="button" class="more" data-action="dgv-close" data-task="${tid}">${esc(t('diagram.doc.close'))}</button></div><h4 class="dgv-node-title">${esc(txt.title)}</h4><p class="dgv-node-body">${esc(txt.body)}</p><p class="dgv-meta">${meta}</p><h5>${esc(t('diagram.doc.comments'))}</h5>${threads.length ? threads.map(dgvThread).join('') : `<p class="muted">${esc(t('diagram.doc.noComments'))}</p>`}${box}<p class="sub muted">${esc(t('diagram.doc.appHint'))}</p></div>`;
+}
+/** Write the pan/zoom as the SVG's size and viewBox (attributes, CSP-safe): the text stays vector at every zoom (gate MF-C). */
+function applyDgv(stage, v) {
+  const svg = stage.querySelector('.dgv-svg'), w = stage.clientWidth, h = stage.clientHeight;
+  if (svg && w && h && v.zoom) { svg.setAttribute('width', w); svg.setAttribute('height', h); svg.setAttribute('viewBox', DV.viewBox(v, w, h)); }
+  stage.classList.remove('lod-far', 'lod-mid', 'lod-near'); stage.classList.add('lod-' + DV.lodOf(v.zoom));
+}
+function fitDgv(stage, v) {
+  const doc = v.view?.document; if (!doc || !stage.clientWidth) return;
+  v.touched = false;
+  Object.assign(v, DV.fit(DV.contentBox(doc), stage.clientWidth, stage.clientHeight));
+  applyDgv(stage, v);
+}
+/** After each paint: bind drag-to-pan and wheel/pinch zoom on every viewer stage (the stage is new markup each paint). */
+function bindDocDiagrams() {
+  // The full-page map locks the page scroll behind it, as the step flow's full view does.
+  document.documentElement.classList.toggle('dfv-open', !!S.diagramFull || !!document.querySelector('.dgv-card.full'));
+  for (const o of dgvObservers.splice(0)) o.disconnect();
+  for (const stage of document.querySelectorAll('[data-dgv-stage]')) {
+    const v = S.dgv[stage.dataset.dgvStage];
+    if (!v) continue;
+    if (!v.zoom) fitDgv(stage, v); else applyDgv(stage, v);
+    // The pane settles its width after the first paint (Fable B1: fitted at 276 px, shown at 457): re-fit on every size change until
+    // the owner pans or zooms; after that keep his view and only redraw it at the new size.
+    watchDgvStage(stage, v);
+    const pts = new Map(); let start = null, pinch = null, moved = 0, suppress = false;
+    const at = e => { const r = stage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+    stage.addEventListener('pointerdown', e => {
+      if ((e.pointerType === 'mouse' && e.button !== 0) || e.target.closest('button')) return;
+      const o = at(e); pts.set(e.pointerId, o); moved = 0;
+      if (pts.size === 1) start = { x: o.x - v.x, y: o.y - v.y };
+      else if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), zoom: v.zoom }; start = null; }
+    });
+    stage.addEventListener('pointermove', e => {
+      if (!pts.has(e.pointerId)) return;
+      const prev = pts.get(e.pointerId), o = at(e);
+      moved += Math.abs(o.x - prev.x) + Math.abs(o.y - prev.y); pts.set(e.pointerId, o);
+      if (moved > 4) { try { stage.setPointerCapture(e.pointerId); } catch { /* released */ } }
+      if (pts.size === 2 && pinch) { const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch.d > 0) { Object.assign(v, DV.zoomAbout(v, pinch.zoom * d / pinch.d, (a.x + b.x) / 2, (a.y + b.y) / 2), { touched: true }); applyDgv(stage, v); } return; }
+      if (start && moved > 4) { v.x = o.x - start.x; v.y = o.y - start.y; v.touched = true; applyDgv(stage, v); }
+    });
+    const end = e => { if (!pts.delete(e.pointerId)) return; if (pts.size < 2) pinch = null; if (!pts.size) { start = null; suppress = moved > 4; moved = 0; if (suppress) setTimeout(() => { suppress = false; }, 0); } };
+    stage.addEventListener('pointerup', end); stage.addEventListener('pointercancel', end);
+    stage.addEventListener('click', e => { if (suppress) { suppress = false; e.preventDefault(); e.stopPropagation(); } }, true);
+    stage.addEventListener('wheel', e => { e.preventDefault(); const c = at(e), dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY; Object.assign(v, DV.zoomAbout(v, v.zoom * Math.exp(-dy * 0.0015), c.x, c.y), { touched: true }); applyDgv(stage, v); }, { passive: false });
+  }
+}
+const dgvObservers = [];
+function watchDgvStage(stage, v) {
+  if (typeof ResizeObserver !== 'function') return;
+  const ro = new ResizeObserver(() => { if (stage.isConnected && stage.clientWidth) (v.touched ? applyDgv : fitDgv)(stage, v); });
+  ro.observe(stage); dgvObservers.push(ro);
+}
+/** Zoom the stage to one region (a tap on its title at far zoom, or a tap on a tiny node with a finger). */
+function zoomDgvRegion(taskId, regionId, focus = null) {
+  const v = S.dgv[taskId], stage = document.querySelector(`[data-dgv-stage="${CSS.escape(taskId)}"]`), r = v?.view?.document.regions.find(x => x.id === regionId);
+  if (!r || !stage) return;
+  // The region framed, but never below the zoom where node titles show (a wide region on a phone would stay unreadable).
+  const sw = stage.clientWidth, sh = stage.clientHeight, z = Math.max(DV.fit(r, sw, sh).zoom, DV.LOD.mid), c = focus || { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+  Object.assign(v, { zoom: z, x: sw / 2 - c.x * z, y: sh / 2 - c.y * z, touched: true }); applyDgv(stage, v);
+}
+/**
+ * In the full page the panel floats over the map (Fable B5): pan, without zooming, so the picked node sits in the part of the stage the
+ * panel leaves free (left of a side panel, above a bottom sheet).
+ */
+function revealDgvNode(taskId) {
+  const v = S.dgv[taskId], n = v?.sel && v.view?.document.nodes.find(x => x.id === v.sel);
+  const stage = document.querySelector(`[data-dgv-stage="${CSS.escape(taskId)}"]`), panel = document.querySelector('.dgv-card.full .dgv-panel');
+  if (!n || !stage || !panel) return;
+  const s = stage.getBoundingClientRect(), p = panel.getBoundingClientRect();
+  const side = p.left > s.left + s.width * 0.4; // a side panel on a wide screen, else a bottom sheet
+  const free = side ? { x0: 0, y0: 0, x1: p.left - s.left, y1: s.height } : { x0: 0, y0: 0, x1: s.width, y1: p.top - s.top };
+  const box = { x0: v.x + n.x * v.zoom, y0: v.y + n.y * v.zoom, x1: v.x + (n.x + n.w) * v.zoom, y1: v.y + (n.y + n.h) * v.zoom };
+  if (box.x0 >= free.x0 + 8 && box.x1 <= free.x1 - 8 && box.y0 >= free.y0 + 8 && box.y1 <= free.y1 - 8) return;
+  v.x += (free.x0 + free.x1) / 2 - (box.x0 + box.x1) / 2; v.y += (free.y0 + free.y1) / 2 - (box.y0 + box.y1) / 2; v.touched = true;
+  applyDgv(stage, v);
+}
+/** The comment box stays in view while a phone keyboard takes the lower half of the screen. */
+const keepDgvInputVisible = () => { const a = document.activeElement; if (a?.matches?.('[data-dgv-comment]')) a.scrollIntoView({ block: 'nearest' }); };
+window.visualViewport?.addEventListener('resize', keepDgvInputVisible);
+/** The map on the whole window and back; it fits again at the new size. */
+function toggleDgvFull(taskId, on) {
+  const v = S.dgv[taskId]; if (!v) return;
+  v.full = on === undefined ? !v.full : on; v.zoom = 0;
+  render();
+  document.querySelector(`[data-action="dgv-full"][data-task="${CSS.escape(taskId)}"]`)?.focus();
+}
+document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; for (const [id, v] of Object.entries(S.dgv)) if (v.full) toggleDgvFull(id, false); });
+/** The owner writes a note on the node; the coordinator replies under the node's newest thread (a node comment answers no ask). */
+async function sendDgvComment(b) {
+  const task = b.dataset.task, node = b.dataset.node, area = document.querySelector(`[data-dgv-comment="${CSS.escape(task)}"]`);
+  const text = (area?.value || '').trim();
+  if (!text) return;
+  const root = S.dgv[task]?.view?.comments.find(th => th.node_id === node)?.root.id;
+  b.disabled = true;
+  const out = await write('feedback.add', task, isOwner() || !root ? { kind: 'note', text, node_id: node } : { kind: 'reply', text, node_id: node, reply_to: root });
+  b.disabled = false;
+  if (!out) return;
+  toast(t('diagram.doc.sent'));
+  if (S.dgv[task]) S.dgv[task].sig = '';
+  await refresh();
 }
 /** The structure diagram (J-05 24-10): groups as swimlanes, nodes in columns, edges as arrows. Every word of it is author
  *  text and goes through esc(); geometry is SVG attributes and classes only (the CSP blocks style=""). Validated on the
@@ -1368,6 +1831,13 @@ function roleChange(ev) {
 
 // ---------- one conversation per task: the stream, the "Cần anh" line, the one composer ----------
 const OWNER_KINDS = ['approve', 'reject', 'redirect', 'askback', 'note'];
+/** The number a step carries in the Bước tab: inside its phase (the list restarts at 1 in each phase), else its place in the row. One
+ *  rule for the list, the ask cards, the "Chờ anh" block and the stream, so a step is never "36" in one place and "18" in another. */
+function stepNumber(task, step) {
+  if (!task.phases?.length) return task.steps.indexOf(step) + 1;
+  const known = task.phases.some(p => p.id === step.phase);
+  return LM.timeOrder(task.steps.filter(x => (known ? x.phase === step.phase : !task.phases.some(p => p.id === x.phase)))).indexOf(step) + 1;
+}
 const msgsOf = taskId => (S.data.messages || []).filter(m => m.task_id === taskId);
 const asksOf = taskId => (S.data.asks || []).filter(a => a.task_id === taskId);
 /** "Cần anh" on the Tình hình card: open asks; else the owner's last answer and whether the coordinator received it. */
@@ -1378,6 +1848,7 @@ function needsOwnerLine(task) {
   const items = waits.length ? waits : open.map(a => ({ kind: 'ask', since: askSinceOf(a) })); // a paused task is not in the attention list: its asks still count
   if (items.length) return t('situation.asks', { n: items.length, dur: fmtDur(serverNow() - Date.parse(LM.rowWaitSince(items))) });
   const last = msgsOf(task.id).filter(m => m.author.role === 'owner' && (m.answers_ask_id || m.kind === 'redirect')).at(-1);
+  if (last?.received?.reply_id) return t('situation.replied', { at: fmtTime(last.received.at) }); // CoS answered it in the thread (J-05 10-11)
   if (last?.received) return t('situation.received', { at: fmtTime(last.received.at), next: S.data.messages.find(m => m.id === last.received.receipt_id)?.receipt?.next || '—' });
   if (last && last.status === 'open') return t('situation.unreceived', { at: fmtTime(last.ts) });
   return t('situation.none');
@@ -1396,7 +1867,7 @@ function askCard(task, a, age) {
   // The closed card's one line: the question's FIRST line (an ask written as a list of lines keeps its opening
   // statement), whitespace folded. The CSS ellipsis cuts it; the whole text is one click away.
   const title = (String(refsOf(a.text).body || a.text).split('\n').map(l => l.trim()).find(Boolean) || '').replace(/\s+/g, ' ');
-  const stepN = step ? task.steps.indexOf(step) + 1 : 0;
+  const stepN = step ? stepNumber(task, step) : 0;
   return `<article class="ask-card ${open ? 'open' : ''}" id="askcard-${esc(a.id)}" data-ask-card="${esc(a.id)}">
     <button type="button" class="ask-card-head" data-action="ask-card" data-ask="${esc(a.id)}" aria-expanded="${open}" aria-controls="askcard-body-${esc(a.id)}">
       <span class="ac-title">${esc(title)}</span><span class="ac-meta">${step ? `<span class="muted">${esc(t('feedback.stepOption', { n: stepN, label: step.label }))}</span>` : ''}<span class="need-age ${waitTone(age)}">${esc(fmtDur(age))}</span><span class="caret" aria-hidden="true">${open ? '▾' : '▸'}</span></span>
@@ -1406,7 +1877,7 @@ function askCard(task, a, age) {
 }
 /** The open card: the whole question, only its own files, the step's summary and the answer. Built only when the card is
  *  open — a closed card must not render eight questions' markdown and refs on every 15 s poll just to throw it away. */
-function askCardBody(task, a, step, stepN) {
+function askCardBody(task, a, step, stepN, pfx = '') { // pfx keeps the ids and ref keys unique when the same ask is drawn in a second place (the Bước tab's "Chờ anh" block)
   const body = refsOf(a.text);
   // Its own refs, each file once: an ask that names the same path twice shows one chip (with the copy path as its
   // secondary action), and a file another ask links never lands in this card.
@@ -1417,29 +1888,52 @@ function askCardBody(task, a, step, stepN) {
   const options = (a.options || []).map(o => `<button class="btn option" data-action="answer" data-kind="ask" data-id="${esc(a.id)}" data-rev="${esc(a.rev)}" data-task="${esc(task.id)}" data-choice="${esc(o.key)}"${o.desc ? ` title="${esc(o.desc)}"` : ''}><b>${esc(o.key)}</b> ${esc(o.label)}</button>`).join('');
   const verdicts = (a.options || []).length ? '' : answer('data-verdict', 'approve', t('answer.approve'), 'primary') + answer('data-verdict', 'reject', t('answer.reject'), '');
   const controls = isOwner() ? `<div class="actions">${options}${verdicts}<button class="btn" data-action="reply-ask" data-task="${esc(task.id)}" data-ask="${esc(a.id)}">${esc(t('stream.reply'))}</button></div>` : '';
-  return `<div class="ask-card-body" id="askcard-body-${esc(a.id)}">
+  return `<div class="ask-card-body" id="${pfx}askcard-body-${esc(a.id)}">
       <div class="md ac-text">${mdHtml(body.body, task.id)}</div>
-      ${refsHtml(task.id, refs, 'ac-' + a.id)}
+      ${refsHtml(task.id, refs, pfx + 'ac-' + a.id)}
       ${stepBlock}
       ${controls}
     </div>`;
 }
+/** The open asks of a task, newest first, with their wait: the one list behind the situation cards, the Bước tab's "Chờ anh"
+ *  block and its count, so they cannot disagree. */
+function ownerOpenAsks(task) {
+  return asksOf(task.id).filter(a => a.status === 'open').map(a => ({ a, age: Math.max(0, serverNow() - Date.parse(askSinceOf(a))) })).sort((x, y) => x.age - y.age);
+}
+/** "Chờ anh" at the top of the Bước tab (owner 19-11: the open ask sat at the bottom of phase 4 after a screen of done steps, so
+ *  "no update" was read). One block per open ask, newest first: the step it sits on (a link into the list), its wait, the whole
+ *  question and the answer buttons. Before the phases, outside the list's own scroller. '' when nothing waits on the owner. */
+function ownerFirstBlock(task) {
+  const items = ownerOpenAsks(task);
+  if (!items.length) return '';
+  const card = ({ a, age }) => {
+    const step = a.step_id ? task.steps.find(s => s.id === `${task.id}/${a.step_id}`) : null, stepN = step ? stepNumber(task, step) : 0;
+    const where = step ? `<button type="button" class="linkish of-step" data-action="step-link" data-task="${esc(task.id)}" data-step="${esc(a.step_id)}">${esc(t('feedback.stepOption', { n: stepN, label: step.label }))}</button>` : `<span class="of-step muted">${esc(t('steps.ownerTask'))}</span>`;
+    return `<article class="of-card" data-owner-ask="${esc(a.id)}"><header class="of-head">${where}<span class="need-age ${waitTone(age)}">${esc(fmtDur(age))}</span></header>${askCardBody(task, a, null, 0, 'of-')}</article>`;
+  };
+  return `<section class="owner-first" id="owner-first" aria-label="${esc(t('steps.ownerFirst', { n: items.length }))}"><h3 class="of-title">${esc(t('steps.ownerFirst', { n: items.length }))}</h3>${items.map(card).join('')}</section>`;
+}
 /** The open asks of a task, newest first, each its own card; the ones waiting over a week under one folded row. */
 function askCards(task) {
-  const open = asksOf(task.id).filter(a => a.status === 'open').map(a => ({ a, age: Math.max(0, serverNow() - Date.parse(askSinceOf(a))) }));
+  const open = ownerOpenAsks(task);
   if (!open.length) return '';
-  open.sort((x, y) => x.age - y.age);
   const fresh = open.filter(x => x.age <= ASK_OLD_MS), old = open.filter(x => x.age > ASK_OLD_MS);
   const key = 'ask-old-' + task.id;
   return `<div class="ask-cards" id="ask-cards">${fresh.map(x => askCard(task, x.a, x.age)).join('')}${old.length ? `<details class="ask-older" data-open="${esc(key)}" ${S.open[key] ? 'open' : ''}><summary>${esc(t('askCard.older', { n: old.length }))}</summary>${old.map(x => askCard(task, x.a, x.age)).join('')}</details>` : ''}</div>`;
 }
-/** The task's stream, oldest first and newest next to the composer: asks, messages (replies and receipts nested under the
- *  message they answer), steps finished and plans posted. No per-entry controls except "Trả lời" on an open ask, which
+/** The task's stream, shown newest first under the header (owner 21-11): asks, messages (replies and receipts nested under the
+ *  message they answer), steps finished and plans posted. The HTML lists them oldest first and styles.css column-reverse
+ *  shows them newest on top, so the DOM, tab and screen-reader order is the reverse of the visual one (Opus gate F6, open). No per-entry controls except "Trả lời" on an open ask, which
  *  only scopes the composer. Each entry carries its step (data-step) so the Bước tab can jump to it. */
 function streamEntries(task) {
-  const msgs = msgsOf(task.id), byId = new Map(msgs.map(m => [m.id, m]));
+  // The board's own messages (class system, server-derived: nudges, idle notices, auto status requests) stay out unless this
+  // viewer turned them on, and so does a receipt under one (bookkeeping on a notice). A CoS reply under one is CoS's status
+  // answer (gate M1 17-11: 288 on live) and stays: its parent is not shown, so it renders top level. `hidden` = rows the toggle adds.
+  const every = msgsOf(task.id), out = new Set(every.filter(m => m.class === 'system').map(m => m.id));
+  for (let grew = out.size > 0; grew;) { grew = false; for (const m of every) if (!out.has(m.id) && m.class === 'receipt' && m.reply_to && out.has(m.reply_to)) { out.add(m.id); grew = true; } }
+  const hidden = out.size, msgs = S.showSystem ? every : every.filter(m => !out.has(m.id)), byId = new Map(msgs.map(m => [m.id, m]));
   const images = []; S.galleryNavs.stream = images; // every image shown in the stream, in order, for the lightbox
-  const imgs = m => (m.attachments || []).length ? `<div class="ev-imgs">${m.attachments.map(a => { images.push({ att: { id: a.id, mime: a.mime, name: a.name } }); return `<button type="button" class="ev-img" data-action="lightbox" data-nav="stream" data-i="${images.length - 1}" title="${esc(a.name)}"><img data-att="${esc(a.id)}" data-w="480" alt="${esc(a.name)}"></button>`; }).join('')}</div>` : '';
+  const imgs = m => msgMedia(m, images);
   const children = {};
   for (const m of msgs) if (m.reply_to && byId.has(m.reply_to)) (children[m.reply_to] ??= []).push(m);
   const doneSteps = task.steps.flatMap((s, i) => (S.data.times?.[s.id]?.transitions || []).filter(x => x.to === 'done').slice(-1).map(x => ({ ts: x.at, sys: { kind: 'step', s, i } })));
@@ -1452,12 +1946,12 @@ function streamEntries(task) {
   const hlAt = hl ? top.findIndex(x => (x.a || x.m)?.id === hl) : -1;
   const LIMIT = 40, all = !!S.open['stream-' + task.id], shown = all ? top : top.slice(hlAt >= 0 ? Math.min(hlAt, Math.max(0, top.length - LIMIT)) : -LIMIT);
   const meta = (who, parts) => `<div class="ev-meta"><b>${esc(who)}</b>${parts.filter(Boolean).map(x => `<span>${x}</span>`).join('')}</div>`;
-  const stepName = sid => { const i = task.steps.findIndex(s => s.id === `${task.id}/${sid}`); return i >= 0 ? t('feedback.stepOption', { n: i + 1, label: task.steps[i].label }) : sid; };
+  const stepName = sid => { const i = task.steps.findIndex(s => s.id === `${task.id}/${sid}`); return i >= 0 ? t('feedback.stepOption', { n: stepNumber(task, task.steps[i]), label: task.steps[i].label }) : sid; };
   const askState = a => {
     if (a.status === 'open') return a.asked_back ? t('stream.state.askedBack') : t('stream.state.open', { dur: fmtDur(serverNow() - Date.parse(askSinceOf(a))) });
     if (a.status === 'cleared') return t('stream.state.cleared');
     const f = a.answer?.feedback_id ? byId.get(a.answer.feedback_id) : msgs.find(m => m.answers_ask_id === a.id);
-    return f?.received ? t('stream.state.received', { next: byId.get(f.received.receipt_id)?.receipt?.next || '—' }) : f && f.status !== 'open' ? t('stream.state.handled') : t('stream.state.answered');
+    return f?.received?.reply_id ? t('stream.state.replied') : f?.received ? t('stream.state.received', { next: byId.get(f.received.receipt_id)?.receipt?.next || '—' }) : f && f.status !== 'open' ? t('stream.state.handled') : t('stream.state.answered');
   };
   const receiptBody = r => `<dl class="rcpt"><dt>${esc(t('receipt.change'))}</dt><dd>${esc(r.change)}</dd><dt>${esc(t('receipt.schedule'))}</dt><dd>${esc(r.schedule)}</dd><dt>${esc(t('receipt.next'))}</dt><dd>${esc(r.next)}</dd></dl>`;
   const time = ts => `<time title="${esc(ts)}">${esc(fmtTime(ts))}</time>`;
@@ -1470,15 +1964,15 @@ function streamEntries(task) {
     // An informational note (the CoS allowance) reports a change; nobody has to handle it, so it has no "mark handled".
     const resolve = isLead() && owner && !f.info && m.status === 'open' && !m.needs_receipt ? `<button type="button" class="more" data-action="resolve" data-id="${esc(m.id)}" data-rev="${f.rev}">${esc(t('feedback.resolve'))}</button>` : '';
     return `<div class="ev msg k-${esc(m.kind)} ${owner ? 'owner' : ''} ${child ? 'child' : ''} ${hl === m.id ? 'hl' : ''}" id="ev-${esc(m.id)}" data-step="${esc(m.scope.step_id || '')}">
-      ${meta(f.auto ? t('stream.board') : owner ? t('stream.owner') : m.author.name, [`<span class="kind">${esc(t('feedback.kind.' + m.kind))}</span>`, scope, time(m.ts)])}${body}${imgs(m)}
-      ${m.needs_receipt ? `<div class="ev-wait">${esc(t('stream.waitReceipt', { at: fmtTime(m.ts) }))}</div>` : ''}${resolve}
+      ${meta(f.auto ? t('stream.board') : owner ? t('stream.owner') : m.author.name, [`<span class="kind">${esc(t('feedback.kind.' + m.kind))}</span>`, scope, time(m.ts)])}${body}${imgs(m)}${owner ? deliveryLine(m.delivery) : ''}
+      ${m.needs_receipt ? `<div class="ev-wait">${esc(t('stream.waitReceipt', { at: fmtTime(m.ts) }))}</div>` : ''}${(task.unanswered_on_board || []).some(x => x.feedback_id === m.id) ? `<div class="ev-wait unanswered">${esc(t('stream.unanswered'))}</div>` : ''}${resolve}
       ${(children[m.id] || []).map(c => msgEntry(c, true)).join('')}</div>`;
   };
   const askEntry = a => `<div class="ev ask ${a.status === 'open' ? 'open' : ''} ${hl === a.id ? 'hl' : ''}" id="ev-${esc(a.id)}" data-step="${esc(a.step_id || '')}">
       ${meta(askedBy(a.attribution.created_by), [`<span class="kind">${esc(t('stream.ask'))}</span>`, esc(a.id), a.step_id ? `<button type="button" class="linkish" data-action="step-link" data-task="${esc(task.id)}" data-step="${esc(a.step_id)}">${esc(stepName(a.step_id))}</button>` : '', time(a.attribution.created_at), `<span class="state">${esc(askState(a))}</span>`])}
       ${(r => evBody(r.body, 'ev-ask-' + a.id, task.id, { kind: 'ask', ref: a.id }) + refsHtml(task.id, r, 'ev-' + a.id))(refsOf(a.text))}${(a.options || []).length ? `<ul class="ev-opts">${a.options.map(o => `<li><b>${esc(o.key)}</b> ${esc(o.label)}</li>`).join('')}</ul>` : ''}${a.status === 'open' && isOwner() ? `<button type="button" class="more" data-action="reply-ask" data-task="${esc(task.id)}" data-ask="${esc(a.id)}">${esc(t('stream.reply'))}</button>` : ''}</div>`;
   const sysEntry = (ts, x) => x.kind === 'step'
-    ? `<div class="ev sys" data-step="${esc(x.s.id.split('/')[1])}"><div class="ev-meta"><span class="si ok" aria-hidden="true">✓</span><button type="button" class="linkish" data-action="step-link" data-task="${esc(task.id)}" data-step="${esc(x.s.id.split('/')[1])}">${esc(t('stream.stepDone', { n: x.i + 1, label: x.s.label }))}</button>${String(x.s.detail || '').trim() ? `<span class="srep">📄 ${esc(t('step.report'))}</span>` : ''}${time(ts)}</div></div>`
+    ? `<div class="ev sys" data-step="${esc(x.s.id.split('/')[1])}"><div class="ev-meta"><span class="si ok" aria-hidden="true">✓</span><button type="button" class="linkish" data-action="step-link" data-task="${esc(task.id)}" data-step="${esc(x.s.id.split('/')[1])}">${esc(t('stream.stepDone', { n: stepNumber(task, x.s), label: x.s.label }))}</button>${String(x.s.detail || '').trim() ? `<span class="srep">📄 ${esc(t('step.report'))}</span>` : ''}${time(ts)}</div></div>`
     : `<div class="ev sys"><div class="ev-meta"><b>${esc(x.p.reviewer)}</b><button type="button" class="linkish" data-action="ctx-tab" data-tab="plans">${esc(t('stream.plan'))}</button>${x.p.verdict ? `<span>${esc(t('verdict.' + x.p.verdict))}</span>` : ''}${x.p.eta ? `<span>${esc(t('plan.eta', { eta: x.p.eta }))}</span>` : ''}${time(ts)}</div></div>`;
   // Withdrawn asks: one folded row at the oldest one's place, its cards inside; closed until the owner opens it (S.open), or
   // while a deep link points at one of them (review S3: the target must be visible, not hidden inside a closed fold).
@@ -1493,8 +1987,28 @@ function streamEntries(task) {
     return withdrawn;
   };
   const older = top.length - shown.length;
-  return `${older > 0 ? `<button type="button" class="more" data-action="stream-all" data-task="${esc(task.id)}">${esc(t('stream.older', { n: older }))}</button>` : ''}
+  const archivedN = S.hist?.[task.id]?.done ? 0 : (S.data.window?.trimmed?.by_task?.[task.id] || 0), busy = !!S.histBusy?.[task.id];
+  const histBtn = archivedN ? `<button type="button" class="more" data-action="load-history" data-task="${esc(task.id)}" ${busy ? 'disabled' : ''}>${esc(t(busy ? 'stream.historyLoading' : 'stream.history', { n: archivedN }))}</button>` : '';
+  const sysBtn = hidden ? `<button type="button" class="more sys-toggle" data-action="show-system" aria-pressed="${!!S.showSystem}">${esc(t(S.showSystem ? 'stream.hideSystem' : 'stream.showSystem', { n: hidden }))}</button>` : '';
+  return `${sysBtn}${histBtn}${older > 0 ? `<button type="button" class="more" data-action="stream-all" data-task="${esc(task.id)}">${esc(t('stream.older', { n: older }))}</button>` : ''}
     ${shown.length ? `<div class="evs">${shown.map(row).join('')}</div>` : `<p class="empty">${esc(t('stream.empty'))}</p>`}`;
+}
+/** Cập nhật tiến độ (J-05 17-11): CoS's progress posts on the task (class progress), newest first, PROGRESS_SHOWN shown and the
+ *  rest behind one button; each post's first line in bold. When the state window holds none, the task's progress_latest (built
+ *  by the server from every record) still shows the newest one. No post at all: no block. */
+const PROGRESS_SHOWN = 2;
+function progressBlock(task) {
+  let posts = msgsOf(task.id).filter(m => m.class === 'progress').sort((x, y) => y.ts.localeCompare(x.ts) || y.id.localeCompare(x.id, 'en', { numeric: true }));
+  if (!posts.length && task.progress_latest) posts = [task.progress_latest];
+  if (!posts.length) return '';
+  const key = 'prog-' + task.id, shown = S.open[key] ? posts : posts.slice(0, PROGRESS_SHOWN), more = posts.length - shown.length;
+  const item = m => {
+    const lines = String(m.body || '').split('\n'), at = lines.findIndex(l => l.trim());
+    const first = at >= 0 ? lines[at].trim() : '', rest = lines.slice(at + 1).join('\n').trim();
+    return `<li class="pg-item" data-progress="${esc(m.id)}"><div class="ev-meta"><b>${esc(first)}</b><time title="${esc(m.ts)}">${esc(fmtTime(m.ts))}</time></div>${rest ? evBody(rest, 'pg-' + m.id, task.id, { kind: 'msg', ref: m.id }) : ''}</li>`;
+  };
+  return `<section class="progress-block" aria-label="${esc(t('stream.progress'))}">
+    <h3 class="pg-h">${esc(t('stream.progress'))}</h3><ul class="pg-list">${shown.map(item).join('')}</ul>${more > 0 ? `<button type="button" class="more" data-action="progress-all" data-task="${esc(task.id)}">${esc(t('stream.progressMore', { n: more }))}</button>` : ''}</section>`;
 }
 /** The task's composer state: kind, scope, text — kept per task in this browser (survives reload; storage may refuse). */
 function compose(taskId) {
@@ -1533,8 +2047,10 @@ async function sendCompose(taskId) {
   const ask = type === 'ask' ? asksOf(taskId).find(a => a.id === ref) : null;
   const stepId = type === 'step' ? ref : ask?.step_id || '';
   const data = { kind: isOwner() ? c.kind : 'reply', text: text.slice(0, 8000), ...(stepId && task?.steps.some(s => s.id === `${taskId}/${stepId}`) ? { step_id: stepId } : {}), ...(ask ? { ask_id: ask.id } : {}), ...(attachments.length ? { attachments } : {}) };
-  if (!await write('feedback.add', taskId, data)) return;
+  const sent = await write('feedback.add', taskId, data);
+  if (!sent) return;
   if (isOwner()) await write('ping.send', 'board', { task_id: taskId, note: '' });
+  S.hl = { task: taskId, id: sent.id, scroll: 'start' }; // newest first: the sent message is at the thread's top, off screen from mid-thread
   S.compose[taskId] = { kind: 'note', scope: '', text: '' }; saveDraft(taskId);
   for (const f of files) URL.revokeObjectURL(f.url);
   delete S.composeFiles[taskId];
@@ -1579,16 +2095,58 @@ function focusAsk(taskId, askId) {
   compose(taskId).scope = 'ask:' + askId; saveDraft(taskId);
   S.hl = { task: taskId, id: askId };
 }
-/** Before a repaint: where the stream, the context pane and the situation panel were scrolled, if the same task stays on screen. */
-function keepScroll(r) {
-  const st = document.getElementById('stream-scroll'), ctx = document.getElementById('ctx'), panel = document.getElementById('situation');
-  if (!st || S.paintedTask !== r.id) return null;
-  return { atBottom: st.scrollHeight - st.scrollTop - st.clientHeight < 40, top: st.scrollTop, ctx: ctx?.scrollTop || 0, panel: panel?.scrollTop || 0 };
+/** The task column's one scroller (owner 21-11): the column itself, or the page where the column grows with it (a phone). */
+function taskScroller() {
+  const c = document.querySelector('.tv .center');
+  return c && getComputedStyle(c).overflowY !== 'visible' ? c : document.scrollingElement;
 }
-/** After a repaint: a highlighted entry is scrolled into view; otherwise the stream keeps its place, or shows its newest
- *  entries (bottom) when the task was just opened. A step picked in the Bước tab scrolls the stream to its first entry. */
-function afterTaskPaint(keep) {
+const viewTop = sc => sc === document.scrollingElement ? 0 : sc.getBoundingClientRect().top;
+/** How far under the column's top (`top`, viewport px) a jump to an entry stops, so the toast pinned at the top of the window
+ *  (body:has(.composer) .toast) does not cover the entry's first line (Fable R2 21-11: "Đã gửi cho CoS." sat on the message
+ *  just sent). 0 when no toast shows there. */
+function toastClearance(top) {
+  const el = document.getElementById('toast');
+  if (!el || el.hidden) return 0;
+  const b = el.getBoundingClientRect();
+  return b.height && b.top < top + 40 ? Math.max(0, Math.ceil(b.bottom - top) + 8) : 0;
+}
+/** Before a repaint: where the task column and the context pane were scrolled, if the same task stays on screen. Inside the
+ *  thread the anchor is the topmost entry in view and its offset: a new message lands above it (newest first), so a kept
+ *  scrollTop alone would shift the text being read (Fable 21-11). */
+function keepScroll(r) {
   const st = document.getElementById('stream-scroll'), ctx = document.getElementById('ctx');
+  if (!st || S.paintedTask !== r.id) return null;
+  const sc = taskScroller(), top = viewTop(sc);
+  let anchor = null;
+  if (st.getBoundingClientRect().top < top) for (const e of st.querySelectorAll('.ev[id]')) {
+    const b = e.getBoundingClientRect();
+    if (b.height && b.top >= top && (!anchor || b.top < anchor.off + top)) anchor = { id: e.id, off: b.top - top };
+  }
+  return { top: sc.scrollTop, anchor, ctx: ctx?.scrollTop || 0, newest: newestEntry(st)?.id };
+}
+/** The thread's newest entry with an id (the DOM lists the entries oldest first; column-reverse shows the last one on top). */
+const newestEntry = st => st ? [...st.querySelectorAll(':scope > .evs > .ev[id]')].pop() : null;
+/** "Có tin mới ↑" (Fable R2 21-11): a repaint brought an entry newer than the newest painted before while the owner reads
+ *  mid-thread (`anchored`), and it sits above the view. The reading position stays anchored; the pill only offers the jump. */
+const newAbove = (before, after, anchored, newestTop, top) => !!(anchored && before && after && after !== before && newestTop < top);
+/** Shows the pill while the newest entry is above the view, inside the thread box: a zero-height sticky row (styles.css
+ *  .new-above), so showing it moves no text. Cleared by the pill's click, by scrolling the newest entry into view, or by
+ *  another task. */
+function paintNewAbove(st, sc, keep) {
+  const newest = newestEntry(st), top = viewTop(sc), id = route().id;
+  if (newest && newAbove(keep?.newest, newest.id, !!keep?.anchor, newest.getBoundingClientRect().top, top)) S.newAbove = { task: id };
+  if (S.newAbove?.task !== id || !newest || newest.getBoundingClientRect().top >= top - 1) { S.newAbove = null; return; }
+  st.insertAdjacentHTML('beforeend', `<div class="new-above"><button type="button" class="btn" data-action="new-above">${esc(t('stream.newAbove'))}</button></div>`);
+  (sc === document.scrollingElement ? window : sc).addEventListener('scroll', clearNewAbove, { passive: true }); // one listener: same function
+}
+function clearNewAbove() {
+  const pill = document.querySelector('.new-above'), n = newestEntry(document.getElementById('stream-scroll')), sc = taskScroller();
+  if (pill && (!n || n.getBoundingClientRect().top >= viewTop(sc) - 1)) { S.newAbove = null; pill.remove(); }
+}
+/** After a repaint: a highlighted entry is scrolled into view; otherwise the column keeps its place, or opens at its top (the
+ *  header, then the newest entries) when the task was just opened. A step picked in the Bước tab scrolls to its first entry. */
+function afterTaskPaint(keep) {
+  const st = document.getElementById('stream-scroll'), ctx = document.getElementById('ctx'), sc = taskScroller();
   S.paintedTask = route().id;
   const el = S.hl && document.getElementById('ev-' + S.hl.id);
   // The step's first entry the stream actually shows. A withdrawn ask folded in its closed row has no box, and a step with no
@@ -1597,19 +2155,20 @@ function afterTaskPaint(keep) {
   const stepEntry = st && S.stepJump ? [...st.querySelectorAll(`.ev[data-step="${CSS.escape(S.stepJump)}"]`)].find(e => !e.closest('details:not([open])') && e.getClientRects().length) : null;
   S.stepJump = '';
   if (st) {
-    // A question picked in Tình hình opens at its first line; only the stream moves (scrollIntoView would also scroll
-    // the column around it). A deep link from the rail keeps centring its entry.
-    if (el && S.hl.scroll === 'start') { st.scrollTop += el.getBoundingClientRect().top - st.getBoundingClientRect().top; S.hl.scroll = false; }
+    // A question picked in Tình hình opens its thread at the top of the column (the thread wins over its card in the header).
+    if (keep) {
+      sc.scrollTop = keep.top;
+      const a = keep.anchor && document.getElementById(keep.anchor.id);
+      if (a) sc.scrollTop += a.getBoundingClientRect().top - viewTop(sc) - keep.anchor.off;
+    }
+    if (el && S.hl.scroll === 'start') { sc.scrollTop += el.getBoundingClientRect().top - viewTop(sc) - toastClearance(viewTop(sc)); S.hl.scroll = false; S.askScroll = false; }
     else if (el && S.hl.scroll) { el.scrollIntoView({ block: 'center' }); S.hl.scroll = false; }
     else if (stepEntry) { stepEntry.scrollIntoView({ block: 'center' }); stepEntry.classList.add('flash'); }
-    else if (keep && !keep.atBottom) st.scrollTop = keep.top;
-    else st.scrollTop = st.scrollHeight;
+    paintNewAbove(st, sc, keep);
   }
   if (ctx && keep) ctx.scrollTop = keep.ctx;
-  // The ask panel is its own scroller (the questions must never push the composer off screen): it keeps its place across
-  // the poll, and a card the owner just opened is scrolled into view inside it.
+  // A card the owner just opened in Tình hình, with no thread entry to jump to, is scrolled into view in the column.
   const panel = document.getElementById('situation');
-  if (panel && keep) panel.scrollTop = keep.panel;
   if (panel && S.askScroll) { document.getElementById('askcard-' + S.askOpen)?.scrollIntoView({ block: 'nearest' }); S.askScroll = false; }
   if (S.stepFocus) { const e = document.getElementById('step-' + S.stepFocus); if (e) { e.scrollIntoView({ block: 'center' }); e.classList.add('flash'); } S.stepFocus = ''; }
   if (S.hl?.focus) { document.querySelector('#composer textarea')?.focus({ preventScroll: true }); S.hl.focus = false; }
@@ -2268,7 +2827,8 @@ async function render() {
       history.replaceState(null, '', '#/task/' + encodeURIComponent(r.id)); store.set('view', location.hash);
     }
     if (isLead()) { const h = await api(`api/v1/events?task=${encodeURIComponent(r.id)}&limit=1000`); if (Array.isArray(h)) S.history[r.id] = h; }
-    await ensureStats();
+    await ensureStats(); await ensureSupervisor();
+    if (S.data) await ensureDiagramView(r.id);
     html = renderTask(r.id);
   }
   else if (r.view === 'inbox' && S.data.me) html = renderInbox();
@@ -2278,13 +2838,13 @@ async function render() {
   else if (r.view === 'registry' && S.data.me) html = renderRegistry();
   else if (r.view === 'library' && S.data.me) html = await renderLibrary();
   else if (r.view === 'new' && isOwner()) html = renderNewTask();
-  else { await ensureStats(); html = renderHome(); }
+  else { await ensureStats(); await ensureSupervisor(); html = renderHome(); }
   if (S.offline) html = `<div class="offline" role="alert">${esc(t('common.offline'))}</div>` + html;
   const paint = () => {
     const focus = document.activeElement?.dataset?.regQuery ? document.activeElement.selectionStart : null;
     const keep = keepScroll(r), media = mediaState(); // an open inline player keeps its place across the repaint
     $('#main').classList.toggle('tv-mode', r.view === 'task' && !!S.data);
-    $('#main').innerHTML = html; applyStatsBars($('#main')); fitClamps(); if (S.reader) renderReader(); if (S.diagramFull) renderDiagramFull(); if (r.view === 'task') afterTaskPaint(keep); previewMode(); loadImages(media); placeWkPop();
+    $('#main').innerHTML = html; applyStatsBars($('#main')); fitClamps(); if (S.reader) renderReader(); if (S.diagramFull) renderDiagramFull(); if (r.view === 'task') { afterTaskPaint(keep); bindDocDiagrams(); } previewMode(); loadImages(media); placeWkPop();
     if (focus != null) { const el = document.querySelector('[data-reg-query]'); el?.focus(); el?.setSelectionRange(focus, focus); }
   };
   const taskToTask = r.view === 'task' && /^#\/task\/|^#[A-Za-z0-9]/.test(render.lastView || '');
@@ -2321,8 +2881,18 @@ async function loadImages(keep = null) {
     if (st && (st.t > 0 || !st.paused)) {
       const apply = () => { el.currentTime = st.t; if (!st.paused) el.play().catch(() => {}); };
       if (el.readyState >= 1) apply(); else el.addEventListener('loadedmetadata', apply, { once: true });
-    }
+    } else if (el.tagName === 'VIDEO') firstFrame(el);
   }
+  for (const el of document.querySelectorAll('.ref-video video[src]')) firstFrame(el);
+}
+/** A paused player at 0:00 shows its first frame instead of a black box: once its metadata is in, it seeks a tenth of a second
+ *  (a picture is drawn after a seek; iOS draws none for preload=metadata otherwise). Not a #t=0.1 URL fragment: WebKit refused
+ *  the stream with it when the clip's moov atom sits at the end of the file (stage-demo-r4.mp4, 10-11). */
+function firstFrame(el) {
+  if (el.dataset.ff) return;
+  el.dataset.ff = '1';
+  const seek = () => { if (el.paused && el.currentTime === 0) el.currentTime = Math.min(0.1, (el.duration || 1) / 2); };
+  if (el.readyState >= 1) seek(); else el.addEventListener('loadedmetadata', seek, { once: true });
 }
 const linkCache = new Map();
 const mediaPlaying = () => [...document.querySelectorAll('video,audio')].some(m => !m.paused);
@@ -2400,7 +2970,7 @@ document.addEventListener('click', async e => {
   // Display-only toggles: no write, no refetch.
   if (action === 'wk-pop') { S.wkPop = S.wkPop === b.dataset.key ? '' : b.dataset.key; await render(); return document.querySelector('.wk-pop select')?.focus(); }
   if (action === 'more') { S.open['md-' + b.dataset.key] = !S.open['md-' + b.dataset.key]; return render(); }
-  if (action === 'file-open') { S.open[b.dataset.key] = !S.open[b.dataset.key]; return render(); } // an .mp4 chip: its inline player appears below the chips
+  if (action === 'work-jump') return document.getElementById('work-panel')?.scrollIntoView({ block: 'start' });
   if (action === 'read') return openReader(b);
   if (action === 'read-doc') return readDoc(b);
   if (action === 'reader-full') return readerShowAll();
@@ -2426,6 +2996,27 @@ document.addEventListener('click', async e => {
   if (action === 'diag-hist') { const k = 'dh-' + b.dataset.task; S.open[k] = !S.open[k]; return render(); }
   if (action === 'diagram-full') return openDiagramFull(b);
   if (action === 'dfv-zoom') return zoomDiagramFullBy(Number(b.dataset.d));
+  if (action === 'dgv-node') {
+    const id = route().id, v = S.dgv[id]; if (!v) return;
+    // A finger cannot hit a 20 x 12 px box at far zoom (Fable, phone): there the tap zooms into the node's region instead.
+    if (DV.lodOf(v.zoom) === 'far' && matchMedia('(pointer: coarse)').matches) { const n = v.view?.document.nodes.find(x => x.id === b.dataset.node); if (n) return zoomDgvRegion(id, n.region, { x: n.x + n.w / 2, y: n.y + n.h / 2 }); }
+    v.sel = v.sel === b.dataset.node ? '' : b.dataset.node;
+    await render(); // render() is async: scrolling before it lands hit the old placeholder (Fable B2)
+    if (!v.sel) return;
+    if (v.full) return revealDgvNode(id);
+    return document.querySelector('.dgv-panel')?.scrollIntoView({ block: 'nearest' });
+  }
+  if (action === 'dgv-region') return zoomDgvRegion(route().id, b.dataset.region);
+  if (action === 'dgv-full') return toggleDgvFull(b.dataset.task);
+  if (action === 'dgv-close') { const v = S.dgv[b.dataset.task]; if (v) v.sel = ''; return render(); }
+  if (action === 'dgv-lang') { const v = S.dgv[b.dataset.task]; if (v) v.lang = v.lang === 'en' ? 'vi' : 'en'; return render(); }
+  if (action === 'dgv-fit' || action === 'dgv-zoom') {
+    const v = S.dgv[b.dataset.task], stage = document.querySelector(`[data-dgv-stage="${CSS.escape(b.dataset.task)}"]`);
+    if (!v || !stage) return;
+    if (action === 'dgv-fit') return fitDgv(stage, v);
+    Object.assign(v, DV.zoomAbout(v, v.zoom * (Number(b.dataset.d) > 0 ? 1.25 : 0.8), stage.clientWidth / 2, stage.clientHeight / 2), { touched: true }); return applyDgv(stage, v);
+  }
+  if (action === 'dgv-comment') return sendDgvComment(b);
   if (action === 'dfv-fit') return fitDiagramFull();
   if (action === 'dfv-close') return closeDiagramFull();
   if (action === 'reg-filter') { S.regFilter = b.dataset.k; return render(); }
@@ -2444,6 +3035,10 @@ document.addEventListener('click', async e => {
     if (await write('pin.set', task.id, { pinned: !task.pinned })) toast(t('pin.saved'));
     return refresh();
   }
+  if (action === 'sv-receipt') { // the owner closes an owner-level nudge (svBadge)
+    if (await write('feedback.resolve', b.dataset.id, {}, Number(b.dataset.rev))) { S.svAt = 0; toast(t('common.saved')); }
+    return refresh();
+  }
   if (action === 'left-filter') { S.leftFilter = b.dataset.k; store.set('leftFilter', b.dataset.k); return renderRail(); }
   if (action === 'ctx-tab') { setCtxTab(b.dataset.tab); return render(); }
   if (action === 'step-open') { const k = 'sd-' + b.dataset.step, s = S.data.tasks.flatMap(x => x.steps).find(x => x.id === b.dataset.step); S.open[k] = !(s ? stepIsOpen(s) : S.open[k]); if (S.open[k]) S.stepJump = b.dataset.step.split('/')[1]; return render(); }
@@ -2451,6 +3046,7 @@ document.addEventListener('click', async e => {
   if (action === 'goal-edit') { S.open['goal-' + id] = true; return render(); }
   if (action === 'goal-cancel') { S.open['goal-' + id] = false; delete S.drafts['goal-' + id]; return render(); }
   if (action === 'goal-draft') { const task = S.data.tasks.find(x => x.id === id), cur = S.drafts['goal-' + id] || {}; S.drafts['goal-' + id] = { goal: cur.goal || task.goal || '', output: cur.output || task.draft_output || '', outcome: cur.outcome || task.draft_outcome || '' }; return render(); }
+  if (action === 'news-status') { S.open['news-status'] = !S.open['news-status']; return render(); }
   if (action === 'rebrief-toggle') { S.open['rb-' + id] = !S.open['rb-' + id]; return render(); }
   if (action === 'compose-kind') { // no re-render: the box keeps its focus and caret
     compose(b.dataset.task).kind = b.dataset.kind; saveDraft(b.dataset.task);
@@ -2458,12 +3054,22 @@ document.addEventListener('click', async e => {
     return;
   }
   if (action === 'reply-ask') { focusAsk(b.dataset.task, b.dataset.ask); Object.assign(S.hl, { focus: true }); return render(); }
+  if (action === 'new-above') { // the newest entry to the column's top, flashed; the reading anchor is the owner's to leave
+    const sc = taskScroller(), n = newestEntry(document.getElementById('stream-scroll'));
+    S.newAbove = null; b.closest('.new-above')?.remove();
+    if (n) { sc.scrollTop += n.getBoundingClientRect().top - viewTop(sc) - toastClearance(viewTop(sc)); n.classList.add('flash'); }
+    return;
+  }
+  if (action === 'jump-msg') { S.hl = { task: b.dataset.task, id: b.dataset.id, scroll: 'start' }; return render(); }
   if (action === 'ask-card') { // one open ask card at a time; the ask id keeps it open through the 15 s poll
     S.askOpen = S.askOpen === b.dataset.ask ? '' : b.dataset.ask; S.askScroll = true;
     if (S.askOpen) S.hl = { task: route().id, id: S.askOpen, scroll: 'start' }; // the stream shows this question's thread (owner evt-9810)
     return render();
   }
+  if (action === 'load-history') return loadHistory(b.dataset.task);
   if (action === 'stream-all') { S.open['stream-' + b.dataset.task] = true; return render(); }
+  if (action === 'progress-all') { S.open['prog-' + b.dataset.task] = true; return render(); }
+  if (action === 'show-system') { S.showSystem = !S.showSystem; store.set('showSystem', S.showSystem ? '1' : ''); return render(); }
   if (action === 'steps-all' || action === 'hist-all') { const k = `${action}-${b.dataset.task}`; S.open[k] = !S.open[k]; return render(); }
   if (action === 'copy-path') { try { await navigator.clipboard.writeText(b.dataset.path); toast(t('refs.copied')); } catch { toast(t('common.error', { msg: 'clipboard' })); } return; }
   if (action === 'copy-secret') {
@@ -2480,7 +3086,7 @@ document.addEventListener('click', async e => {
   const r = rev != null ? Number(rev) : undefined;
   b.disabled = true;
   try {
-    if (action === 'signout') { if (S.reader) closeReader(false); store.set('token', ''); S.token = ''; S.data = null; S.prefsFrom = ''; S.seenAsks = null; S.revealedSecret = ''; closeSecretOnce(); return render(); }
+    if (action === 'signout') { if (S.reader) closeReader(false); store.set('token', ''); S.token = ''; S.data = null; S.hist = {}; S.prefsFrom = ''; S.seenAsks = null; S.revealedSecret = ''; closeSecretOnce(); return render(); }
     if (action === 'signin') { S.data = null; return render(); }
     if (action === 'public') { S.token = ''; return refresh(); }
     if (action === 'answer') {
@@ -2616,14 +3222,21 @@ document.addEventListener('drop', e => {
   addImages(c.dataset.id, [...(e.dataTransfer?.files || [])].filter(f => /^image\//.test(f.type)));
 });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyPrefs);
-setInterval(() => { if (S.data && document.visibilityState === 'visible' && !document.activeElement?.matches('input,textarea,select') && !mediaPlaying()) refresh(); }, 15000);
+// Poll every 15 s while visible and about every 60 s while hidden, never not at all: WebView2 can report the page hidden while it is on
+// screen (T-31 alpha.9.5, owner PC), and a board that stopped polling then stayed stale until a click. Turning visible refreshes at once.
+// The hidden cadence is elapsed time, not a tick count: Chromium wakes a page hidden for over 5 min at most once a minute, and 55 s (not 60)
+// lets a wake-up that lands just short of the minute still poll. The 10 s floor while visible stops a tick right after the return refresh.
+let lastPollAt = Date.now();
+const pollNow = () => { if (S.data && !document.activeElement?.matches('input,textarea,select') && !mediaPlaying()) { lastPollAt = Date.now(); refresh(); } };
+setInterval(() => { if (Date.now() - lastPollAt >= (document.visibilityState === 'visible' ? 10000 : 55000)) pollNow(); }, 15000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pollNow(); });
 
 (async function boot() {
   consumeFragment();
   // Opening the bare address returns to the page last viewed in this browser, as the predecessor board did.
   if (!location.hash && /^#\/?[A-Za-z]/.test(store.get('view'))) history.replaceState(null, '', location.pathname + store.get('view'));
   S.prefs = loadLocalPrefs();
-  S.leftFilter = store.get('leftFilter'); S.ctxTab = store.get('ctxTab');
+  S.leftFilter = store.get('leftFilter'); S.ctxTab = store.get('ctxTab'); S.showSystem = store.get('showSystem') === '1';
   applyPrefs();
   await loadLocale(detectLang());
   S.token = store.get('token');

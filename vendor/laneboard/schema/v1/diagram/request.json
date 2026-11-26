@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "diagram/request.json",
+  "title": "Body of POST /api/v1/diagram: the only way to change a diagram",
+  "description": "Same envelope as write-request.json, on its own route and store: diagram writes go to <data>/diagrams.ndjson plus media blobs, never to events.ndjson, so a rollback to a board without diagrams still replays its journal and starts (the mailbox and delivery precedent). The envelope is validated first, then `data` against diagram/<op>.json (the part after 'diagram.'). Identity comes from the credential, never from the body; rev 2 (M5): an owner-role actor must be an owner UI credential (owner proxy login, a device token, or a ui token), else 403 owner_ui_only, checked before data is read. origin is never used for identity. Roles, revision rule and pinned rule come from each op file's x-roles, x-revision, x-pinned, as OP_RULES does for journal ops. request_id: a retry with the same id and body returns the original result; the same id with another body is 409 request_id_reused. The prefix 'diagram-' is reserved for the board's own pointer writes on POST /api/v1/write (400 reserved_request_id there).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "request_id", "op", "target_id", "data"],
+  "properties": {
+    "version": { "const": 1 },
+    "request_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$" },
+    "op": { "enum": ["diagram.create", "diagram.apply", "diagram.propose", "diagram.decide", "diagram.pin", "diagram.restore", "diagram.archive"] },
+    "target_id": { "$ref": "../common.json#/$defs/taskId", "description": "The task whose diagram this is. Must be a task on the board (404 task_not_found) inside the token's scope (403 out_of_scope)." },
+    "expected_revision": { "type": "integer", "minimum": 0, "description": "The diagram rev the client read. Required when the op says x-revision=required; a stale value is 409 revision_conflict {current_revision}." },
+    "data": { "type": "object" },
+    "origin": { "type": "string", "maxLength": 120, "description": "Declared relay origin, unverified metadata (e.g. zumi-pack-diagram)." }
+  },
+  "examples": [
+    {
+      "version": 1, "request_id": "zumi-pack-diagram-7f3a91c2", "op": "diagram.apply", "target_id": "MAP", "expected_revision": 11,
+      "data": { "ops": [{ "op": "node.move", "id": "zumi.chat", "x": 1900, "y": 300 }, { "op": "node.text", "id": "zumi.chat", "lang": "vi", "title": "Chat với Zumi" }], "note": "đổi tên ô chat" }
+    }
+  ]
+}

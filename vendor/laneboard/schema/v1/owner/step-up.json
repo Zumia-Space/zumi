@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "owner/step-up.json",
+  "title": "POST /api/v1/owner/2fa/step-up: request body",
+  "description": "One of code (TOTP) or backup_code. Makes this browser (cookie) or this device/ui token an owner device for 30 days, sliding.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "type": "string",
+      "pattern": "^[0-9]{6}$"
+    },
+    "backup_code": {
+      "type": "string",
+      "pattern": "^[A-Z2-7]{5}-?[A-Z2-7]{5}$"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60,
+      "pattern": "^[^<>]*$"
+    }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "code"
+      ]
+    },
+    {
+      "required": [
+        "backup_code"
+      ]
+    }
+  ]
+}

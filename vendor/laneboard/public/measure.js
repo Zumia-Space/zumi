@@ -72,65 +72,29 @@
     return a.waiting_since || legacy || a.attribution.created_at;
   }
 
-  /** Owner messages that answer or react to an ask: everything the owner can write on a task except a new task and a goal lock. */
-  const REPLY_KINDS = new Set(['note', 'approve', 'reject', 'choice', 'redirect', 'askback']);
-
   /**
-   * Since when the owner has been asked this question. THE chain rule (decided 10-11, so that a lane may refresh the text of its
-   * ask without restarting the wait): an ask is the SAME ask as the one before it when
-   *  - both sit on the same owner step (a step-less ask has no step to share: it never chains), and
-   *  - the earlier one was cleared (the lane re-asked; an answered ask is a finished question), and
-   *  - the owner did not reply in between, and the step did not leave the waiting state in between (done, active, anything: a step
-   *    that was finished and reopened is a new wait, whatever the asks on it say).
-   * The text does not matter and neither does the gap between the clear and the new raise (the old 5-minute window and the
-   * text-similarity test are gone). A new question after the owner replied is a new wait. The chain is followed back to the first ask.
-   *
-   * "The owner replied" is read from the journal (the `messages` of the view, src/views.mjs messagesView, same on the page and the
-   * server): an owner message (note, approve, reject, choice, redirect, askback) written from the time the earlier ask was raised up
-   * to the time the later one was raised, that is scoped to that step, or to that ask, or answers that ask (answers_ask_id); or an
-   * ask answered (status answered) in that interval on that step or on no step (a step-less ask is the task's question of the moment:
-   * C-54's 10-02 "Ok nhe" went to the step-less ask-555 that carried ask-23's question over). A coordinator receipt is not a reply: it only follows an owner
-   * message, which is already counted.
-   * @param {object} ask   an ask record (attribution.created_at, waiting_since, task_id, step_id)
-   * @param {object[]} asks every ask record of the board (any status)
-   * @param {object[]} [messages] the view's messages (owner replies); without them nothing counts as a reply
-   * @param {object} [times] the view's step times (id -> { transitions: [{ at, from, to }] }); without them a step never counts as having left waiting
+   * Since when the owner has been asked this question: the ask's OWN time (askOwnAt). A re-ask (a lane rewrote the text, added a
+   * link, or the CLI cleared and raised again) is a new ask and starts again at its own raise time (owner 11-11: GW read 22 d for
+   * an ask raised 10 days ago, T-31-STREAM 12.7 d for 9.5). The 10-11 chain rule, which walked a re-ask back to the first cleared
+   * ask on the same step, is gone: it made every refreshed question inherit the age of the first one. An imported ask keeps the
+   * earlier time its source recorded (waiting_since, or the legacy origin time), because that IS when it was raised.
+   * @param {object} ask an ask record (attribution.created_at, waiting_since)
    * @returns {string} ISO time
    */
-  function askSince(ask, asks, messages, times) {
-    const step = ask.step_id || '';
-    let cur = ask, first = askOwnAt(ask);
-    const seen = new Set();
-    while (step && cur && !seen.has(cur.id)) {
-      seen.add(cur.id);
-      const raised = cur.attribution.created_at;
-      const prev = (asks || []).filter(p => p.task_id === ask.task_id && p.step_id === step && (p.lane || '') === (ask.lane || '') && !seen.has(p.id) && p.attribution.created_at < raised)
-        .sort((x, y) => x.attribution.created_at.localeCompare(y.attribution.created_at)).at(-1);
-      if (!prev || prev.status !== 'cleared') break;
-      const from = prev.attribution.created_at;
-      const answeredAsk = (asks || []).some(x => x.task_id === ask.task_id && (!x.step_id || x.step_id === step) && x.status === 'answered' && x.answer && x.answer.at >= from && x.answer.at <= raised);
-      const replied = (messages || []).some(msg => msg.task_id === ask.task_id && msg.author?.role === 'owner' && REPLY_KINDS.has(msg.kind) && msg.ts >= from && msg.ts <= raised
-        && (msg.scope?.step_id === step || msg.scope?.ask_id === prev.id || msg.answers_ask_id === prev.id));
-      const stepLeft = ((times || {})[`${ask.task_id}/${step}`]?.transitions || []).some(tr => tr.from === 'waiting' && tr.to !== 'waiting' && tr.at >= from && tr.at <= raised);
-      if (answeredAsk || replied || stepLeft) break;
-      cur = prev;
-      const at = askOwnAt(prev);
-      if (at < first) first = at;
-    }
-    return first;
-  }
+  function askSince(ask) { return askOwnAt(ask); }
 
-  /** The items of one task that are a wait on the owner: everything but an answer the coordinator has not picked up (kind 'unreceived'). */
-  function rowWaits(items) { return (items || []).filter(w => w.kind !== 'unreceived'); }
+  /** The items of one task that are a wait on the owner: everything but a wait about one owner message (an answer the coordinator
+   *  has not picked up, kind 'unreceived'; a message no agent session received, kind 'undelivered', J-05 delivery). */
+  function rowWaits(items) { return (items || []).filter(w => w.kind !== 'unreceived' && w.kind !== 'undelivered'); }
 
   /**
    * THE age rule of a task's wait on the owner, used by every surface (the rail and Home, the page's task header, and the
    * board's /state askAt that the reminder hook reads), so they cannot drift:
-   *  - an open ask counts from its own time, a same-step near-identical re-ask chained back to the first (askSince);
+   *  - an open ask counts from its own raise time (askSince = askOwnAt; a re-ask restarts it);
    *  - a waiting owner step with NO ask on it counts from its waiting_since;
    *  - a step an open ask sits on is skipped: its old waiting_since does not count (owner 10-11: a new question filed on an
    *    old reused step, W-41, read 4.8 days);
-   *  - the row's age is the oldest of those items. An item the owner already answered (kind 'unreceived') is the
+   *  - the row's age is the oldest OPEN one of those items (the rail and Home add the count as xN). An item the owner already answered (kind 'unreceived') is the
    *    coordinator's move, not a wait, and is left out unless nothing else waits.
    * The server builds the items (src/views.mjs ownerAttention: asks, proposals, uncovered steps, each with `since`).
    * @param {{task_id?: string, kind: string, since: string}[]} items the view's attention.waiting items of ONE task
@@ -202,5 +166,31 @@
     return Number.isFinite(at) && nowMs - at >= 0 && nowMs - at <= FRESH_REPORT_MS;
   }
 
-  root.LaneMeasure = { waitIntervals, unionMs, measuredTimes, askSince, askOwnAt, rowWaits, rowWaitSince, needRows, needGroups, stepDoneAt, freshReport };
+  var DEFAULT_TZ = 'Asia/Ho_Chi_Minh', fmtCache = {};
+  /** "dd-mm HH:mm" in the owner's zone (config.owner_tz, default Asia/Ho_Chi_Minh) for an ISO time; null for nothing or a non-time.
+   *  The one formatter: the server (src/times.mjs), the CLI's readers and the page all show a moment the same way. */
+  function formatLocal(iso, tz) {
+    if (!iso) return null;
+    var ms = Date.parse(iso);
+    if (!isFinite(ms)) return null;
+    var zone = tz || DEFAULT_TZ, f = fmtCache[zone];
+    if (!f) {
+      try { f = new Intl.DateTimeFormat('en-GB', { timeZone: zone, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); }
+      catch (e) { zone = DEFAULT_TZ; f = fmtCache[zone] || new Intl.DateTimeFormat('en-GB', { timeZone: zone, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); }
+      fmtCache[zone] = fmtCache[tz || DEFAULT_TZ] = f;
+    }
+    var p = {};
+    f.formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; });
+    return p.day + '-' + p.month + ' ' + p.hour + ':' + p.minute;
+  }
+
+  /** Steps of one phase in time order: earliest stamps.created_at first, a step with no known time last, the board's order breaks
+   *  ties. A copy; the input order is the board's. */
+  function timeOrder(steps) {
+    return steps.map(function (s, i) { return { s: s, i: i, at: (s.stamps && s.stamps.created_at) || '' }; })
+      .sort(function (a, b) { return (a.at && b.at ? (a.at < b.at ? -1 : a.at > b.at ? 1 : 0) : a.at ? -1 : b.at ? 1 : 0) || a.i - b.i; })
+      .map(function (x) { return x.s; });
+  }
+
+  root.LaneMeasure = { formatLocal, timeOrder, waitIntervals, unionMs, measuredTimes, askSince, askOwnAt, rowWaits, rowWaitSince, needRows, needGroups, stepDoneAt, freshReport };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -10,10 +10,17 @@
     },
     "feedbackTarget": {
       "anyOf": [
-        { "$ref": "#/$defs/taskId" },
-        { "const": "*" }
+        {
+          "$ref": "#/$defs/taskId"
+        },
+        {
+          "const": "NEWS"
+        },
+        {
+          "const": "*"
+        }
       ],
-      "description": "Target of feedback.add: a task id, or * = the whole board (the owner's sweep request)."
+      "description": "Target of feedback.add: a task id, NEW = the board's thread of new-task requests, NEWS = the board-wide news thread (cos-report / cos-event), or * = the whole board (the owner's sweep request)."
     },
     "stepId": {
       "type": "string",
@@ -27,8 +34,8 @@
     },
     "recordId": {
       "type": "string",
-      "pattern": "^[a-z]+-[0-9]+$",
-      "description": "Server-assigned id for asks, inbox items, feedback and attachments, e.g. ask-42."
+      "pattern": "^[a-z]+-[0-9]+(?:-[0-9]+)?$",
+      "description": "Server-assigned id for asks, inbox items, feedback and attachments, e.g. ask-42; the asks one task.create raises from its open_questions are ask-<seq>-<n>."
     },
     "shortText": {
       "type": "string",
@@ -163,13 +170,102 @@
     "architecture": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["format", "nodes"],
+      "required": [
+        "format",
+        "nodes"
+      ],
       "description": "The product's structure (features/modules, user flow, integrations), not the plan steps. Cross-references (edge ends, node groups), the text rules and the byte cap are checked by src/architecture.mjs.",
       "properties": {
-        "format": { "type": "string", "enum": ["graph"] },
-        "groups": { "type": "array", "maxItems": 8, "items": { "type": "object", "additionalProperties": false, "required": ["id", "label"], "properties": { "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$" }, "label": { "type": "string", "minLength": 1, "maxLength": 60 } } } },
-        "nodes": { "type": "array", "minItems": 1, "maxItems": 40, "items": { "type": "object", "additionalProperties": false, "required": ["id", "label"], "properties": { "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$" }, "label": { "type": "string", "minLength": 1, "maxLength": 60 }, "sub": { "type": "string", "maxLength": 100 }, "group": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$" } } } },
-        "edges": { "type": "array", "maxItems": 80, "items": { "type": "object", "additionalProperties": false, "required": ["from", "to"], "properties": { "from": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$" }, "to": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$" }, "label": { "type": "string", "maxLength": 40 }, "dashed": { "type": "boolean" } } } }
+        "format": {
+          "type": "string",
+          "enum": [
+            "graph"
+          ]
+        },
+        "groups": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              }
+            }
+          }
+        },
+        "nodes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "sub": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "group": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
+              }
+            }
+          }
+        },
+        "edges": {
+          "type": "array",
+          "maxItems": 80,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "from",
+              "to"
+            ],
+            "properties": {
+              "from": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
+              },
+              "to": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
+              },
+              "label": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "dashed": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
       }
     },
     "loop": {
@@ -231,6 +327,21 @@
           "type": "string",
           "maxLength": 120,
           "description": "Declared by the request (e.g. a text-only model relayed through an executor). Unverified."
+        },
+        "via": {
+          "enum": [
+            "proxy"
+          ],
+          "description": "W-42 5A rev 2 (M5): set by the server when the credential was the owner web login through the owner proxy, never from request data. Journaled, so an ask answer or a note can later be proven to come from the owner UI. An older release keeps it as an opaque field."
+        },
+        "owner_device": {
+          "type": "string",
+          "pattern": "^dv-[0-9]+$",
+          "description": "W-42 5A rev 3: set by the server when the owner wrote from an owner device (TOTP step-up, contract 3.7), never from request data. Class-B evidence for an owner-only proposal needs it on the answer."
+        },
+        "relay": {
+          "const": true,
+          "description": "W-42 5A rev 3: set by the server on a write whose request_id starts with zumi-relay- (the Zumi in-app chat relay). It only ever reduces rights: a relay answer is never class-B diagram evidence."
         }
       }
     },
@@ -277,7 +388,8 @@
         "text/plain",
         "text/markdown",
         "audio/mpeg",
-        "video/mp4"
+        "video/mp4",
+        "video/webm"
       ]
     },
     "tokenName": {
@@ -312,6 +424,10 @@
         },
         "state": {
           "$ref": "#/$defs/stepState"
+        },
+        "phase": {
+          "$ref": "#/$defs/stepId",
+          "description": "The task phase this step belongs to (a phase id of the task)."
         },
         "detail": {
           "type": "string",
@@ -370,6 +486,65 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 4000
+    },
+    "goalCheck": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "description": "Goal QC: how to check the goal is met, a command or URL plus the expected result."
+    },
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "state"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stepId"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "state": {
+          "$ref": "#/$defs/stepState"
+        }
+      },
+      "description": "One phase of a task, fixed at goal QC: a checkable slice of the goal. Progress = done phases / phases."
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "items": {
+        "$ref": "#/$defs/phase"
+      },
+      "description": "Changing the phases' ids, labels or order is a replan and needs replan_reason; a state-only change is progress."
+    },
+    "openQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "step_id": {
+          "$ref": "#/$defs/stepId"
+        },
+        "options": {
+          "$ref": "#/$defs/options"
+        }
+      },
+      "description": "An owner question found at goal QC: raised as an open ask in the same write (on step_id when given)."
     }
   }
 }

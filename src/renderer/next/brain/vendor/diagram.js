@@ -2,7 +2,7 @@
 // Pure functions only: no DOM, no fetch, no UI text (app.js turns the geometry into markup and translates labels).
 // Loaded as a classic script in the browser (sets window.LaneDiagram) and importable in Node (sets globalThis.LaneDiagram).
 //
-// The flow rule is the predecessor board's (taskFlow): walk the steps in board order and
+// The flow rule is the predecessor board's (its board.html, taskFlow): walk the steps in board order and
 // advance one column, unless the next step sits in a LOWER lane — then it stacks under the previous one, reading as a
 // hand-down between phases. The merged `lich-su` step is not part of the flow: it is one collapsed box (a history chip)
 // that shows its lines only when opened, so an archive of old steps can never push the live steps off screen.

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "diagram/decide.json",
+  "title": "data for diagram.decide",
+  "description": "Accept or reject one open proposal of the attached diagram, whole (no per-op acceptance). accept replays its ops (or its restore_to) on the current revision (expected_revision = the current rev, not the proposal base): one new revision attributed to the deciding actor, with proposal_id; when an op no longer applies the whole accept is refused 409 proposal_stale {failed_ops} and the proposal stays open. reject creates no revision. Owner (UI credential): always. Coordinator: only with evidence = the proposal's own bound ask, passing every clause of the bound-ask check (contract 3.3): same task, held by this proposal only, open when the proposal was stored, answered by an owner UI actor with a scoped answer (ask.answer on it, or a feedback naming it in ask_id), verdict approve to accept or reject to reject, not used before. Any other evidence is 409 evidence_too_weak. This is the only way a coordinator lands a bulk removal or a write that removes on a pinned diagram. An accept never changes the pin. An owner accept that bumps contentRev writes the pointer message, as an owner apply does. A decided proposal is 409 proposal_closed. Response: { ok, proposal_id, state, rev? }. Rev 3: a write that removes more than 10 nodes or 20 edges (and, for decide, the accept of a restore_to proposal) is owner-only: an owner device, or for the coordinator a bound ask answered from an owner device (contract 3.3 clause 9, 3.7.1).",
+  "x-roles": [
+    "owner",
+    "coordinator"
+  ],
+  "x-owner-ui": true,
+  "x-target": "taskId",
+  "x-revision": "required",
+  "x-pinned": "coordinator: bound ask only",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "proposal_id",
+    "decision"
+  ],
+  "properties": {
+    "proposal_id": {
+      "type": "string",
+      "pattern": "^dp-[0-9]+$"
+    },
+    "decision": {
+      "enum": [
+        "accept",
+        "reject"
+      ]
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 300,
+      "pattern": "^[^<>]*$"
+    },
+    "evidence": {
+      "type": "string",
+      "pattern": "^ask-[0-9]+(?:-[0-9]+)?$",
+      "description": "The proposal's bound ask_id. Required for a coordinator; ignored for the owner."
+    }
+  },
+  "x-owner-only": "bulk"
+}

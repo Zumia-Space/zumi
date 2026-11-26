@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/dossier.mark.json",
+  "title": "data for dossier.mark",
+  "description": "The CLI reports when a task's dossier was last brought up to date (its STATUS run stamp or newest log line, dossier-gate.mjs). Bookkeeping: it never moves the task's activity clock. The supervisor's rule R5 compares it with the task's last change.",
+  "x-roles": ["owner", "coordinator"],
+  "x-target": "taskId",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["dossier_at"],
+  "properties": {
+    "dossier_at": { "$ref": "../common.json#/$defs/timestamp" }
+  }
+}

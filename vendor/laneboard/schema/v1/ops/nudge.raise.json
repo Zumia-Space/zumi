@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ops/nudge.raise.json",
+  "title": "data for nudge.raise",
+  "description": "The board's own task supervisor (J-05, src/supervisor.mjs) files one nudge: a feedback record of kind nudge to the owning lane (level 1), CoS (2) or the owner (3), or a daily digest (rule digest, target *, info). Written only by the board itself: no role may send it.",
+  "x-roles": [],
+  "x-target": "feedbackTarget",
+  "x-revision": "none",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["key", "rule", "level", "lane", "text"],
+  "properties": {
+    "key": { "type": "string", "minLength": 1, "maxLength": 300, "description": "Dedup key: a key the board has filed once is never filed again." },
+    "rule": { "enum": ["R1", "R2", "R3", "R4", "R5", "digest"] },
+    "level": { "type": "integer", "minimum": 1, "maximum": 3 },
+    "lane": { "type": "string", "minLength": 1, "maxLength": 60 },
+    "text": { "type": "string", "minLength": 1, "maxLength": 8000 },
+    "step_id": { "$ref": "../common.json#/$defs/stepId" },
+    "ask_id": { "$ref": "../common.json#/$defs/recordId" },
+    "escalated_from": { "$ref": "../common.json#/$defs/recordId" },
+    "ask_ids": { "type": "array", "maxItems": 200, "items": { "$ref": "../common.json#/$defs/recordId" }, "description": "R2: the asks one owner nudge lists (it closes when none is open)." },
+    "also_keys": { "type": "array", "maxItems": 200, "items": { "type": "string", "maxLength": 300 }, "description": "R2: the per-ask keys this nudge covers (each ask once per ownerAskMs)." },
+    "info": { "const": true }
+  }
+}

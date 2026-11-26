@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "ops/task.create.json",
   "title": "data for task.create",
-  "description": "Create a task, optionally with its steps.",
+  "description": "Create a task, optionally with its steps. With the board guards on (BOARD_GUARDS_SINCE) a new task carries its goal QC: goal_check, phases and open_questions.",
   "x-roles": [
     "owner",
     "coordinator"
@@ -103,6 +103,20 @@
         }
       ],
       "description": "Product structure diagram; null clears it."
+    },
+    "goal_check": {
+      "$ref": "../common.json#/$defs/goalCheck"
+    },
+    "phases": {
+      "$ref": "../common.json#/$defs/phases"
+    },
+    "open_questions": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "$ref": "../common.json#/$defs/openQuestion"
+      },
+      "description": "Every owner question found at goal QC ([] when there is none); each becomes an open ask in this write, ids ask-<seq>-<n>."
     }
   }
 }
