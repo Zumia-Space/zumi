@@ -36,7 +36,8 @@ const gitOk = (cwd, args) => spawnSync('git', args, { cwd, stdio: 'ignore' }).st
 // revs: rev-list arguments. Returns { checked, findings: [{ sha, field, masked }] }.
 export function checkRevs(cwd, revs, baseline = BASELINE) {
   const haveBaseline = gitOk(cwd, ['cat-file', '-e', `${baseline}^{commit}`]);
-  const raw = git(cwd, ['log', '--format=%H%x1f%ae%x1f%ce%x1f%B%x1e', ...revs, ...(haveBaseline ? ['--not', baseline] : [])]);
+  // The baseline goes first: after a --not (as in --new-ref) a ^x or a second --not would make it a positive tip again.
+  const raw = git(cwd, ['log', '--format=%H%x1f%ae%x1f%ce%x1f%B%x1e', ...(haveBaseline ? [`^${baseline}`] : []), ...revs]);
   const findings = [];
   let checked = 0;
   for (const rec of raw.split('\x1e')) {
@@ -53,7 +54,7 @@ export function checkRevs(cwd, revs, baseline = BASELINE) {
 
 // Which commits to read: a new ref, an explicit range, the release range, or (default) what origin/main lacks.
 function pickRange(cwd, arg, release) {
-  if (arg('--new-ref')) return { revs: [arg('--new-ref'), '--not', '--remotes'], label: `${arg('--new-ref').slice(0, 7)} (not on a remote-tracking ref)` };
+  if (arg('--new-ref')) return { revs: [arg('--new-ref'), '--not', '--remotes'], label: `${arg('--new-ref').slice(0, 7)}, not on a remote-tracking ref` };
   if (arg('--range')) return { revs: [arg('--range')], label: arg('--range') };
   if (release) {
     // The previous release tag is the nearest v* ancestor of HEAD's parent, so a tagged HEAD is compared with the tag before it.
@@ -76,6 +77,8 @@ function main() {
       if (release && args.includes('--dry')) { console.log('commit emails: no git history in this tree, nothing to read (rehearsal)'); return 0; }
       throw new ToolError('not a git checkout: the commit history cannot be read');
     }
+    // A truncated history hides the release range: describe finds no earlier tag and the range collapses to the tip. Never a pass.
+    if (release && git(cwd, ['rev-parse', '--is-shallow-repository']).trim() === 'true') throw new ToolError('shallow clone: the release range cannot be read in full; check out with fetch-depth 0 (all history and tags)');
     const { revs, label } = pickRange(cwd, arg, release);
     const { checked, findings, haveBaseline } = checkRevs(cwd, revs, baseline);
     if (!haveBaseline) console.log('note: the baseline commit is not in this clone (shallow or unrelated history), so none of its history was exempted; only the commits in the range were read');
@@ -86,11 +89,11 @@ function main() {
       console.log('DO: set user.email to your GitHub noreply address, then rewrite the listed commits (git commit --amend --reset-author, or an interactive rebase with --exec) and try again.');
       return 1;
     }
-    console.log(`PASS commit emails: ${checked} commits checked (${label}), all author, committer and trailer addresses allowed`);
+    console.log(`PASS commit emails: ${checked} commit${checked === 1 ? '' : 's'} checked (${label}), all author, committer and trailer addresses allowed`);
     return 0;
   } catch (e) {
     if (!(e instanceof ToolError)) throw e;
-    console.log(`ERROR ${e.message}`);
+    console.log(`Error: ${e.message}`);
     return 2;
   }
 }
