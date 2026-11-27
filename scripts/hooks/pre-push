@@ -1,0 +1,15 @@
+#!/bin/sh
+# Pre-push hook: refuse a push of commits whose author, committer or trailer carries a non-noreply email.
+# Enable once per clone (nothing installs it for you):  git config core.hooksPath scripts/hooks
+# Git feeds stdin lines: <local ref> <local sha> <remote ref> <remote sha>. Output shows masked addresses only.
+zero=0000000000000000000000000000000000000000
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue # deleting a ref publishes nothing
+  if [ "$remote_sha" = "$zero" ] || ! git cat-file -e "$remote_sha" 2>/dev/null; then
+    node scripts/check-commit-emails.mjs --new-ref "$local_sha" || status=1
+  else
+    node scripts/check-commit-emails.mjs --range "$remote_sha..$local_sha" || status=1
+  fi
+done
+exit $status
