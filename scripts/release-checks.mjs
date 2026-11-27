@@ -22,6 +22,8 @@ export const RELEASE_CHECKS = [
   ['check-market-host'],
   ['check-ui-lang'],
   ['check-contributing'],
+  // No personal address in a commit since the previous release tag (history before the baseline is exempt by owner decision, see the script).
+  dry ? ['check-commit-emails', '--release', '--dry'] : ['check-commit-emails', '--release'],
   ['check-checks-registered'],
   ['check-public-first-run'],
   ['check-memory-notes'],

@@ -33,6 +33,7 @@ jobs:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           persist-credentials: false
+          fetch-depth: 0 # check-commit-emails --release reads every commit since the previous v* tag
       # Read-only token for the private asset repo. The fetch below checks every byte against official-assets.json in this repo.
       - name: Check out the official assets
         if: github.event_name == 'push'
