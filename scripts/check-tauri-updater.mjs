@@ -273,6 +273,21 @@ if (fs.existsSync(pinsPath) && fs.existsSync(fetchModule)) {
     fs.rmSync(path.join(t, 'a.bin'));
     ok(assetProblems(t, pin).some((p) => /missing/.test(p)), 'the fetch refuses a missing file');
   } finally { fs.rmSync(t, { recursive: true, force: true }); }
+  // v0.3.8-r1 broke here: the fetch handed the build the LAST pinned .vrm as ZUMI_DEFAULT_VRM_PATH and no look4 variable. Each
+  // default model (PIN-MANIFEST main pin + pair) must get its own variable, pointing at its own file, with the same pin.
+  const { modelSourceLines } = await import(pathToFileURL(fetchModule).href);
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'resources-pinned', 'default-model', 'PIN-MANIFEST.json'), 'utf8'));
+  const entries = [manifest, ...(Array.isArray(manifest.pair) ? manifest.pair : [])];
+  const got = typeof modelSourceLines === 'function' ? modelSourceLines('X', pins, manifest) : { lines: [], problems: ['no modelSourceLines export'] };
+  ok(got.problems.length === 0, 'official-assets.json pins every default model with PIN-MANIFEST.json\'s size and sha256', got.problems);
+  ok(entries.every((m) => got.lines.includes(`${m.sourceEnvVar}=${path.join('X', 'assets', 'models', m.file)}`)) && got.lines.length === entries.length, 'the fetch gives each default model its own source variable', got.lines);
+  if (typeof modelSourceLines === 'function') {
+    const look = entries[entries.length - 1];
+    const drop = { ...pins }; delete drop[`assets/models/${look.file}`];
+    ok(modelSourceLines('X', drop, manifest).problems.length > 0, 'the fetch refuses when a default model is not pinned');
+    ok(modelSourceLines('X', { ...pins, [`assets/models/${look.file}`]: { ...pins[`assets/models/${look.file}`], bytes: 1 } }, manifest).problems.length > 0, 'the fetch refuses a default model pinned with another size');
+    ok(modelSourceLines('X', { ...pins, 'assets/models/other.vrm': { bytes: 1, sha256: '0'.repeat(64) } }, manifest).problems.length > 0, 'the fetch refuses a pinned .vrm that PIN-MANIFEST.json does not name');
+  }
 }
 
 console.log(`check-tauri-updater: ${pass} passed, ${fail} failed`);
