@@ -28,7 +28,11 @@ try {
   fs.mkdirSync(path.join(stage, 'licenses'), { recursive: true });
   fs.copyFileSync(path.join(repo, 'licenses', 'GPL-3.0.txt'), path.join(stage, 'licenses', 'GPL-3.0.txt'));
   fs.copyFileSync(path.join(repo, 'THIRD_PARTY_LICENSES.md'), path.join(stage, 'THIRD_PARTY_LICENSES.md'));
-  createRequire(import.meta.url)('./lib/public-credits.cjs').toPublicCredits(path.join(stage, 'THIRD_PARTY_LICENSES.md'));
+  const credits = path.join(stage, 'THIRD_PARTY_LICENSES.md');
+  createRequire(import.meta.url)('./lib/public-credits.cjs').toPublicCredits(credits);
+  // A "## ... (source tree only ...)" section credits files that no pack or installer carries. It stays out of the pack, so adding one
+  // leaves the pack's bytes (and the published asset the catalog pins) unchanged; 0.3.8's test-audio section broke the pin this way.
+  fs.writeFileSync(credits, fs.readFileSync(credits, 'utf8').split('\n## ').filter((s, i) => i === 0 || !/^[^\n]*\(source tree only\b/.test(s)).join('\n## '));
 
   const walk = (dir, base = '') => fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? walk(path.join(dir, d.name), `${base}${d.name}/`) : [`${base}${d.name}`]));
   const names = walk(stage).sort();
